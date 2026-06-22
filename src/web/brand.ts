@@ -10,6 +10,12 @@ export function ravenMark(size = 26, tone: 'bone' | 'ink' = 'bone'): string {
   return `<svg width="${size}" height="${size}" viewBox="2 47 166 141" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Horda"><path fill="${fill}" fill-rule="evenodd" d="${RAVEN_D}"/></svg>`;
 }
 
+// Theme-aware raven: inherits the surrounding text color (currentColor), so it
+// flips automatically between dark and light themes.
+export function ravenMarkCurrent(size = 30): string {
+  return `<svg width="${size}" height="${size}" viewBox="2 47 166 141" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Horda"><path fill="currentColor" fill-rule="evenodd" d="${RAVEN_D}"/></svg>`;
+}
+
 // Full crest. `dark`=true uses the inverted (bone shield) for dark backgrounds.
 export function crestMark(height = 120, dark = true): string {
   const w = Math.round((height * 400) / 460);

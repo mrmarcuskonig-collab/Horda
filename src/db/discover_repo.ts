@@ -7,8 +7,8 @@ export const REGIONS = ['Berlin', 'Hamburg', 'Cologne', 'Bavaria'];
 
 export interface Discover {
   sports: { key: string; name: string }[];
-  athletes: { id: string; name: string; region: string | null; sport: string | null }[];
-  clubs: { id: string; name: string; region: string | null; sport: string | null }[];
+  athletes: { id: string; name: string; region: string | null; sport: string | null; avatar: string | null; banner: string | null; verified: boolean }[];
+  clubs: { id: string; name: string; region: string | null; sport: string | null; avatar: string | null; verified: boolean }[];
   upcoming: { id: string; title: string; date?: string; host: string; admission: string }[];
   results: { headline: string; date?: string }[];
 }
@@ -17,7 +17,8 @@ export async function getDiscover(db: Database, filter: { sport?: string; region
   const sports = (await db.query<any>(`SELECT key, name FROM sport WHERE is_live ORDER BY display_order`)).rows;
 
   const athleteRows = (await db.query<any>(
-    `SELECT a.id, a.display_name name, a.region,
+    `SELECT a.id, a.display_name name, a.region, a.avatar_url avatar, a.banner_url banner,
+            (a.account_id IS NOT NULL OR EXISTS (SELECT 1 FROM ownership o WHERE o.owner_kind='athlete' AND o.owner_id=a.id)) verified,
             (SELECT s.key FROM event e JOIN event_participant ep ON ep.event_id=e.id JOIN sport s ON s.id=e.sport_id WHERE ep.participant_id=a.id LIMIT 1) sport
      FROM athlete a
      WHERE EXISTS (SELECT 1 FROM post p WHERE p.author_type='athlete' AND p.author_id=a.id)
@@ -28,10 +29,16 @@ export async function getDiscover(db: Database, filter: { sport?: string; region
 
   const clubRows = (await db.query<any>(
     `SELECT c.id, c.name, c.region,
-            (SELECT s.key FROM team t JOIN sport s ON s.id=t.sport_id WHERE t.club_id=c.id LIMIT 1) sport
+            (SELECT s.key FROM team t JOIN sport s ON s.id=t.sport_id WHERE t.club_id=c.id LIMIT 1) sport,
+            (SELECT eb.avatar_url FROM entity_branding eb WHERE eb.entity_type='club' AND eb.entity_id=c.id) avatar,
+            EXISTS (SELECT 1 FROM ownership o WHERE o.owner_kind='club' AND o.owner_id=c.id) verified
      FROM club c ORDER BY c.name`)).rows;
 
-  const matches = (row: any) => (!filter.sport || row.sport === filter.sport) && (!filter.region || row.region === filter.region);
+  // location is free-text now (any city/region worldwide) → match case-insensitively
+  // and as a partial, so "berlin", "Berlin", or "berl" all hit the Berlin coverage.
+  const reg = filter.region?.trim().toLowerCase();
+  const matches = (row: any) => (!filter.sport || row.sport === filter.sport)
+    && (!reg || (row.region && row.region.toLowerCase().includes(reg)));
 
   const evRows = (await db.query<any>(
     `SELECT e.id, e.name title, to_char(e.starts_at,'DD Mon') date, e.host_kind, e.host_id, e.admission
@@ -45,8 +52,8 @@ export async function getDiscover(db: Database, filter: { sport?: string; region
 
   return {
     sports,
-    athletes: athleteRows.filter(matches).map(a => ({ id: a.id, name: a.name, region: a.region, sport: a.sport })),
-    clubs: clubRows.filter(matches).map(c => ({ id: c.id, name: c.name, region: c.region, sport: c.sport })),
+    athletes: athleteRows.filter(matches).map(a => ({ id: a.id, name: a.name, region: a.region, sport: a.sport, avatar: a.avatar ?? null, banner: a.banner ?? null, verified: !!a.verified })),
+    clubs: clubRows.filter(matches).map(c => ({ id: c.id, name: c.name, region: c.region, sport: c.sport, avatar: c.avatar ?? null, verified: !!c.verified })),
     upcoming, results,
   };
 }

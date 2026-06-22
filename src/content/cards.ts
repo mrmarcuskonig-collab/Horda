@@ -36,7 +36,7 @@ export function shareCardSVG(o: CardOpts): string {
   ${o.sub ? `<text x="72" y="910" font-family="Helvetica,Arial,sans-serif" font-size="44" font-weight="600" fill="${BONE}" opacity="0.8">${escTxt(o.sub)}</text>` : ''}
   ${o.foot ? `<text x="72" y="1180" font-family="Helvetica,Arial,sans-serif" font-size="40" font-weight="800" letter-spacing="1" fill="${BONE}">${escTxt(o.foot)}</text>` : ''}
   <line x1="72" y1="1240" x2="1008" y2="1240" stroke="${BONE}" stroke-width="2" opacity="0.3"/>
-  <text x="72" y="1300" font-family="Helvetica,Arial,sans-serif" font-size="34" font-weight="700" letter-spacing="2" fill="${BONE}" opacity="0.7">horda.app · this is the Horda</text>
+  <text x="72" y="1300" font-family="Helvetica,Arial,sans-serif" font-size="34" font-weight="700" letter-spacing="2" fill="${BONE}" opacity="0.7">joinhorda.com · this is the Horda</text>
   </svg>`;
 }
 

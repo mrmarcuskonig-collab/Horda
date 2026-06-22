@@ -2,6 +2,7 @@
 // Run: node tests/auth.test.ts
 import { startServer } from '../src/web/server.ts';
 import { signup, verifyLogin, owns } from '../src/db/auth_repo.ts';
+import { decideClaim } from '../src/db/claim_repo.ts';
 
 let pass = 0, fail = 0;
 const ok = (n: string, c: boolean) => { console.log(`  ${c ? 'PASS' : 'FAIL'}  ${n}`); c ? pass++ : fail++; };
@@ -32,12 +33,19 @@ const athletePage = await authed(`/athlete/${rico}`);
 ok('logged-in fan does NOT see the owner edit panel', !athletePage.includes('Edit profile (owner)'));
 ok('logged-in fan CAN act (become a member shown, not gated to signup)', athletePage.includes('Become a member') && athletePage.includes('action="/join"'));
 
-console.log('\n[auth · claim grants ownership → owner tools appear]');
+console.log('\n[auth · claim is a verified request, not instant ownership]');
 const before = await authed(`/club/${club}`);
 ok('before claiming, no edit panel on the club', !before.includes('Edit profile (owner)'));
-await fetch(base + `/claim/club/${club}`, { headers: { cookie }, redirect: 'manual' });
+const claimResp = await authed(`/claim/club/${club}`);
+ok('claiming opens a verification request (not instant ownership)', claimResp.includes('Claim received'));
+const stillGuarded = await authed(`/club/${club}`);
+ok('pending claim still shows NO owner edit panel', !stillGuarded.includes('Edit profile (owner)'));
+// admin verifies the claim → ownership is granted, owner tools unlock
+const sam = (await app.db.query<{ id: string }>(`SELECT id FROM account WHERE email='sam@horda.app'`)).rows[0].id;
+const claimId = (await app.db.query<{ id: string }>(`SELECT id FROM claim_request WHERE account_id=$1 AND target_id=$2`, [sam, club])).rows[0].id;
+await decideClaim(app.db, claimId, { id: app.ids.demoAccountId, email: 'demo@horda.app', isAdmin: true }, true);
 const after = await authed(`/club/${club}`);
-ok('after claiming, the club shows the owner edit panel', after.includes('Edit profile (owner)'));
+ok('after admin verification, the club shows the owner edit panel', after.includes('Edit profile (owner)'));
 
 console.log('\n[auth · logout]');
 const lo = await fetch(base + '/logout', { headers: { cookie }, redirect: 'manual' });

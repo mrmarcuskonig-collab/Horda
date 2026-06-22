@@ -93,11 +93,11 @@ Sa 28.06. 15:00 FC Beispiel – TSV Musterstadt
 
   await createPost(db, 'athlete', rico, 'Camp is done. June 27 I take the belt. 🐦‍⬛');
   const nextBout = await createBout(db, boxing, bout, rico, max, '2026-06-27T20:00:00Z', names[rico], names[max]);
-  await setEventSpectator(db, nextBout, 'free', 'https://tickets.horda.app/rico-max', 'https://stream.horda.app/rico-max');
+  await setEventSpectator(db, nextBout, 'free', 'https://tickets.joinhorda.com/rico-max', 'https://stream.joinhorda.com/rico-max');
 
   // matchday: offer ticket + stream on FC Beispiel's next fixture too
   const nf = await getNextFixtureForTeam(db, tid['FC Beispiel']);
-  if (nf) await setEventSpectator(db, nf.eventId, 'free', 'https://tickets.horda.app/fcb', 'https://stream.horda.app/fcb');
+  if (nf) await setEventSpectator(db, nf.eventId, 'free', 'https://tickets.joinhorda.com/fcb', 'https://stream.joinhorda.com/fcb');
 
   // scheduled (Luma-style) events — one per admission type, across hosts
   const ev1 = await createScheduledEvent(db, { hostKind: 'athlete', hostId: rico, title: 'Open sparring & meet — Kreuzberg BC', startsAt: '2026-06-24T18:00:00Z', location: 'Kreuzberg Boxing Club, Berlin', description: 'Watch the final session before fight night, then stick around for photos. Open to all.', admission: 'open', streams: { youtube: 'https://youtube.com/@ricotheraven/live', twitch: 'https://twitch.tv/ricotheraven' }, capacity: 60 });
@@ -132,7 +132,7 @@ Sa 28.06. 15:00 FC Beispiel – TSV Musterstadt
 
   // demo account: the "You" fan + owner of the seeded entities. Keeps the app
   // usable without login (HORDA_DEMO); real signups get their own scoped identity.
-  const demoAccountId = (await db.query<{ id: string }>(`INSERT INTO account (email,display_name) VALUES ('demo@horda.app','You') RETURNING id`)).rows[0].id;
+  const demoAccountId = (await db.query<{ id: string }>(`INSERT INTO account (email,display_name,is_admin) VALUES ('demo@horda.app','You',true) RETURNING id`)).rows[0].id;
   await db.query(`UPDATE fan SET account_id=$1 WHERE id=$2`, [demoAccountId, fanId]);
   await db.query(`UPDATE athlete SET account_id=$1 WHERE id=$2`, [demoAccountId, rico]);
   await grantOwnership(db, demoAccountId, 'athlete', rico);

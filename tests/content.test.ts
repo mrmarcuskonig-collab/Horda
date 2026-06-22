@@ -20,7 +20,7 @@ console.log('\n[content · result card + recap]');
 const rs = (await buildResultShare(db, evRow.event_id))!;
 console.log('  recap:', rs.body);
 ok('recap states the real result (winner + method)', /Rico .*defeated .*(Tariq|Otto).* by (UD|KO)/.test(rs.body));
-ok('card carries the real crest mark + link (no wordmark)', rs.card.includes('M110,40 L350,40') && rs.card.includes('horda.app') && !rs.card.includes('HORDA'));
+ok('card carries the real crest mark + link (no wordmark)', rs.card.includes('M110,40 L350,40') && rs.card.includes('joinhorda.com') && !rs.card.includes('HORDA'));
 ok('card is monochrome (only Ink + Bone)', !/#(?!0B0B0C|EDE9DF)[0-9A-Fa-f]{6}/.test(rs.card));
 ok('bright line: no fabricated quote/voice', !/[“"].*[”"]/.test(rs.body) && !/\bsaid\b|\bI'?ll\b|\bwe\b/i.test(rs.body));
 

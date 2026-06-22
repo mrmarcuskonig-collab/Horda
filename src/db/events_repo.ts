@@ -145,14 +145,14 @@ export async function listUpcomingByHost(db: Database, hostKind: string, hostId:
 }
 
 // RFC-5545 calendar export (Luma's signature "add to calendar")
-export function icsFor(d: EventDetail, origin = 'https://horda.app'): string {
+export function icsFor(d: EventDetail, origin = 'https://joinhorda.com'): string {
   const dt = d.startsAt ? new Date(d.startsAt) : new Date();
   const z = (n: number) => String(n).padStart(2, '0');
   const stamp = (x: Date) => `${x.getUTCFullYear()}${z(x.getUTCMonth() + 1)}${z(x.getUTCDate())}T${z(x.getUTCHours())}${z(x.getUTCMinutes())}00Z`;
   const end = new Date(dt.getTime() + 2 * 3600 * 1000);
   const esc = (s: string) => String(s ?? '').replace(/([,;\\])/g, '\\$1').replace(/\n/g, '\\n');
   return ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Horda//EN', 'BEGIN:VEVENT',
-    `UID:${d.id}@horda.app`, `DTSTAMP:${stamp(new Date())}`, `DTSTART:${stamp(dt)}`, `DTEND:${stamp(end)}`,
+    `UID:${d.id}@joinhorda.com`, `DTSTAMP:${stamp(new Date())}`, `DTSTART:${stamp(dt)}`, `DTEND:${stamp(end)}`,
     `SUMMARY:${esc(d.title)}`, `DESCRIPTION:${esc((d.description ?? '') + `\nHosted by ${d.hostName} on Horda`)}`,
     d.location ? `LOCATION:${esc(d.location)}` : '', `URL:${origin}/e/${d.id}`, 'END:VEVENT', 'END:VCALENDAR']
     .filter(Boolean).join('\r\n');

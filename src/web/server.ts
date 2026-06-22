@@ -22,7 +22,8 @@ import { signup, verifyLogin, createSession, sessionAccount, deleteSession, fanF
 import { getDiscover, REGIONS } from '../db/discover_repo.ts';
 import { renderEventPage, renderCreateEvent, renderManage, renderCheckout } from './events.ts';
 import { seedDemo, type DemoIds } from './seed.ts';
-import { renderIndex, renderDiscover, renderAthletePage, renderFanHome, renderSignup, renderLogin, renderSharePage, renderMemberWelcome } from './pages.ts';
+import { renderIndex, renderDiscover, renderMap, renderAthletePage, renderFanHome, renderSignup, renderLogin, renderSharePage, renderMemberWelcome, renderClaimPending, renderClaimQueue } from './pages.ts';
+import { requestClaim, verifyByChannelCode, listClaimsForReviewer, decideClaim, officialDomain, isAdmin as accountIsAdmin, type ClaimKind } from '../db/claim_repo.ts';
 
 const DEMO_FALLBACK = process.env.HORDA_DEMO !== '0';  // default on: usable without login
 const parseCookies = (h?: string): Record<string, string> => Object.fromEntries((h ?? '').split(';').map(c => c.trim().split('=')).filter(p => p[0]).map(([k, ...v]) => [k, decodeURIComponent(v.join('='))]));
@@ -50,6 +51,7 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
       const viewer = (account ? await fanForAccount(db, account.id) : null) ?? ids.fanId;
       const viewerGuest = !account || url.searchParams.get('guest') === '1';
       const canEdit = (kind: string, id: string) => viewerGuest ? Promise.resolve(false) : owns(db, account?.id ?? null, kind, id);
+      const adminFlag = !!account && (account.id === ids.demoAccountId ? true : await accountIsAdmin(db, account.id));
 
       if (path === '/favicon.svg') { res.writeHead(200, { 'content-type': 'image/svg+xml' }); res.end(FAVICON_SVG); return; }
 
@@ -73,13 +75,43 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
         if (cookies.hz_session) await deleteSession(db, cookies.hz_session);
         res.writeHead(303, { 'set-cookie': 'hz_session=; Path=/; Max-Age=0', location: '/' }); res.end(); return;
       }
+      // claim verification: claiming is a REQUEST, not instant ownership.
       let claimM;
+      // re-check a pending channel-code claim (claimant says they posted the code)
+      if ((claimM = path.match(/^\/claim\/(athlete|club|team|association)\/([^/]+)\/verify$/)) && req.method === 'POST') {
+        if (!account) return redirect(res, '/signup');
+        const kind = claimM[1] as ClaimKind, id = claimM[2];
+        const claim = (await db.query<{ id: string }>(`SELECT id FROM claim_request WHERE account_id=$1 AND target_kind=$2 AND target_id=$3 AND status='pending'`, [account.id, kind, id])).rows[0];
+        const verified = claim ? await verifyByChannelCode(db, claim.id).catch(() => false) : false;
+        const entityHref = kind === 'athlete' ? `/athlete/${id}` : `/${kind}/${id}`;
+        if (verified) return redirect(res, entityHref);
+        const name = (await hostName(db, kind, id)) || 'this page';
+        const site = await officialDomain(db, kind, id);
+        return html(res, renderClaimPending({ kind, id, name, code: (await db.query<{ channel_code: string }>(`SELECT channel_code FROM claim_request WHERE account_id=$1 AND target_kind=$2 AND target_id=$3`, [account.id, kind, id])).rows[0]?.channel_code || '', site, backHref: entityHref }));
+      }
+      // request a claim
       if ((claimM = path.match(/^\/claim\/(athlete|club|team|association)\/([^/]+)$/))) {
         if (!account) return redirect(res, '/signup');
-        await grantOwnership(db, account.id, claimM[1], claimM[2]);
-        const tbl = claimM[1] === 'association' ? 'association' : claimM[1] === 'team' ? 'team' : 'club';
-        if (claimM[1] !== 'athlete') await db.query(`UPDATE ${tbl} SET claim_status='claimed' WHERE id=$1`, [claimM[2]]);
-        return redirect(res, claimM[1] === 'athlete' ? `/athlete/${claimM[2]}` : `/${claimM[1]}/${claimM[2]}`);
+        const kind = claimM[1] as ClaimKind, id = claimM[2];
+        const entityHref = kind === 'athlete' ? `/athlete/${id}` : `/${kind}/${id}`;
+        const r = await requestClaim(db, { id: account.id, email: account.email }, kind, id);
+        if (r.status === 'verified') return redirect(res, entityHref);
+        const name = (await hostName(db, kind, id)) || 'this page';
+        const site = await officialDomain(db, kind, id);
+        return html(res, renderClaimPending({ kind, id, name, code: r.code || '', site, backHref: entityHref }));
+      }
+      // review queue (admin + governing-association owners)
+      if (path === '/claims') {
+        if (!account) return redirect(res, '/login?next=/claims');
+        const claims = await listClaimsForReviewer(db, { id: account.id, email: account.email, isAdmin: adminFlag });
+        return html(res, renderClaimQueue({ claims, isAdmin: adminFlag }));
+      }
+      let decM;
+      if ((decM = path.match(/^\/claims\/([^/]+)\/decide$/)) && req.method === 'POST') {
+        if (!account) return redirect(res, '/login');
+        const f = await parseForm(req);
+        await decideClaim(db, decM[1], { id: account.id, email: account.email, isAdmin: adminFlag }, f.decision === 'approve');
+        return redirect(res, '/claims');
       }
 
       if (req.method === 'POST' && path === '/follow') {
@@ -214,6 +246,14 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
         const region = url.searchParams.get('region') || undefined;
         const data = await getDiscover(db, { sport, region });
         return html(res, renderDiscover({ guest: viewerGuest, fanId: viewer, sport, region, data, regions: REGIONS }));
+      }
+      if (path === '/map') {
+        const data = await getDiscover(db, {});
+        const points = [
+          ...data.athletes.filter(a => a.region).map(a => ({ name: a.name, region: a.region, href: `/athlete/${a.id}`, kind: 'athlete' })),
+          ...data.clubs.filter(c => c.region).map(c => ({ name: c.name, region: c.region, href: `/club/${c.id}`, kind: 'club' })),
+        ];
+        return html(res, renderMap({ guest: viewerGuest, fanId: viewer, points }));
       }
       let m;
       if (req.method === 'POST' && (m = path.match(/^\/athlete\/([^/]+)\/branding$/))) {

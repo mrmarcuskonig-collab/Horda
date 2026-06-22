@@ -85,35 +85,96 @@ export function renderEventPage(d: EventDetail, ctx: {
     ? `<div class="cap" style="margin-top:18px">Share on your profile</div><div class="rsvp">${featurable.map(e =>
         `<form method="post" action="/feature"><input type="hidden" name="feat_kind" value="${e.kind}"><input type="hidden" name="feat_id" value="${e.id}"><input type="hidden" name="event_id" value="${d.id}"><button class="rb" type="submit">Feature on ${esc(e.name.split(' ')[0])}</button></form>`).join('')}</div>` : '';
 
+  // date chip (Luma-style calendar square) from the ISO start
+  const dt = d.startsAt ? new Date(d.startsAt) : null;
+  const mon = dt ? dt.toLocaleString('en', { month: 'short', timeZone: 'UTC' }).toUpperCase() : '';
+  const day = dt ? dt.getUTCDate() : '';
+  const mapsHref = d.location ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(d.location)}` : null;
+
+  // host follow (matches Luma's "Folgen")
+  const followBtn = ctx.guest
+    ? `<a class="rb sm" href="/signup">Follow</a>`
+    : `<form method="post" action="/follow"><input type="hidden" name="fan_id" value="${ctx.fanId}"><input type="hidden" name="target_type" value="${d.hostKind}"><input type="hidden" name="target_id" value="${d.hostId}"><button class="rb sm" type="submit">Follow</button></form>`;
+
+  const ICON = {
+    cal: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><rect x="3.5" y="4.5" width="17" height="16" rx="2.5"/><path d="M3.5 9h17M8 2.5v4M16 2.5v4"/></svg>`,
+    pin: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><path d="M12 21c4-4.5 6-7.9 6-10.7a6 6 0 1 0-12 0C6 13.1 8 16.5 12 21Z"/><circle cx="12" cy="10.4" r="2.2"/></svg>`,
+  };
+
   const body = `
   <style>
-    .cap{font-size:11px;letter-spacing:3px;text-transform:uppercase;color:var(--mut);font-weight:800;margin:16px 0 4px}
-    .meta{display:flex;gap:10px;align-items:center;padding:9px 0;border-bottom:1px solid var(--b);font-size:14px}
-    .meta .k{width:74px;color:var(--mut);font-size:11px;letter-spacing:1px;text-transform:uppercase}
-    .desc{font-size:15px;margin:14px 0;white-space:pre-wrap}
-    .h3{font-size:13px;letter-spacing:1.5px;text-transform:uppercase;font-weight:800;margin:18px 0 8px;border-bottom:1px solid var(--b);padding-bottom:5px}
+    .evgrid{display:grid;grid-template-columns:300px 1fr;gap:30px;align-items:start;margin-top:6px}
+    @media(max-width:680px){.evgrid{grid-template-columns:1fr;gap:18px}}
+    .evside{position:sticky;top:66px}
+    @media(max-width:680px){.evside{position:static}}
+    .evcover{width:100%;aspect-ratio:1/1;border-radius:16px;border:1px solid var(--b);object-fit:cover;display:block;background:var(--s)}
+    .evcover.ph{display:flex;align-items:flex-end;padding:16px;font-weight:600;letter-spacing:4px;text-transform:uppercase;color:var(--mut);background:radial-gradient(120% 120% at 70% 20%,var(--s),transparent 60%),var(--ink)}
+    .hostrow{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:16px;padding-top:14px;border-top:1px solid var(--b)}
+    .hk{font-size:11px;letter-spacing:1px;text-transform:uppercase;color:var(--mut)}
+    .hn{font-weight:600;font-size:15px}.hn a:hover{border-bottom:1px solid var(--b)}
+    .sidelinks{margin-top:14px;display:flex;flex-direction:column;gap:9px;font-size:13px;color:var(--mut)}
+    .sidelinks a:hover{color:var(--bone)}
+    .evtag{display:inline-block;margin-top:14px;font-size:12px;color:var(--mut);border:1px solid var(--b);border-radius:999px;padding:4px 12px}
+    .evtitle{font-size:30px;line-height:1.12;font-weight:600;letter-spacing:-.02em;margin:0 0 16px}
+    .ww{display:flex;gap:13px;align-items:center;padding:9px 0}
+    .ww .wi{width:42px;height:42px;flex:0 0 auto;border:1px solid var(--b);border-radius:11px;display:flex;align-items:center;justify-content:center;color:var(--bone)}
+    .ww .wi svg{width:21px;height:21px}
+    .ww .cal{flex-direction:column;gap:0;font-weight:600;line-height:1}.ww .cal .m{font-size:9px;letter-spacing:1px;color:var(--mut)}.ww .cal .d{font-size:17px}
+    .ww .wt{font-size:14.5px;font-weight:500}.ww .ws{font-size:12.5px;color:var(--mut);margin-top:1px}
+    .ww .ws a{border-bottom:1px solid var(--b)}
+    .regcard{border:1px solid var(--b);border-radius:16px;background:var(--s);padding:16px;margin:18px 0}
+    .regcard .rt{font-size:12px;letter-spacing:1.5px;text-transform:uppercase;color:var(--mut);font-weight:600;border-bottom:1px solid var(--b);padding-bottom:9px;margin-bottom:12px}
+    .regcard .rsub{font-size:13.5px;color:var(--mut);margin-bottom:12px}
+    .h3{font-size:11.5px;letter-spacing:1.5px;text-transform:uppercase;font-weight:600;color:var(--bone);margin:22px 0 9px}
+    .desc{font-size:15px;line-height:1.65;margin:8px 0 0;white-space:pre-wrap}
     .rsvp{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0}form{display:inline}
-    .rb{display:inline-block;font:inherit;font-size:14px;font-weight:800;border:1.5px solid var(--bone);color:var(--bone);background:transparent;border-radius:999px;padding:9px 16px;cursor:pointer;text-decoration:none}
-    .rb.p{background:var(--bone);color:var(--ink)} .rb.on{background:var(--bone);color:var(--ink)}
-    .myr{font-size:14px;margin:8px 0}.admtag{font-size:10px;font-weight:800;letter-spacing:1px;text-transform:uppercase;border:1.5px solid var(--bone);border-radius:999px;padding:3px 10px}
-    .tk{font-weight:800;margin:6px 0 10px}.tkin{background:var(--s);border:1px solid var(--b);border-radius:999px;color:var(--bone);padding:8px 12px;font:inherit;width:120px;margin-right:6px}
+    .rb{display:inline-block;font:inherit;font-size:14px;font-weight:600;border:1px solid var(--b);color:var(--bone);background:transparent;border-radius:999px;padding:9px 16px;cursor:pointer;text-decoration:none}
+    .rb:hover{border-color:var(--bone)}
+    .rb.sm{font-size:12.5px;padding:6px 13px}
+    .rb.p{background:var(--bone);color:var(--ink);border-color:var(--bone)}.rb.on{background:var(--bone);color:var(--ink);border-color:var(--bone)}
+    .rb.block{display:block;width:100%;text-align:center;padding:12px;font-size:15px}
+    .myr{font-size:14px;margin:4px 0}.admtag{font-size:10px;font-weight:600;letter-spacing:1px;text-transform:uppercase;border:1px solid var(--b);color:var(--mut);border-radius:999px;padding:3px 10px}
+    .tk{font-weight:600;margin:6px 0 10px}.tkin{background:var(--ink);border:1px solid var(--b);border-radius:999px;color:var(--bone);padding:8px 12px;font:inherit;width:120px;margin-right:6px}
   </style>
-  <div class="cap">Event · hosted by <a href="${hostHref(d.hostKind, d.hostId)}" style="color:var(--bone);border-bottom:1px solid var(--b)">${esc(d.hostName)}</a></div>
-  <h1>${esc(d.title)}</h1>
-  <div style="margin:14px 0">${cover}</div>
-  <div class="meta"><span class="k">When</span><span>${esc([d.date, d.time].filter(Boolean).join(' · ') || 'TBA')}</span></div>
-  ${d.location ? `<div class="meta"><span class="k">Where</span><span>${esc(d.location)}</span></div>` : ''}
-  <div class="meta"><span class="k">Admission</span><span><span class="admtag">${ADMISSION_LABEL[d.admission]}</span>${d.admission === 'paid' ? ` · ${priceLabel(d)}` : ''}</span></div>
-  <div class="meta"><span class="k">Going</span><span><b>${d.counts.going}</b> going · ${d.counts.interested} interested${d.counts.pending ? ` · ${d.counts.pending} ${d.admission === 'paid' ? 'awaiting payment' : 'pending'}` : ''}${d.capacity ? ` · cap ${d.capacity}` : ''}</span></div>
-  ${d.description ? `<p class="desc">${esc(d.description)}</p>` : ''}
-  <div class="h3">Attend in person</div>
-  <div class="rsvp">${primary} ${secondary}</div>
-  ${watch ? `<div class="h3">Watch live</div><div class="rsvp">${watch}</div>` : ''}
-  ${ticketSection}${resaleSection}
-  <div class="h3">More</div>
-  <div class="rsvp">${extras.join('')}</div>
-  ${feature}
-  <div class="prov">Public event · viewing is open; attending needs a free account. Calendar export &amp; watch links are open to members.</div>`;
+  <div class="evgrid">
+    <aside class="evside">
+      ${cover}
+      <div class="hostrow"><div><div class="hk">Hosted by</div><div class="hn"><a href="${hostHref(d.hostKind, d.hostId)}">${esc(d.hostName)}</a></div></div>${followBtn}</div>
+      <div class="sidelinks">
+        <a href="${hostHref(d.hostKind, d.hostId)}">Contact the host →</a>
+        <a href="/e/${d.id}/ics">＋ Add to calendar</a>
+      </div>
+      <span class="evtag"># ${esc(ADMISSION_LABEL[d.admission])}</span>
+    </aside>
+
+    <main class="evmain">
+      <h1 class="evtitle">${esc(d.title)}</h1>
+
+      <div class="ww"><div class="wi cal">${dt ? `<span class="m">${mon}</span><span class="d">${day}</span>` : ICON.cal}</div>
+        <div><div class="wt">${esc(d.date || 'Date TBA')}</div><div class="ws">${esc(d.time ? d.time + (dt ? '' : '') : 'Time TBA')}${d.capacity ? ` · capacity ${d.capacity}` : ''}</div></div></div>
+      ${d.location ? `<div class="ww"><div class="wi">${ICON.pin}</div><div><div class="wt">${esc(d.location)}</div><div class="ws">${mapsHref ? `<a href="${mapsHref}" target="_blank" rel="noopener">Open in Maps ↗</a>` : ''}</div></div></div>` : ''}
+
+      <div class="regcard">
+        <div class="rt">Registration</div>
+        ${goingConfirmed ? '' : `<div class="rsub">${ctx.guest ? 'Welcome! To attend this event, sign up below.' : 'Attend in person — choose how you’ll join.'}</div>`}
+        <div class="rsvp">${primary}</div>
+        <div class="rsvp">${secondary}</div>
+        <div class="ws" style="margin-top:6px;color:var(--mut);font-size:12.5px"><b>${d.counts.going}</b> going · ${d.counts.interested} interested${d.counts.pending ? ` · ${d.counts.pending} ${d.admission === 'paid' ? 'awaiting payment' : 'pending'}` : ''}</div>
+      </div>
+
+      ${watch ? `<div class="h3">Watch live</div><div class="rsvp">${watch}</div>` : ''}
+      ${ticketSection}${resaleSection}
+
+      ${d.description ? `<div class="h3">About this event</div><p class="desc">${esc(d.description)}</p>` : ''}
+
+      ${d.location ? `<div class="h3">Location</div><p class="desc" style="margin-bottom:8px">${esc(d.location)}</p><div class="rsvp">${mapsHref ? `<a class="rb" href="${mapsHref}" target="_blank" rel="noopener">Open in Maps ↗</a>` : ''}</div>` : ''}
+
+      <div class="h3">More</div>
+      <div class="rsvp">${extras.join('')}</div>
+      ${feature}
+      <div class="prov">Public event · viewing is open; attending needs a free account. Calendar export &amp; watch links are open to members.</div>
+    </main>
+  </div>`;
   return layout(d.title, body, { back: hostHref(d.hostKind, d.hostId) });
 }
 

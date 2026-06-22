@@ -1,18 +1,20 @@
 // layout.ts — shared chrome for the lighter pages (home, fan feed, sign-up).
 // Dark Ink/Bone, matching the profile shell so the whole app is one theme.
-import { ravenMark } from './brand.ts';
+import { ravenMark, ravenMarkCurrent } from './brand.ts';
+import { THEME_BOOT, THEME_VARS, THM_CSS, themeToggle, bottomNav } from './theme.ts';
 export const esc = (s: string) => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]!));
 
-export function layout(title: string, body: string, opts: { back?: string } = {}): string {
+export function layout(title: string, body: string, opts: { back?: string; nav?: { active?: string; guest: boolean; fanId: string | null } } = {}): string {
   return `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1"><link rel="icon" href="/favicon.svg"><title>${esc(title)} — Horda</title>
+<meta name="viewport" content="width=device-width, initial-scale=1"><link rel="icon" href="/favicon.svg"><title>${esc(title)} — Horda</title>${THEME_BOOT}
 <style>
-  :root{color-scheme:dark;--ink:#0B0B0C;--bone:#EDE9DF;--s:rgba(237,233,223,.05);--b:rgba(237,233,223,.16);--mut:rgba(237,233,223,.6)}
+  ${THEME_VARS}
+  ${THM_CSS}
   *{margin:0;box-sizing:border-box}
-  body{background:var(--ink);color:var(--bone);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif;line-height:1.45;max-width:680px;margin:0 auto;padding:0 18px 70px}
+  body{background:var(--ink);color:var(--bone);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif;line-height:1.45;max-width:680px;margin:0 auto;padding:0 18px 96px}
   a{color:inherit}
   .top{display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--b);padding:12px 0 9px;position:sticky;top:0;background:var(--ink);z-index:5}
-  .mark{display:flex;align-items:center;text-decoration:none}.mark svg{display:block}
+  .mark{display:flex;align-items:center;text-decoration:none;color:var(--bone)}.mark svg{display:block}
   h1{font-size:30px;font-weight:800;letter-spacing:.4px;margin:22px 0 2px;text-transform:uppercase}
   h2{font-size:12px;letter-spacing:2px;text-transform:uppercase;font-weight:800;margin:26px 0 10px;border-bottom:1px solid var(--b);padding-bottom:6px}
   .mut{color:var(--mut)}
@@ -39,8 +41,9 @@ export function layout(title: string, body: string, opts: { back?: string } = {}
   .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:12px 0}
   .prov{margin-top:28px;color:var(--mut);font-size:11px;border-top:1px solid var(--b);padding-top:12px}
 </style></head><body>
-  <div class="top"><a class="mark" href="/" aria-label="Horda — home">${ravenMark(30, 'bone')}</a>
-  ${opts.back ? `<a class="dt" href="${esc(opts.back)}">← back</a>` : '<span class="dt">system of record</span>'}</div>
+  <div class="top"><a class="mark" href="/" aria-label="Horda — home">${ravenMarkCurrent(30)}</a>
+  <div style="display:flex;align-items:center;gap:10px">${themeToggle()}${opts.back ? `<a class="dt" href="${esc(opts.back)}">← back</a>` : '<span class="dt">system of record</span>'}</div></div>
   ${body}
+  ${bottomNav(opts.nav ?? { guest: true, fanId: null })}
 </body></html>`;
 }

@@ -45,4 +45,4 @@ export function weekDrop(d: { fanName: string; results: { headline: string; date
 }
 
 // short text for an outbound share (tweet/WhatsApp) — facts + the link
-export const shareText = (headline: string) => `${headline} — on Horda. horda.app`;
+export const shareText = (headline: string) => `${headline} — on Horda. joinhorda.com`;

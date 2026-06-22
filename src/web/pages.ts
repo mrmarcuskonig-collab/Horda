@@ -2,7 +2,8 @@
 import { layout, esc } from './layout.ts';
 import { socialIcon, kindIcon } from './icons.ts';
 import { editPanel, UPLOAD_SCRIPT } from './shell.ts';
-import { ravenMark } from './brand.ts';
+import { ravenMark, ravenMarkCurrent } from './brand.ts';
+import { THEME_BOOT, THEME_VARS, THM_CSS, themeToggle, bottomNav, verifiedBadge } from './theme.ts';
 import type { AthleteProfile, FanHome } from '../engagement/types.ts';
 import type { ClubPageModel } from '../read/types.ts';
 
@@ -36,28 +37,52 @@ function avatarSvg(name: string): string {
 export function renderDiscover(d: {
   guest: boolean; fanId: string | null; sport?: string; region?: string;
   data: { sports: { key: string; name: string }[]; regions?: string[];
-    athletes: { id: string; name: string; region: string | null; sport: string | null }[];
-    clubs: { id: string; name: string; region: string | null; sport: string | null }[];
+    athletes: { id: string; name: string; region: string | null; sport: string | null; avatar: string | null; banner: string | null; verified?: boolean }[];
+    clubs: { id: string; name: string; region: string | null; sport: string | null; avatar: string | null; verified?: boolean }[];
     upcoming: { id: string; title: string; date?: string; host: string; admission: string }[];
     results: { headline: string; date?: string }[] };
   regions: string[];
 }): string {
   const qp = (sp?: string, rg?: string) => { const u = new URLSearchParams(); if (sp) u.set('sport', sp); if (rg) u.set('region', rg); const s = u.toString(); return s ? `/?${s}` : '/'; };
   const chip = (label: string, active: boolean, href: string) => `<a class="chip${active ? ' on' : ''}" href="${href}">${esc(label)}</a>`;
-  const sportChips = `<div class="chips">${chip('All sports', !d.sport, qp(undefined, d.region))}${d.data.sports.map(s => chip(s.name, d.sport === s.key, qp(s.key, d.region))).join('')}</div>`;
-  const regionChips = `<div class="chips">${chip('Everywhere', !d.region, qp(d.sport, undefined))}${d.regions.map(r => chip(r, d.region === r, qp(d.sport, r))).join('')}</div>`;
 
-  const card = (href: string, title: string, sub: string, badge: string) =>
-    `<a class="dcard" href="${href}"><div class="dav">${avatarSvg(title)}</div><div class="dmeta"><div class="dt-title">${esc(title)}</div><div class="dt-sub">${esc(sub)}</div></div><span class="dbadge">${esc(badge)}</span></a>`;
+  // One scrolling sport row, ordered by global popularity. Football & boxing are
+  // the two with live coverage; the rest read as universal (filter → empty state).
+  // The row clips the last chip so the user senses there's more to swipe.
+  const POPULAR: [string, string][] = [['football', 'Football'], ['basketball', 'Basketball'], ['boxing', 'Boxing'], ['tennis', 'Tennis'], ['running', 'Running'], ['mma', 'MMA'], ['cycling', 'Cycling'], ['volleyball', 'Volleyball'], ['handball', 'Handball'], ['ice_hockey', 'Ice hockey'], ['triathlon', 'Triathlon']];
+  const sportChips = `<div class="chips scroll">${chip('All sports', !d.sport, qp(undefined, d.region))}${POPULAR.map(([k, n]) => chip(n, d.sport === k, qp(k, d.region))).join('')}</div>`;
 
-  const upcoming = d.data.upcoming.length ? `<h2>Live &amp; upcoming</h2><div class="drow">${
+  // Location: no hard-coded cities — a free field that works for a rural village
+  // or Los Angeles. Submits on Enter (no button). Active location shows as a chip.
+  const locRow = `<div class="chips locrow">${chip('Everywhere', !d.region, qp(d.sport, undefined))}<form class="locform" method="get" action="/">${d.sport ? `<input type="hidden" name="sport" value="${esc(d.sport)}">` : ''}<input name="region" value="${esc(d.region ?? '')}" placeholder="Enter your location" class="locin" autocomplete="off" aria-label="Enter your location"></form>${d.region ? `<a class="chip on" href="${qp(d.sport, undefined)}" title="Clear location">${esc(d.region)} ✕</a>` : ''}</div>`;
+
+  const ringImg = (url: string | null, name: string) => url ? `<img src="${esc(url)}" alt="">` : avatarSvg(name);
+
+  // story rail — Join + Creator map first (the two key learnings), then athlete faces
+  const rail = `<div class="rail">
+    <a class="story" href="/signup" aria-label="Join Horda"><span class="ring act"><svg viewBox="0 0 24 24" width="19" height="19" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.35" stroke-linecap="round" d="M12 5.75v12.5M5.75 12h12.5"/></svg></span><span class="sname">Join</span></a>
+    <a class="story" href="/map" aria-label="Open the creator map"><span class="ring act"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.35" stroke-linejoin="round" stroke-linecap="round" d="M9 4.3 3.6 6.1v13.6L9 17.9l6 1.8 5.4-1.8V4.1L15 5.9 9 4.3Z"/><path fill="none" stroke="currentColor" stroke-width="1.1" stroke-linecap="round" opacity=".8" d="M9 4.5v13.4M15 6v13.4"/></svg></span><span class="sname">Creator map</span></a>
+    ${d.data.athletes.map(a => `<a class="story" href="/athlete/${a.id}"><span class="ring">${ringImg(a.avatar || a.banner, a.name)}</span><span class="sname">${esc(a.name.split(' ')[0])}</span></a>`).join('')}
+  </div>`;
+
+  // featured — big, photo-forward athlete cards, each with a consistent identity chip
+  const featured = d.data.athletes.length ? `<div class="feat">${d.data.athletes.map(a => {
+    const photo = a.banner || a.avatar;
+    const big = photo ? `<img class="fimg" src="${esc(photo)}" alt="">` : `<div class="fph">${avatarSvg(a.name)}</div>`;
+    const sub = [a.sport, a.region].filter(Boolean).join(' · ') || 'athlete';
+    return `<a class="fcard" href="/athlete/${a.id}">${big}<div class="fscrim"></div>` +
+      `<div class="fid"><span class="fav">${ringImg(a.avatar || a.banner, a.name)}</span><span class="fnm">${esc(a.name)}${a.verified ? verifiedBadge() : ''}</span></div>` +
+      `<div class="fcap">${esc(sub)}</div></a>`;
+  }).join('')}</div>` : '';
+
+  const card = (href: string, title: string, sub: string, badge: string, verified = false) =>
+    `<a class="dcard" href="${href}"><div class="dav">${avatarSvg(title)}</div><div class="dmeta"><div class="dt-title">${esc(title)}${verified ? verifiedBadge() : ''}</div><div class="dt-sub">${esc(sub)}</div></div><span class="dbadge">${esc(badge)}</span></a>`;
+
+  const upcoming = d.data.upcoming.length ? `<h2>Public · live &amp; upcoming <span class="h2note">members-only events stay private</span></h2><div class="drow">${
     d.data.upcoming.map(e => `<a class="ecard" href="/e/${e.id}"><div class="ecover"></div><div class="etitle">${esc(e.title)}</div><div class="esub">${esc(e.host)} · ${esc(e.date ?? 'soon')} · ${e.admission === 'paid' ? 'ticketed' : e.admission === 'apply' ? 'apply' : 'free'}</div></a>`).join('')
   }</div>` : '';
-  const athletes = d.data.athletes.length ? `<h2>Athletes${d.region || d.sport ? ' · filtered' : ''}</h2><div class="dlist">${
-    d.data.athletes.map(a => card(`/athlete/${a.id}`, a.name, [a.sport, a.region].filter(Boolean).join(' · ') || 'athlete', 'idol')).join('')
-  }</div>` : '';
-  const clubs = d.data.clubs.length ? `<h2>Clubs</h2><div class="dlist">${
-    d.data.clubs.map(c => card(`/club/${c.id}`, c.name, [c.sport, c.region].filter(Boolean).join(' · ') || 'club', 'club')).join('')
+  const clubs = d.data.clubs.length ? `<h2>Clubs &amp; federations</h2><div class="dlist">${
+    d.data.clubs.map(c => card(`/club/${c.id}`, c.name, [c.sport, c.region].filter(Boolean).join(' · ') || 'club', 'club', c.verified)).join('')
   }</div>` : '';
   const results = d.data.results.length ? `<h2>Latest results</h2><ul class="rlist">${
     d.data.results.map(r => `<li><span class="rmk">●</span><span class="rh">${esc(r.headline)}</span><span class="dt">${esc(r.date ?? '')}</span></li>`).join('')
@@ -65,55 +90,144 @@ export function renderDiscover(d: {
   const empty = (!d.data.athletes.length && !d.data.clubs.length) ? `<p class="mut" style="margin-top:14px">Nothing here for that filter yet — try another sport or region.</p>` : '';
 
   const yours = d.guest
-    ? `<div class="joinb"><div><strong>Your Horda</strong><div class="bsub">Pick 3 you love and your feed already knows you. Free.</div></div><a class="btn dark" href="/signup">Get your feed</a></div>`
+    ? `<div class="joinb"><div><strong>Your Horda</strong><div class="bsub">Pick a few you love and your feed already knows you. Free.</div></div><a class="btn dark" href="/signup">Get your feed</a></div>`
     : `<div class="joinb"><div><strong>Your Horda is ready</strong><div class="bsub">Your feed of everyone you follow.</div></div><a class="btn dark" href="/fan/${d.fanId}">Open feed →</a></div>`;
 
-  return `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><link rel="icon" href="/favicon.svg"><title>Horda</title>
+  return `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><link rel="icon" href="/favicon.svg"><title>Horda</title>${THEME_BOOT}
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
-  :root{color-scheme:dark;--ink:#0B0B0C;--bone:#EDE9DF;--s:rgba(237,233,223,.05);--b:rgba(237,233,223,.14);--mut:rgba(237,233,223,.58)}
+  ${THEME_VARS}
   *{margin:0;box-sizing:border-box}
-  body{background:var(--ink);color:var(--bone);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif;line-height:1.5;padding-bottom:60px}
+  body{background:var(--ink);color:var(--bone);font-family:"Inter",-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif;line-height:1.5;padding-bottom:92px;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
   a{color:inherit;text-decoration:none}
-  .top{display:flex;justify-content:space-between;align-items:center;padding:11px 18px;border-bottom:1px solid var(--b);position:sticky;top:0;background:rgba(11,11,12,.82);backdrop-filter:blur(10px);z-index:20}
-  .mark{display:flex;align-items:center}.mark svg{display:block}
-  .nav{display:flex;gap:10px;align-items:center}
-  .btn{display:inline-block;background:var(--bone);color:var(--ink);font-weight:800;border:1.5px solid var(--bone);border-radius:999px;padding:8px 15px;font-size:13px}
-  .btn.ghost{background:transparent;color:var(--bone)}.btn.dark{background:var(--ink);color:var(--bone);border-color:var(--ink)}
-  .wrap{max-width:760px;margin:0 auto;padding:0 16px}
-  .lede{font-size:30px;font-weight:800;text-transform:uppercase;letter-spacing:.4px;margin:22px 0 4px}
-  .sub{color:var(--mut);font-size:14px;margin-bottom:6px}
-  .chips{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0}
-  .chip{font-size:13px;font-weight:700;border:1.5px solid var(--b);color:var(--mut);border-radius:999px;padding:7px 13px;white-space:nowrap}
+  ${THM_CSS}
+  .top{display:flex;justify-content:space-between;align-items:center;padding:13px 20px;border-bottom:1px solid var(--b);position:sticky;top:0;background:var(--scrim);backdrop-filter:blur(12px);z-index:20}
+  .mark{display:flex;align-items:center;color:var(--bone)}.mark svg{display:block}
+  .nav{display:flex;gap:9px;align-items:center}
+  .btn{display:inline-block;background:var(--bone);color:var(--ink);font-weight:600;border:1px solid var(--bone);border-radius:999px;padding:7px 15px;font-size:13px;transition:opacity .15s}
+  .btn:hover{opacity:.86}
+  .btn.ghost{background:transparent;color:var(--bone);border-color:var(--b)}.btn.dark{background:var(--ink);color:var(--bone);border-color:var(--ink)}
+  .wrap{max-width:900px;margin:0 auto;padding:0 20px}
+  .kicker{font-size:11px;letter-spacing:2.5px;text-transform:uppercase;color:var(--mut);font-weight:600;margin:26px 0 12px}
+  .lede{font-size:30px;line-height:1.16;font-weight:600;letter-spacing:-.021em;margin:0 0 12px;max-width:19ch}
+  .sub{color:var(--mut);font-size:15px;line-height:1.6;max-width:62ch;margin-bottom:4px;font-weight:400}
+  .chips{display:flex;gap:7px;flex-wrap:wrap;align-items:center;margin:14px 0 2px}
+  .chips.scroll{flex-wrap:nowrap;overflow-x:auto;margin:18px 0 4px;padding-bottom:2px;-webkit-mask-image:linear-gradient(to right,#000 90%,transparent);mask-image:linear-gradient(to right,#000 90%,transparent)}
+  .chips.scroll::-webkit-scrollbar{height:0}
+  .locrow{margin:8px 0 6px}
+  .chip{font-size:12.5px;font-weight:500;border:1px solid var(--b);color:var(--mut);border-radius:999px;padding:7px 14px;white-space:nowrap;transition:border-color .15s,color .15s;background:transparent;flex:0 0 auto}
+  .chip:hover{border-color:var(--bone);color:var(--bone)}
   .chip.on{background:var(--bone);color:var(--ink);border-color:var(--bone)}
-  h2{font-size:12px;letter-spacing:1.6px;text-transform:uppercase;margin:26px 0 10px}
+  .locform{display:inline-flex}
+  .locin{background:transparent;border:1px solid var(--b);border-radius:999px;color:var(--bone);padding:7px 15px;font:inherit;font-size:12.5px;min-width:200px}
+  .locin:focus{outline:none;border-color:var(--bone)}.locin::placeholder{color:var(--mut)}
+  h2{font-size:11.5px;letter-spacing:1.6px;text-transform:uppercase;font-weight:600;color:var(--bone);margin:32px 0 13px;display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+  .h2note{font-size:11px;letter-spacing:.2px;text-transform:none;font-weight:400;color:var(--mut)}
+  .rail{display:flex;gap:16px;overflow-x:auto;padding:10px 0 4px}
+  .rail::-webkit-scrollbar,.feat::-webkit-scrollbar,.drow::-webkit-scrollbar{height:0}
+  .story{flex:0 0 auto;width:66px;display:flex;flex-direction:column;align-items:center;gap:8px}
+  .ring{width:62px;height:62px;border-radius:50%;padding:2px;border:1.5px solid var(--bone);overflow:hidden;display:block;transition:transform .16s}
+  .story:hover .ring{transform:scale(1.05)}
+  .ring img,.ring svg{width:100%;height:100%;border-radius:50%;object-fit:cover;display:block}
+  .ring.act{display:flex;align-items:center;justify-content:center;border:1px solid var(--b);background:var(--s);color:var(--bone)}
+  .sname{font-size:11.5px;font-weight:500;line-height:1.2;color:var(--mut);max-width:66px;text-align:center;white-space:normal}
+  .story:hover .sname{color:var(--bone)}
+  .feat{display:flex;gap:14px;overflow-x:auto;padding-bottom:8px;margin:20px 0 26px;scroll-snap-type:x mandatory}
+  .fcard{position:relative;flex:0 0 224px;height:316px;border-radius:18px;overflow:hidden;border:1px solid var(--b);background:var(--s);scroll-snap-align:start;transition:transform .18s}
+  .fcard:hover{transform:translateY(-3px)}
+  .fimg{width:100%;height:100%;object-fit:cover;display:block}
+  .fph{width:100%;height:100%;display:flex;align-items:center;justify-content:center}.fph svg{width:52%;height:52%;opacity:.38}
+  .fscrim{position:absolute;inset:0;background:linear-gradient(to top,rgba(11,11,12,.86),rgba(11,11,12,.04) 50%,rgba(11,11,12,.22))}
+  .fid{position:absolute;top:11px;left:11px;display:flex;align-items:center;gap:7px;background:rgba(11,11,12,.4);backdrop-filter:blur(8px);border-radius:999px;padding:3px 11px 3px 3px}
+  .fav{width:24px;height:24px;border-radius:50%;overflow:hidden;flex:0 0 auto;border:1px solid rgba(237,233,223,.22)}.fav img,.fav svg{width:100%;height:100%;object-fit:cover;display:block}
+  .fnm{font-weight:500;font-size:12.5px;color:#EDE9DF;letter-spacing:.1px}
+  .fcap{position:absolute;left:14px;bottom:14px;color:#EDE9DF;font-size:12px;font-weight:500;letter-spacing:.2px;text-transform:capitalize;opacity:.9}
+  #map{height:360px;border-radius:18px;overflow:hidden;border:1px solid var(--b);margin:2px 0;background:var(--s)}
+  .hz-pin span{display:block;width:13px;height:13px;border-radius:50%;background:var(--bone);border:2px solid var(--ink);box-shadow:0 0 0 1px var(--b)}
+  .leaflet-popup-content-wrapper,.leaflet-popup-tip{background:var(--ink);color:var(--bone);border:1px solid var(--b)}
+  .leaflet-popup-content{font-family:inherit;font-size:13px}.leaflet-popup-content a{font-weight:600;border-bottom:1px solid var(--b)}
   .drow{display:flex;gap:12px;overflow-x:auto;padding-bottom:4px}
-  .ecard{flex:0 0 220px;background:var(--s);border:1px solid var(--b);border-radius:16px;overflow:hidden}
-  .ecover{height:96px;background:radial-gradient(120% 120% at 70% 20%,rgba(237,233,223,.14),transparent 60%),var(--ink);border-bottom:1px solid var(--b)}
-  .etitle{font-weight:800;font-size:14px;padding:10px 12px 2px}.esub{color:var(--mut);font-size:12px;padding:0 12px 12px}
-  .dlist{display:grid;gap:8px}
-  .dcard{display:flex;align-items:center;gap:12px;background:var(--s);border:1px solid var(--b);border-radius:14px;padding:10px 12px}
-  .dav{width:44px;height:44px;border-radius:50%;overflow:hidden;border:1px solid var(--b);flex:0 0 auto}.dav svg{width:100%;height:100%;display:block}
-  .dmeta{flex:1;min-width:0}.dt-title{font-weight:800;font-size:15px}.dt-sub{color:var(--mut);font-size:12px;text-transform:capitalize}
-  .dbadge{font-size:10px;font-weight:800;letter-spacing:1px;text-transform:uppercase;color:var(--mut);border:1px solid var(--b);border-radius:6px;padding:2px 7px}
-  .rlist{list-style:none}.rlist li{display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--b);font-size:14px}.rmk{color:var(--mut)}.rh{flex:1}.dt{color:var(--mut);font-size:12px;white-space:nowrap}
-  .joinb{background:var(--bone);color:var(--ink);border-radius:18px;padding:15px 18px;margin:22px 0 6px;display:flex;justify-content:space-between;align-items:center;gap:12px}
-  .joinb .bsub{font-size:12.5px;opacity:.72;margin-top:3px}
-  .prov{max-width:760px;margin:18px auto;padding:0 16px;color:var(--mut);font-size:11px}
+  .ecard{flex:0 0 218px;background:var(--s);border:1px solid var(--b);border-radius:16px;overflow:hidden;transition:border-color .15s}
+  .ecard:hover{border-color:var(--bone)}
+  .ecover{height:88px;background:radial-gradient(120% 120% at 70% 20%,var(--s),transparent 60%),var(--ink);border-bottom:1px solid var(--b)}
+  .etitle{font-weight:500;font-size:14px;padding:11px 13px 2px}.esub{color:var(--mut);font-size:12px;padding:0 13px 13px}
+  .dlist{display:grid;gap:9px;grid-template-columns:repeat(auto-fill,minmax(240px,1fr))}
+  .dcard{display:flex;align-items:center;gap:12px;background:var(--s);border:1px solid var(--b);border-radius:14px;padding:10px 12px;transition:border-color .15s}
+  .dcard:hover{border-color:var(--bone)}
+  .dav{width:42px;height:42px;border-radius:50%;overflow:hidden;border:1px solid var(--b);flex:0 0 auto}.dav svg{width:100%;height:100%;display:block}
+  .dmeta{flex:1;min-width:0}.dt-title{font-weight:500;font-size:14.5px}.dt-sub{color:var(--mut);font-size:12px;text-transform:capitalize}
+  .dbadge{font-size:9.5px;font-weight:600;letter-spacing:1px;text-transform:uppercase;color:var(--mut);border:1px solid var(--b);border-radius:6px;padding:2px 7px}
+  .rlist{list-style:none}.rlist li{display:flex;align-items:center;gap:11px;padding:10px 0;border-bottom:1px solid var(--b);font-size:14px}.rmk{color:var(--mut);font-size:8px}.rh{flex:1}.dt{color:var(--mut);font-size:12px;white-space:nowrap}
+  .joinb{background:var(--bone);color:var(--ink);border-radius:16px;padding:16px 18px;margin:28px 0 6px;display:flex;justify-content:space-between;align-items:center;gap:12px}
+  .joinb strong{font-weight:600;font-size:15px}
+  .joinb .bsub{font-size:12.5px;opacity:.66;margin-top:3px}
+  .prov{max-width:900px;margin:24px auto 0;padding:0 20px;color:var(--mut);font-size:11.5px;line-height:1.6}
 </style></head><body>
-  <header class="top"><a class="mark" href="/" aria-label="Horda">${ravenMark(30, 'bone')}</a>
-    <div class="nav">${d.guest ? `<a class="btn ghost" href="/login">Log in</a><a class="btn" href="/signup">Join free</a>` : `<a class="btn" href="/fan/${d.fanId}">Your feed →</a>`}</div></header>
+  <header class="top"><a class="mark" href="/" aria-label="Horda">${ravenMarkCurrent(30)}</a>
+    <div class="nav">${themeToggle()}${d.guest ? `<a class="btn ghost" href="/login">Log in</a><a class="btn" href="/signup">Join free</a>` : `<a class="btn" href="/fan/${d.fanId}">Your feed →</a>`}</div></header>
   <div class="wrap">
-    <div class="lede">This is the Horda.</div>
-    <div class="sub">The home for the sport you actually follow. Tune it to your taste:</div>
-    ${sportChips}${regionChips}
+    ${rail}
+    ${sportChips}${locRow}
+    ${featured}
     ${yours}
     ${upcoming}
-    ${athletes}
     ${clubs}
     ${results}
     ${empty}
   </div>
-  <div class="prov">Browsing is open. Follow, attend, predict or become a member with a free account. Coverage of real sport — never a fan-to-fan venue.</div>
+  <div class="prov">The home for sports superfans. One place to follow the teams, athletes &amp; leagues you back. Across every sport — and the culture around it.</div>
+  ${bottomNav({ active: 'home', guest: d.guest, fanId: d.fanId })}
+</body></html>`;
+}
+
+// --- creator map (its own destination, like fyndafit's Creator Map) ----------
+export function renderMap(d: { guest: boolean; fanId: string | null; points: { name: string; region: string | null; href: string; kind: string }[] }): string {
+  const pointsJson = JSON.stringify(d.points).replace(/</g, '\\u003c');
+  return `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><link rel="icon" href="/favicon.svg"><title>Creator map — Horda</title>${THEME_BOOT}
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  ${THEME_VARS}
+  *{margin:0;box-sizing:border-box}
+  body{background:var(--ink);color:var(--bone);font-family:"Inter",-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif;line-height:1.5;padding-bottom:72px;-webkit-font-smoothing:antialiased}
+  a{color:inherit;text-decoration:none}
+  ${THM_CSS}
+  .top{display:flex;justify-content:space-between;align-items:center;padding:13px 20px;border-bottom:1px solid var(--b);position:sticky;top:0;background:var(--scrim);backdrop-filter:blur(12px);z-index:20}
+  .mark{display:flex;align-items:center;color:var(--bone)}.mark svg{display:block}
+  .nav{display:flex;gap:9px;align-items:center}
+  .btn{display:inline-block;background:var(--bone);color:var(--ink);font-weight:600;border:1px solid var(--bone);border-radius:999px;padding:7px 15px;font-size:13px}
+  .btn.ghost{background:transparent;color:var(--bone);border-color:var(--b)}
+  .mapwrap{padding:14px 16px 0;max-width:980px;margin:0 auto}
+  .mtitle{font-size:11.5px;letter-spacing:1.6px;text-transform:uppercase;font-weight:600;color:var(--mut);margin:2px 2px 10px}
+  #map{height:calc(100vh - 156px);min-height:380px;border-radius:18px;overflow:hidden;border:1px solid var(--b);background:var(--s)}
+  .hz-pin span{display:block;width:13px;height:13px;border-radius:50%;background:var(--bone);border:2px solid var(--ink);box-shadow:0 0 0 1px var(--b)}
+  .leaflet-popup-content-wrapper,.leaflet-popup-tip{background:var(--ink);color:var(--bone);border:1px solid var(--b)}
+  .leaflet-popup-content{font-family:inherit;font-size:13px}.leaflet-popup-content a{font-weight:600;border-bottom:1px solid var(--b)}
+</style></head><body>
+  <header class="top"><a class="mark" href="/" aria-label="Horda">${ravenMarkCurrent(30)}</a>
+    <div class="nav">${themeToggle()}${d.guest ? `<a class="btn ghost" href="/login">Log in</a><a class="btn" href="/signup">Join free</a>` : `<a class="btn" href="/fan/${d.fanId}">Your feed →</a>`}</div></header>
+  <div class="mapwrap">
+    <div class="mtitle">Creator map · athletes &amp; clubs near you</div>
+    <div id="map" role="img" aria-label="Map of athletes and clubs"></div>
+  </div>
+  ${bottomNav({ active: 'explore', guest: d.guest, fanId: d.fanId })}
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+  <script>
+  (function(){
+    if(!window.L){return}
+    var C={Berlin:[52.52,13.405],Hamburg:[53.55,9.99],Cologne:[50.94,6.96],Bavaria:[48.14,11.58]};
+    var pts=${pointsJson};
+    if(!document.getElementById('map')){return}
+    var map=L.map('map',{scrollWheelZoom:true}).setView([51.1,10.2],5);
+    function url(){var dark=document.documentElement.getAttribute('data-theme')!=='light';return 'https://{s}.basemaps.cartocdn.com/'+(dark?'dark_all':'light_all')+'/{z}/{x}/{y}{r}.png'}
+    var opt={subdomains:'abcd',maxZoom:19,attribution:'&copy; OpenStreetMap &copy; CARTO'};
+    var layer=L.tileLayer(url(),opt).addTo(map);
+    window.addEventListener('hz-theme',function(){map.removeLayer(layer);layer=L.tileLayer(url(),opt).addTo(map)});
+    var icon=L.divIcon({className:'hz-pin',html:'<span></span>',iconSize:[16,16],iconAnchor:[8,8],popupAnchor:[0,-8]});
+    pts.forEach(function(p){var c=C[p.region];if(!c){return}var j=function(){return (Math.random()-0.5)*0.09};L.marker([c[0]+j(),c[1]+j()],{icon:icon}).addTo(map).bindPopup('<b>'+p.name+'</b><br><a href="'+p.href+'">Open '+p.kind+'</a>')});
+  })();
+  </script>
 </body></html>`;
 }
 
@@ -230,14 +344,16 @@ export function renderAthletePage(d: {
     ? `<div class="gatebar"><span><strong>Only members can see the content in full.</strong> You're browsing as a guest.</span><a class="btn" href="/signup">Log in to continue ›</a></div>`
     : '';
 
-  return `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><link rel="icon" href="/favicon.svg"><title>${esc(p.name)} — Horda</title>
+  return `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><link rel="icon" href="/favicon.svg"><title>${esc(p.name)} — Horda</title>${THEME_BOOT}
 <style>
-  :root{color-scheme:dark;--ink:#0B0B0C;--bone:#EDE9DF;--s:rgba(237,233,223,.05);--b:rgba(237,233,223,.14);--mut:rgba(237,233,223,.58)}
+  ${THEME_VARS}
+  ${THM_CSS}
   *{margin:0;box-sizing:border-box}
   body{background:var(--ink);color:var(--bone);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif;line-height:1.5;padding-bottom:96px}
   a{color:inherit;text-decoration:none}
-  .top{display:flex;justify-content:space-between;align-items:center;padding:11px 18px;border-bottom:1px solid var(--b);position:sticky;top:0;background:rgba(11,11,12,.82);backdrop-filter:blur(10px);z-index:20}
-  .mark{display:flex;align-items:center}.mark svg{display:block}
+  .top{display:flex;justify-content:space-between;align-items:center;padding:11px 18px;border-bottom:1px solid var(--b);position:sticky;top:0;background:var(--scrim);backdrop-filter:blur(10px);z-index:20}
+  .top .rgt{display:flex;align-items:center;gap:10px}
+  .mark{display:flex;align-items:center;color:var(--bone)}.mark svg{display:block}
   .dt{color:var(--mut);font-size:12px;white-space:nowrap}
   .cover{position:relative;height:240px;overflow:hidden}
   .cover img{width:100%;height:100%;object-fit:cover}
@@ -293,11 +409,11 @@ export function renderAthletePage(d: {
   .tag{font-size:10px;font-weight:800;letter-spacing:.5px;border:1.5px solid var(--bone);border-radius:999px;padding:3px 9px}.tag.mutd{color:var(--mut);border-color:var(--b);font-weight:700}
   .hl{}.dim2{color:var(--mut);font-size:13px}.dt{color:var(--mut);font-size:12px;white-space:nowrap}
   .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:12px 0}
-  .gatebar{position:fixed;left:0;right:0;bottom:0;background:var(--bone);color:var(--ink);display:flex;justify-content:center;align-items:center;gap:16px;padding:14px 20px;font-size:14px;z-index:30;flex-wrap:wrap}
+  .gatebar{max-width:648px;margin:18px auto 8px;background:var(--bone);color:var(--ink);display:flex;justify-content:center;align-items:center;gap:16px;padding:14px 18px;font-size:14px;border-radius:14px;flex-wrap:wrap;text-align:center}
   .gatebar .btn{background:var(--ink);color:var(--bone);border-color:var(--ink)}
   .prov{max-width:680px;margin:10px auto 30px;padding:0 16px;color:var(--mut);font-size:11px}
 </style></head><body>
-  <header class="top"><a class="mark" href="/" aria-label="Horda — home">${ravenMark(30, 'bone')}</a><a class="dt" href="${d.guest ? '/signup' : `/fan/${d.fanId ?? ''}`}">${d.guest ? 'log in' : 'your feed →'}</a></header>
+  <header class="top"><a class="mark" href="/" aria-label="Horda — home">${ravenMarkCurrent(30)}</a><div class="rgt">${themeToggle()}<a class="dt" href="${d.guest ? '/signup' : `/fan/${d.fanId ?? ''}`}">${d.guest ? 'log in' : 'your feed →'}</a></div></header>
   ${cover}
   <div class="wrap">
     ${profhead}
@@ -316,6 +432,7 @@ export function renderAthletePage(d: {
   </div>
   ${gatebar}
   <div class="prov">Athlete-owned profile · persons self-create on Horda · coverage only, no fan-to-fan venue. Social &amp; affiliation links are athlete-chosen and point out.</div>
+  ${bottomNav({ guest: d.guest, fanId: d.fanId })}
   ${d.canEdit ? UPLOAD_SCRIPT : ''}
 </body></html>`;
 }
@@ -340,7 +457,7 @@ export function renderSharePage(a: { title: string; card: string; body: string; 
 
 // the "founding member" moment — celebratory + shareable (FOMO spread).
 export function renderMemberWelcome(d: { name: string; tierName: string; memberNo: number; href: string }): string {
-  const shareText = encodeURIComponent(`I just became a founding member of ${d.name} on Horda. Get closer: horda.app`);
+  const shareText = encodeURIComponent(`I just became a founding member of ${d.name} on Horda. Get closer: joinhorda.com`);
   return layout(`Member of ${d.name}`, `
     <div class="card" style="text-align:center;padding:28px 18px">
       <div style="font-size:13px;letter-spacing:2px;text-transform:uppercase;color:var(--mut);font-weight:800">${esc(d.tierName)}</div>
@@ -384,6 +501,56 @@ export function renderLogin(next: string): string {
     <p class="mut" style="margin-top:14px">New here? <a href="/signup" style="border-bottom:1px solid var(--b)">Create an account</a>.</p>`, { back: next || '/' });
 }
 
+// --- claim verification --------------------------------------------------
+// Shown after someone requests a page they don't yet control. They're not the
+// owner until verified — here's how to prove it.
+export function renderClaimPending(d: { kind: string; id: string; name: string; code: string; site: string | null; backHref: string }): string {
+  const inp = 'display:block;width:100%;margin-top:6px;background:var(--s);border:1px solid var(--b);border-radius:10px;color:var(--bone);padding:11px;font:inherit';
+  const siteLine = d.site
+    ? `Add this code anywhere on <b>${esc(d.site)}</b> (a page, the footer, a meta tag), then re-check below. We confirm you control the official channel — instantly, no waiting.`
+    : `This page has no official website on file yet, so we'll verify your claim by review. Our team (or the governing association) will confirm it shortly.`;
+  return layout(`Claim ${d.name}`, `
+    <h1>Claim received</h1>
+    <p class="mut">You've requested to manage <b>${esc(d.name)}</b>. You're <b>not the owner yet</b> — we verify claims so only the real club/athlete/federation can run a page.</p>
+
+    <div class="card" style="margin-top:14px">
+      <div style="font-size:12px;letter-spacing:1.5px;text-transform:uppercase;color:var(--mut);font-weight:800">Your verification code</div>
+      <div style="font-size:22px;font-weight:800;font-family:ui-monospace,Menlo,monospace;margin:8px 0;user-select:all">${esc(d.code)}</div>
+      <p class="mut" style="font-size:13.5px">${siteLine}</p>
+      ${d.site ? `<form method="post" action="/claim/${d.kind}/${d.id}/verify"><div class="row"><button type="submit">I've added it — re-check now</button></div></form>` : ''}
+    </div>
+
+    <div class="card" style="margin-top:12px">
+      <div style="font-size:12px;letter-spacing:1.5px;text-transform:uppercase;color:var(--mut);font-weight:800">Other ways to verify</div>
+      <ul style="margin-top:8px">
+        <li><span class="hl">Official email</span> — sign up with an address at the entity's domain and the claim is approved automatically.</li>
+        <li><span class="hl">Review</span> — the platform admin, or the governing association, can approve your claim from their queue.</li>
+      </ul>
+    </div>
+    <div class="row" style="margin-top:14px"><a class="tag" href="${esc(d.backHref)}">Back</a></div>`, { back: d.backHref });
+}
+
+export function renderClaimQueue(d: { claims: { id: string; accountEmail: string; targetKind: string; targetId: string; targetName: string; method: string; channelCode: string | null; createdAt: string }[]; isAdmin: boolean }): string {
+  const rows = d.claims.length ? d.claims.map(c => `
+    <div class="card" style="margin-bottom:10px">
+      <div class="row" style="justify-content:space-between;align-items:flex-start">
+        <div>
+          <div class="hl">${esc(c.targetName)} <span class="tag mutd">${esc(c.targetKind)}</span></div>
+          <div class="mut" style="font-size:13px">requested by <b>${esc(c.accountEmail)}</b> · ${esc(c.createdAt)} · via ${esc(c.method)}</div>
+          ${c.channelCode ? `<div class="mut" style="font-size:12px;font-family:ui-monospace,Menlo,monospace;margin-top:4px">code: ${esc(c.channelCode)}</div>` : ''}
+        </div>
+        <div class="row">
+          <form method="post" action="/claims/${c.id}/decide"><input type="hidden" name="decision" value="approve"><button type="submit">Approve</button></form>
+          <form method="post" action="/claims/${c.id}/decide"><input type="hidden" name="decision" value="reject"><button class="tag" type="submit">Reject</button></form>
+        </div>
+      </div>
+    </div>`).join('') : `<p class="mut">No claims waiting on you. 🐦‍⬛</p>`;
+  return layout('Claims to review', `
+    <h1>Claims to review</h1>
+    <p class="mut">${d.isAdmin ? 'Platform admin queue — every pending claim.' : 'Claims for clubs and teams your association governs.'} Approve only when you can confirm the person represents the real entity.</p>
+    ${rows}`, { back: '/' });
+}
+
 // --- fan home (closeness to who you follow) ------------------------------
 export function renderFanHome(d: { fanId: string; fanName: string; home: FanHome; follows: { type: string; id: string; name: string }[] }): string {
   const { home } = d;
@@ -408,7 +575,7 @@ export function renderFanHome(d: { fanId: string; fanName: string; home: FanHome
     <h1>Your Horda</h1>
     <p class="mut">${esc(d.fanName)} · following ${d.follows.length}</p>
     ${drop}${following}${notifs}${preds}${feed}
-    <div class="prov">Your feed is coverage of what you follow — not a stream of other fans.</div>`, { back: '/' });
+    <div class="prov">Your feed is coverage of what you follow — not a stream of other fans.</div>`, { back: '/', nav: { active: 'you', guest: false, fanId: d.fanId } });
 }
 
 // --- club page -----------------------------------------------------------

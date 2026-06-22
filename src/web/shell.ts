@@ -2,7 +2,8 @@
 // (athlete, club, team, association). One look-and-feel, strictly Ink/Bone.
 import { esc } from './layout.ts';
 import { socialIcon, kindIcon } from './icons.ts';
-import { ravenMark } from './brand.ts';
+import { ravenMark, ravenMarkCurrent } from './brand.ts';
+import { THEME_BOOT, THEME_VARS, THM_CSS, themeToggle, bottomNav } from './theme.ts';
 
 export interface ListItem { kind: string; label: string; href: string | null; tag?: string }
 export interface ProfileVM {
@@ -129,12 +130,13 @@ export function renderEntityProfile(vm: ProfileVM): string {
     : '';
 
   return `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${esc(vm.name)} — Horda</title>
-<link rel="icon" href="/favicon.svg"><style>${DARK_CSS}</style></head><body>
-  <header class="top"><a class="mark" href="/" aria-label="Horda — home">${ravenMark(30, 'bone')}</a><a class="dt" href="${vm.guest ? '/signup' : (vm.backHref ?? '/')}">${vm.guest ? 'log in' : '← back'}</a></header>
+<link rel="icon" href="/favicon.svg">${THEME_BOOT}<style>${DARK_CSS}</style></head><body>
+  <header class="top"><a class="mark" href="/" aria-label="Horda — home">${ravenMarkCurrent(30)}</a><div class="rgt">${themeToggle()}<a class="dt" href="${vm.guest ? '/signup' : (vm.backHref ?? '/')}">${vm.guest ? 'log in' : '← back'}</a></div></header>
   ${hero}${tabs}
   <div class="grid"><main>${(vm.editAction && vm.canEdit) ? editPanel(vm.editAction) : ''}${notice}${post}${attend}${eventsCard}${vm.tableHtml ?? ''}${merch}</main>${aside}</div>
   ${gatebar}
   <div class="prov">${esc(vm.kindLabel)} profile · owner-controlled identity · system of record, no fan-to-fan venue. Social &amp; affiliation links are owner-chosen and point out.</div>
+  ${bottomNav({ guest: vm.guest, fanId: vm.fanId })}
   ${(vm.editAction && vm.canEdit) ? UPLOAD_SCRIPT : ''}
 </body></html>`;
 }
@@ -147,12 +149,16 @@ export function tableDark(title: string, rows: { rank: number; team: string; pla
 }
 
 export const DARK_CSS = `
-  :root{color-scheme:dark;--ink:#0B0B0C;--bone:#EDE9DF;--s:rgba(237,233,223,.05);--b:rgba(237,233,223,.16);--mut:rgba(237,233,223,.6)}
+  ${THEME_VARS}
+  ${THM_CSS}
   *{margin:0;box-sizing:border-box}
   body{background:var(--ink);color:var(--bone);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif;line-height:1.45;padding-bottom:96px}
   a{color:inherit;text-decoration:none}
-  .top{display:flex;justify-content:space-between;align-items:center;padding:12px 20px;border-bottom:1px solid var(--b);position:sticky;top:0;background:var(--ink);z-index:9}
-  .mark{display:flex;align-items:center}.mark svg{display:block}
+  .top{display:flex;justify-content:space-between;align-items:center;padding:12px 20px;border-bottom:1px solid var(--b);position:sticky;top:0;background:var(--scrim);backdrop-filter:blur(10px);z-index:9}
+  .top .rgt{display:flex;align-items:center;gap:10px}
+  .mark{display:flex;align-items:center;color:var(--bone)}.mark svg{display:block}
+  .heroin,.heroin h1{color:#EDE9DF}
+  .heroin .kindtag{color:rgba(237,233,223,.72);border-color:rgba(237,233,223,.28)}
   .dt{color:var(--mut);font-size:12px;white-space:nowrap}
   .hero{position:relative;height:330px;overflow:hidden}
   .hero .bg{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
@@ -195,7 +201,7 @@ export const DARK_CSS = `
   .affs{margin-top:6px}.aff{display:flex;align-items:center;gap:10px;padding:11px 4px;border-bottom:1px solid var(--b)}.aff:last-child{border-bottom:none}
   .ai{width:20px;height:20px;color:var(--bone);opacity:.8}.ai svg{width:20px;height:20px;display:block}
   .al{flex:1;font-weight:600;font-size:14px}.av{font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--mut);border:1px solid var(--b);border-radius:6px;padding:2px 7px}
-  .gatebar{position:fixed;left:0;right:0;bottom:0;background:var(--bone);color:var(--ink);display:flex;justify-content:center;align-items:center;gap:16px;padding:14px 20px;font-size:14px;z-index:20;flex-wrap:wrap}
+  .gatebar{max-width:1000px;margin:18px auto 8px;background:var(--bone);color:var(--ink);display:flex;justify-content:center;align-items:center;gap:16px;padding:14px 18px;font-size:14px;border-radius:14px;flex-wrap:wrap;text-align:center}
   .gatebar .btn{background:var(--ink);color:var(--bone);border-color:var(--ink)}
   .prov{max-width:1040px;margin:8px auto 30px;padding:0 20px;color:var(--mut);font-size:11px}
 `;

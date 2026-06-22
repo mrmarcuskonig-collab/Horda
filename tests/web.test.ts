@@ -20,7 +20,7 @@ const assoc = app.ids.association.id;
 console.log(`\n[web] server up on ${base}`);
 
 const home = await get('/');
-ok('home renders the rally line', home.includes('This is the Horda'));
+ok('home leads with the face rail (no marketing hero)', home.includes('class="rail"') && !home.includes('Get closer to the athletes'));
 ok('home links the idol', home.includes(`/athlete/${rico}`));
 
 const athlete = await get(`/athlete/${rico}`);
@@ -94,7 +94,7 @@ ok('week-drop share: public + join CTA', shareWeek.includes('week in the Horda')
 // --- Luma-style scheduled events ---
 const evId = (await app.db.query<{ id: string }>(`SELECT id FROM event WHERE host_kind='athlete' AND admission='open' LIMIT 1`)).rows[0].id;
 const evPage = await get(`/e/${evId}`);
-ok('event page public: title + attend section + going count', evPage.includes('Open sparring') && evPage.includes('Attend in person') && evPage.includes('going'));
+ok('event page (Luma-style): title + registration card + going count + host', evPage.includes('Open sparring') && evPage.includes('Registration') && evPage.includes('going') && evPage.includes('Hosted by'));
 ok('watch-live channels (YouTube/Twitch)', evPage.includes('Watch on YouTube') && evPage.includes('Watch on Twitch'));
 ok('event page: add-to-calendar link', evPage.includes(`/e/${evId}/ics`));
 const ics = await (await fetch(base + `/e/${evId}/ics`)).text();
@@ -134,11 +134,27 @@ ok('athlete profile shows its events + a FEATURED cross-post', athleteImg.includ
 
 // --- live start screen (public, filterable, gated personalization) ---
 const land = await get('/?guest=1');
-ok('start screen: sport + region filter chips', land.includes('All sports') && land.includes('Everywhere') && land.includes('Berlin'));
+ok('start screen: broad sport menu + free location field (no hard-coded cities)', land.includes('All sports') && land.includes('Boxing') && land.includes('Basketball') && land.includes('Everywhere') && land.includes('Enter your location') && !land.includes('>Hamburg</a>'));
 ok('start screen shows live coverage (athlete + results)', land.includes(`/athlete/${rico}`) && land.includes('Latest results'));
 ok('guest gets a gated "your feed" CTA', land.includes('Your Horda') && land.includes('Get your feed'));
 const filtered = await get(`/?sport=boxing&region=Hamburg`);
 ok('filter narrows to taste (Hamburg boxing → Max, not Rico)', filtered.includes(`/athlete/${max}`) && !filtered.includes(`/athlete/${rico}`));
+// fyndafit-inspired surface: story rail (Join + Creator map first), big featured photos, regional map, theme toggle
+ok('story rail leads with Join + Creator map tiles', land.includes('class="rail"') && land.includes('>Join<') && land.includes('Creator map'));
+ok('story rail shows athlete faces with names', land.includes('class="story"') && land.includes('class="ring"'));
+ok('featured photo cards with identity chip', land.includes('class="fcard"') && land.includes('class="fid"') && land.includes('class="fnm"'));
+const mapPage = await get('/map');
+ok('creator map is its own page (Leaflet + CARTO), removed from landing', mapPage.includes('id="map"') && mapPage.includes('cartocdn.com') && !land.includes('id="map"'));
+ok('landing footer carries the superfan tagline', land.includes('The home for sports superfans'));
+ok('theme toggle present + no-flash boot script', land.includes('class="thm"') && land.includes("localStorage.getItem('hz_theme')"));
+ok('light theme variables defined app-wide', land.includes('data-theme="light"') && (await get(`/athlete/${rico}`)).includes('data-theme="light"'));
+ok('map filters with taste too (Hamburg boxing excludes Rico everywhere)', !filtered.includes(`/athlete/${rico}`));
+// instagram-like usability: persistent bottom tab bar + verified trust badges
+ok('persistent bottom tab bar with familiar tabs', land.includes('class="bnav"') && land.includes('>Home<') && land.includes('>Explore<') && land.includes('>You<'));
+ok('bottom nav appears on inner pages too (athlete)', (await get(`/athlete/${rico}`)).includes('class="bnav"'));
+ok('verified badge on a claim-verified athlete (Rico is owned)', land.includes('class="vbadge"'));
+const cg = await get(`/club/${club}?guest=1`);
+ok('guest gate now coexists with the bottom nav (in-flow banner)', cg.includes('Log in to continue') && cg.includes('class="bnav"') && cg.includes('border-radius:14px'));
 
 // --- snapshot the screens for viewing ---
 writeFileSync('horda-app-start.html', land);
