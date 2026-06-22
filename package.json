@@ -1,0 +1,21 @@
+{
+  "name": "horda",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "description": "Horda — system of record for real sport. DB schema + computation engines.",
+  "scripts": {
+    "test": "node tests/trio.test.ts && node tests/pipeline.test.ts && node tests/read.test.ts && node tests/db.test.ts && node tests/engagement.test.ts && node tests/content.test.ts && node tests/events.test.ts && node tests/membership.test.ts && node tests/auth.test.ts && node tests/web.test.ts",
+    "_note": "events.test covers RSVP + admission + payment + featuring",
+    "demo": "node examples/persist-demo.ts",
+    "web": "node src/web/server.ts",
+    "db:apply": "bash db/apply.sh horda",
+    "db:verify": "psql horda -f db/verify.sql"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "dependencies": {
+    "@electric-sql/pglite": "^0.5.3"
+  }
+}

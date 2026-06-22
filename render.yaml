@@ -1,0 +1,17 @@
+services:
+  - type: web
+    name: horda
+    runtime: docker
+    plan: starter
+    healthCheckPath: /
+    envVars:
+      - key: PORT
+        value: "8787"
+      - key: HORDA_DATA
+        value: /data
+      - key: HORDA_DEMO
+        value: "0"          # set "1" for a public showcase with seeded demo content
+    disk:
+      name: horda-data
+      mountPath: /data
+      sizeGB: 1
