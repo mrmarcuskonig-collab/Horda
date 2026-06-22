@@ -30,14 +30,39 @@ export class PGliteDatabase implements Database {
   async close(): Promise<void> { await this.pg.close(); }
 }
 
-// --- Production adapter (sketch; not wired here) ---------------------------
-// import postgres from 'postgres';
-// export class PostgresDatabase implements Database {
-//   constructor(private sql = postgres(process.env.DATABASE_URL!)) {}
-//   query(q, p=[]) { return this.sql.unsafe(q, p).then(rows => ({ rows })); }
-//   exec(q)       { return this.sql.unsafe(q).then(() => {}); }
-//   close()       { return this.sql.end(); }
-// }
+// --- Production adapter (server Postgres: Neon, Render PG, RDS, …) ----------
+// Same Database interface, backed by a real Postgres server over the wire via
+// node-postgres. Multi-statement DDL files run through exec() use the simple
+// query protocol (each file is one implicit transaction — atomic migrations).
+export class PostgresDatabase implements Database {
+  private pool: any;
+  private constructor(pool: any) { this.pool = pool; }
+  static async open(connectionString: string): Promise<PostgresDatabase> {
+    const pgmod: any = await import('pg');
+    const Pool = pgmod.Pool ?? pgmod.default?.Pool;
+    // Managed Postgres (Neon/Render/etc.) requires TLS; accept their cert chain.
+    const ssl = /sslmode=disable/.test(connectionString) ? undefined : { rejectUnauthorized: false };
+    const pool = new Pool({ connectionString, ssl, max: 5 });
+    await pool.query('SELECT 1');            // fail fast if the URL/credentials are wrong
+    return new PostgresDatabase(pool);
+  }
+  async query<T = any>(sql: string, params: any[] = []): Promise<{ rows: T[] }> {
+    const r = await this.pool.query(sql, params);
+    return { rows: r.rows as T[] };
+  }
+  async exec(sql: string): Promise<void> { await this.pool.query(sql); }
+  async close(): Promise<void> { await this.pool.end(); }
+}
+
+// --- factory: pick the adapter from the environment ------------------------
+// DATABASE_URL set  → real Postgres server (production).
+// otherwise         → embedded PGlite (local dev + tests), persisting to
+//                     HORDA_DATA if provided.
+export async function openDatabase(): Promise<Database> {
+  const url = process.env.DATABASE_URL;
+  if (url) return PostgresDatabase.open(url);
+  return PGliteDatabase.open(process.env.HORDA_DATA || undefined);
+}
 
 // --- schema + seed runners (operate on the real db/ SQL files) -------------
 export async function applySchema(db: Database, migrationsDir = 'db/migrations'): Promise<string[]> {

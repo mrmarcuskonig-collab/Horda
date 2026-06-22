@@ -1,41 +1,46 @@
 # Bringing Horda live — runbook
 
-The app is a single Node 22 process with an embedded database (PGlite). For a pilot there is **no separate database to provision**. It boots, seeds itself on first run, and persists to a mounted volume.
+The app is a single Node 22 web process. It talks to a real **Postgres server**
+(set `DATABASE_URL`) — Neon, Render Postgres, RDS, anything. It boots, runs its
+own SQL migrations, and seeds itself on first run. With no `DATABASE_URL` set it
+falls back to an embedded PGlite database (local dev + tests only).
 
-Verified: `node src/web/server.ts` serves the live start screen on `$PORT`.
+Verified: against a real wire-protocol Postgres the web process serves every
+page using **~115 MB RAM** (fits a free 512 MB instance).
+
+> Do **not** run the embedded PGlite in production — its WASM engine alone
+> reserves ~480 MB (won't fit small instances) and it isn't backed up.
+> Always set `DATABASE_URL` in production.
 
 ---
 
 ## The 4 things only you can do
-1. **Pick a host** (any Docker host works). Easiest: **Render** or **Fly.io** (configs below). Vercel is *not* ideal — it's serverless and our process holds an embedded DB; use a container host.
-2. **Attach a persistent disk** mounted at `/data` (so data survives restarts). ~1 GB is plenty for a pilot.
+1. **Create a Postgres database** and copy its connection string. Easiest free option: **Neon** (neon.tech) — free tier, persistent, doesn't expire. (Render Postgres or any managed Postgres works too.)
+2. **Pick a host** for the web process (any Docker host). Easiest: **Render** (Docker runtime; free tier is fine now). Vercel is *not* ideal — it's serverless; use a container host.
 3. **Point a domain** at it (e.g. `app.horda.app`).
-4. **Set env vars** (below) — especially `HORDA_DEMO=0` for a real pilot.
+4. **Set env vars** (below) — `DATABASE_URL` is required; `HORDA_DEMO=0` for a real pilot.
 
-Everything else is done.
+Everything else is done. No persistent disk needed — the database lives in Postgres.
 
 ## Environment
 | var | value | why |
 |---|---|---|
-| `PORT` | `8787` | listen port |
-| `HORDA_DATA` | `/data` | persist the embedded DB to the mounted disk |
-| `HORDA_DEMO` | `0` (prod) / `1` (showcase) | `0` = browsing open, acting needs sign-up, owner tools need ownership |
+| `DATABASE_URL` | `postgresql://…` | **required in prod** — your Postgres connection string (Neon etc.). TLS auto-enabled unless the URL says `sslmode=disable`. |
+| `PORT` | provided by host | listen port (Render injects this automatically) |
+| `HORDA_DEMO` | `0` (prod) / `1` (showcase) | `0` = browsing open, acting needs sign-up, owner tools need ownership; `1` shows seeded demo content without login |
 
-## Render (one service)
-`render.yaml` is included — push the repo to GitHub and "New → Blueprint", or create a Web Service from the Dockerfile and add a 1 GB disk at `/data`.
+## Render (one web service + a Neon database)
+1. Create a free database at **neon.tech**, copy the connection string.
+2. Render → **New → Web Service** → your GitHub repo → **Language: Docker** → Free instance.
+3. **Environment** → add `DATABASE_URL` = the Neon string, and `HORDA_DEMO` = `1` (or `0`).
+4. Deploy. (No disk, no Root Directory tweaks — files sit at the repo root.)
 
-## Fly.io
-```bash
-fly launch --no-deploy            # generates an app; keep the included Dockerfile
-fly volumes create horda_data --size 1
-# in fly.toml: mount horda_data → /data; set [env] PORT=8787, HORDA_DATA=/data, HORDA_DEMO=0
-fly deploy
-```
+`render.yaml` is included if you prefer "New → Blueprint", but the manual steps above are simplest.
 
 ## Any Docker host
 ```bash
 docker build -t horda .
-docker run -d -p 80:8787 -v horda-data:/data -e HORDA_DEMO=0 horda
+docker run -d -p 80:8787 -e DATABASE_URL='postgresql://…' -e HORDA_DEMO=0 horda
 ```
 
 ---

@@ -2,7 +2,7 @@
 // Routes are thin: assemble data, render a page. Structured to lift into Next.js
 // route handlers later (each handler is already a pure data->HTML function).
 import { createServer, type Server } from 'node:http';
-import { PGliteDatabase } from '../db/index.ts';
+import { openDatabase } from '../db/index.ts';
 import type { Database } from '../db/index.ts';
 import { getClubPage } from '../db/repo.ts';
 import {
@@ -341,7 +341,7 @@ async function loadDemoIds(db: Database): Promise<DemoIds> {
 }
 
 export async function startServer(port = Number(process.env.PORT ?? 8787)): Promise<{ server: Server; db: Database; ids: DemoIds; port: number; close: () => Promise<void> }> {
-  const db = await PGliteDatabase.open(process.env.HORDA_DATA || undefined);   // HORDA_DATA → persist to disk
+  const db = await openDatabase();   // DATABASE_URL → server Postgres (prod); else embedded PGlite (HORDA_DATA persists)
   const fresh = (await db.query<{ r: string | null }>(`SELECT to_regclass('public.account')::text r`)).rows[0].r === null;
   const ids = fresh ? await seedDemo(db) : await loadDemoIds(db);              // seed once; reuse on restart
   const server = await buildApp(db, ids);

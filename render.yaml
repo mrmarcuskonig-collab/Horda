@@ -2,16 +2,13 @@ services:
   - type: web
     name: horda
     runtime: docker
-    plan: starter
+    plan: free
     healthCheckPath: /
     envVars:
-      - key: PORT
-        value: "8787"
-      - key: HORDA_DATA
-        value: /data
+      # Your Postgres connection string (e.g. from Neon). Set this in the
+      # Render dashboard — intentionally not stored in the repo.
+      - key: DATABASE_URL
+        sync: false
+      # "1" shows seeded demo content without login; "0" for a real pilot.
       - key: HORDA_DEMO
-        value: "0"          # set "1" for a public showcase with seeded demo content
-    disk:
-      name: horda-data
-      mountPath: /data
-      sizeGB: 1
+        value: "1"
