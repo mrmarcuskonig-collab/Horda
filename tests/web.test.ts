@@ -28,7 +28,7 @@ ok('record is labeled (Wins–Losses–Draws), not bare 2–0–0', athlete.incl
 ok('athlete-controlled tagline shows', athlete.includes('Southpaw out of Kreuzberg'));
 ok('socials render as icons (svg) linking OUT', athlete.includes('class="ic"') && athlete.includes('<svg') && athlete.includes('instagram.com/ricotheraven'));
 ok('Weverse-style tabs incl. Shop', athlete.includes('Highlight') && athlete.includes('Shop'));
-ok('no follow/followers control', !athlete.includes('>Follow</button>') && !athlete.includes('follower'));
+ok('no vanity follower count (Follow is the free tier now, but no follower numbers)', !athlete.includes('follower'));
 ok('attendance options: not attending yet + Join free / tickets / stream', athlete.includes("You're not attending yet") && athlete.includes('Join for free') && athlete.includes('Buy tickets') && athlete.includes('Stream live'));
 ok('athlete-chosen affiliations (gym/league) shown', athlete.includes('Kreuzberg Boxing Club') && athlete.includes('WBO Welterweight'));
 
@@ -120,13 +120,13 @@ ok('ticket holder can gift + sell', paidAfter.includes('You hold a ticket') && p
 ok('resale listing visible (from Rieke)', paidAfter.includes('Resale') && paidAfter.includes('Rieke'));
 
 // membership (closeness monetization) + members-only FOMO
-ok('athlete tier card: price + perks + join', athlete.includes("Raven's Corner") && athlete.includes('Become a member'));
-ok('members-only drop locked for non-members', athlete.includes('Members-only drop'));
-await fetch(base + '/join', form({ fan_id: app.ids.fanId, owner_kind: 'athlete', owner_id: rico }));
+ok('tier picker shows Supporter + Clubhouse with monthly/annual', athlete.includes("Raven's Corner") && athlete.includes('The Clubhouse') && athlete.includes('/mo') && athlete.includes('/yr'));
+ok('tier-gated drop is locked (teaser) for a non-member guest', guest.includes('Supporter-only') || guest.includes('Clubhouse-only'));
+await fetch(base + '/join', form({ fan_id: app.ids.fanId, owner_kind: 'athlete', owner_id: rico, level: 'supporter', billing: 'annual' }));
 const welcome = await get(`/member/athlete/${rico}`);
 ok('join → shareable founding-member welcome', welcome.includes("You're in") && welcome.includes('Founding member') && welcome.includes('twitter.com/intent'));
 const athleteMem = await get(`/athlete/${rico}`);
-ok('member sees badge + unlocked drop', athleteMem.includes('Founding member #') && athleteMem.includes('Camp diary'));
+ok('member sees badge + unlocked supporter drop', athleteMem.includes('member #') && athleteMem.includes('Camp diary'));
 
 const createForm = await get(`/host/athlete/${rico}/new`);
 ok('owner create-event form has admission + price + stream fields', createForm.includes('Admission') && createForm.includes('Price') && createForm.includes('YouTube'));

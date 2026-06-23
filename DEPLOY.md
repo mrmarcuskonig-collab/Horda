@@ -28,6 +28,18 @@ Everything else is done. No persistent disk needed — the database lives in Pos
 | `DATABASE_URL` | `postgresql://…` | **required in prod** — your Postgres connection string (Neon etc.). TLS auto-enabled unless the URL says `sslmode=disable`. |
 | `PORT` | provided by host | listen port (Render injects this automatically) |
 | `HORDA_DEMO` | `0` (prod) / `1` (showcase) | `0` = browsing open, acting needs sign-up, owner tools need ownership; `1` shows seeded demo content without login |
+| `STRIPE_SECRET_KEY` | `sk_test_…` / `sk_live_…` | optional — enables **real card payments** (Stripe Checkout) for paid tickets + memberships. Unset = payments stay stubbed. |
+| `HORDA_URL` | `https://joinhorda.com` | optional — canonical origin used to build Stripe return URLs. If unset, derived from the request host (fine on Render). |
+
+## Payments (Stripe) — only you can do this
+Card data never touches Horda — we use Stripe's hosted Checkout and only store the result. To turn real payments on:
+1. Create a free **Stripe** account → Developers → API keys.
+2. Copy the **Secret key** (start with the **test** key `sk_test_…`).
+3. In Render → **Environment** → add `STRIPE_SECRET_KEY` = that key. (Set `HORDA_URL=https://joinhorda.com` too.)
+4. Redeploy. Paid tickets now open Stripe Checkout (one-time); paid memberships open a monthly subscription. After paying, the buyer is redirected back and access is granted automatically.
+5. When you've tested with Stripe **test cards** (e.g. `4242 4242 4242 4242`), swap in the **live** key `sk_live_…` to charge real money.
+
+> Do **not** paste your secret key into chat — only into Render's env settings. Later hardening: add a Stripe **webhook** (`checkout.session.completed`) so access is granted even if the buyer closes the tab before redirect, and handle subscription cancellations.
 
 ## Render (one web service + a Neon database)
 1. Create a free database at **neon.tech**, copy the connection string.

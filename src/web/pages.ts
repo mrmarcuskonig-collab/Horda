@@ -127,9 +127,13 @@ export function renderDiscover(d: {
   .rail{display:flex;gap:16px;overflow-x:auto;padding:10px 0 4px}
   .rail::-webkit-scrollbar,.feat::-webkit-scrollbar,.drow::-webkit-scrollbar{height:0}
   .story{flex:0 0 auto;width:66px;display:flex;flex-direction:column;align-items:center;gap:8px}
-  .ring{width:62px;height:62px;border-radius:50%;padding:2px;border:1.5px solid var(--bone);overflow:hidden;display:block;transition:transform .16s}
+  .ring{width:64px;height:64px;border-radius:50%;padding:3px;display:block;box-sizing:border-box;transition:transform .16s}
   .story:hover .ring{transform:scale(1.05)}
-  .ring img,.ring svg{width:100%;height:100%;border-radius:50%;object-fit:cover;display:block}
+  /* dark: soft white halo ring */
+  .ring:not(.act){background:var(--bone);box-shadow:0 0 12px rgba(237,233,223,.32)}
+  /* light: the familiar Instagram gradient ring */
+  html[data-theme="light"] .ring:not(.act){background:conic-gradient(from 135deg,#feda75,#fa7e1e,#d62976,#962fbf,#4f5bd5,#feda75);box-shadow:none}
+  .ring:not(.act) img,.ring:not(.act) svg{width:100%;height:100%;border-radius:50%;object-fit:cover;display:block;border:2px solid var(--ink);box-sizing:border-box}
   .ring.act{display:flex;align-items:center;justify-content:center;border:1px solid var(--b);background:var(--s);color:var(--bone)}
   .sname{font-size:11.5px;font-weight:500;line-height:1.2;color:var(--mut);max-width:66px;text-align:center;white-space:normal}
   .story:hover .sname{color:var(--bone)}
@@ -240,12 +244,17 @@ export function renderAthletePage(d: {
   affiliations: { kind: string; label: string; href: string | null }[];
   events?: { id: string; title: string; date?: string; featured?: boolean; hostName?: string }[];
   scheduleHref?: string;
-  tier?: { name: string; priceCents: number; currency: string; perks: string[] } | null;
-  membership?: { memberNo: number } | null;
+  tiers?: { level: string; name: string; priceCents: number; priceAnnualCents: number | null; currency: string; perks: string[] }[];
+  membership?: { memberNo: number; tierLevel: string } | null;
+  superfan?: boolean;
+  loyalty?: { score: number; threshold: number } | null;
   memberCount?: number;
   canEdit?: boolean;
 }): string {
   const isMember = !!d.membership;
+  const viewerTier = d.membership?.tierLevel ?? null;
+  const tRank = (l?: string | null) => l === 'clubhouse' ? 2 : (l === 'supporter' || l === 'members') ? 1 : 0;
+  const canSee = (vis?: string) => !!d.canEdit || tRank(viewerTier) >= tRank(vis);
   const money = (c: number, cur = 'EUR') => `${cur === 'EUR' ? '€' : cur + ' '}${(c / 100).toFixed(2).replace(/\.00$/, '')}`;
   const p = d.profile;
   const first = (p.name.split(' ')[0] || p.name).replace(/[^A-Za-z]/g, '') || p.name;
@@ -261,7 +270,7 @@ export function renderAthletePage(d: {
 
   const profhead = `<section class="profhead">
       <div class="avatar">${av}</div>
-      <div class="pid"><h1>${esc(p.name)}</h1><div class="hsub">${p.handle ? '@' + esc(p.handle) : ''}${nickname ? ` · “${esc(nickname)}”` : ''} · Welterweight</div></div>
+      <div class="pid"><h1>${esc(p.name)}</h1><div class="hsub">${p.handle ? '@' + esc(p.handle) : ''}${nickname ? ` · “${esc(nickname)}”` : ''} · Welterweight${d.superfan ? ' · <span class="sfan">✦ Superfan</span>' : ''}</div></div>
       <a class="btn join" href="${gate('#join')}">Join Now</a>
     </section>
     ${socials ? `<div class="icons">${socials}</div>` : ''}
@@ -280,21 +289,39 @@ export function renderAthletePage(d: {
       <div class="stat"><div class="num">${p.record.draws}</div><div class="slab">Drawn</div></div>
     </div><div class="reccap">${p.record.wins}–${p.record.losses}–${p.record.draws} · Wins–Losses–Draws</div>`;
 
-  const tierCard = isMember
-    ? `<div class="membadge">✦ Founding member #${d.membership!.memberNo}${d.tier ? ` · ${esc(d.tier.name)}` : ''}${d.memberCount ? ` · ${d.memberCount} members` : ''}</div>`
-    : d.tier
-      ? `<section class="card tiercard"><div class="ch"><h2>${esc(d.tier.name)}</h2><span class="price">${money(d.tier.priceCents, d.tier.currency)}/mo</span></div>
-          <ul class="perks">${d.tier.perks.map(pk => `<li>${esc(pk)}</li>`).join('')}</ul>
-          ${d.guest ? `<a class="btn" href="/signup">Become a member</a>` : `<form method="post" action="/join"><input type="hidden" name="fan_id" value="${d.fanId}"><input type="hidden" name="owner_kind" value="athlete"><input type="hidden" name="owner_id" value="${p.athleteId}"><button class="btn" type="submit">Become a member</button></form>`}
-          ${d.memberCount ? `<div class="dt" style="margin-top:8px">${d.memberCount} members already in</div>` : ''}</section>`
-      : '';
+  const joinFields = `<input type="hidden" name="fan_id" value="${d.fanId}"><input type="hidden" name="owner_kind" value="athlete"><input type="hidden" name="owner_id" value="${p.athleteId}">`;
+  const followCard = `<div class="tcard"><div class="th2">Follow <span class="tlvl">Free</span></div>
+      <ul class="perks"><li>Public posts, results &amp; matchdays</li><li>Counts toward Superfan status</li></ul>
+      ${d.guest ? `<a class="btn" href="/signup">Follow</a>` : `<form method="post" action="/follow"><input type="hidden" name="fan_id" value="${d.fanId}"><input type="hidden" name="target_type" value="athlete"><input type="hidden" name="target_id" value="${p.athleteId}"><button class="btn">Follow</button></form>`}</div>`;
+  const tcard = (t: { level: string; name: string; priceCents: number; priceAnnualCents: number | null; currency: string; perks: string[] }) => {
+    const annual = t.priceAnnualCents ?? t.priceCents * 10;
+    const here = isMember && viewerTier === t.level;
+    const label = t.level === 'clubhouse' ? 'Clubhouse · Superfan' : 'Supporter';
+    const cta = d.guest
+      ? `<a class="btn" href="/signup">Join · from ${money(t.priceCents, t.currency)}/mo</a>`
+      : here ? `<div class="dt" style="padding:8px 0">✓ You’re in</div>`
+        : `<form method="post" action="/join">${joinFields}<input type="hidden" name="level" value="${t.level}"><div class="trow"><button class="btn" name="billing" value="monthly">${money(t.priceCents, t.currency)}/mo</button><button class="btn dark" name="billing" value="annual">${money(annual, t.currency)}/yr</button></div></form>`;
+    return `<div class="tcard${t.level === 'clubhouse' ? ' prem' : ''}"><div class="th2">${esc(t.name)} <span class="tlvl">${label}</span></div>
+      <ul class="perks">${t.perks.map(pk => `<li>${esc(pk)}</li>`).join('')}</ul>${cta}</div>`;
+  };
+  const badge = (isMember || d.superfan)
+    ? `<div class="membadge">✦ ${d.superfan ? 'Superfan' : (viewerTier === 'clubhouse' ? 'Clubhouse' : 'Supporter')}${isMember ? ` · member #${d.membership!.memberNo}` : ' · earned through loyalty'}${d.memberCount ? ` · ${d.memberCount} members` : ''}</div>`
+    : '';
+  const loyaltyBar = (!d.guest && !d.superfan && d.loyalty)
+    ? `<div class="loy"><div class="dt">${d.loyalty.score} / ${d.loyalty.threshold} to Superfan — attend, predict &amp; share to climb</div><div class="loybar"><span style="width:${Math.min(100, Math.round((d.loyalty.score / d.loyalty.threshold) * 100))}%"></span></div></div>`
+    : '';
+  const tierCard = `<section id="join" class="card"><div class="ch"><h2>Membership</h2></div>${badge}
+      <div class="tierrow">${followCard}${(d.tiers ?? []).map(tcard).join('')}</div>${loyaltyBar}</section>`;
 
   const postCard = (po: { body: string; date?: string; visibility?: string }) => {
-    const locked = po.visibility === 'members' && !isMember;
-    const tagHtml = po.visibility === 'members' ? '<span class="memtag">★ Members</span>' : '<span class="verified">✔</span>';
-    return `<article class="post"><div class="pa"><span class="pav">${av}</span><div class="pmeta"><strong>${esc(p.name)}</strong> ${tagHtml}<div class="dt">${esc(po.date ?? '')}</div></div></div>${locked
-      ? `<div class="locked">🔒 Members-only drop — ${d.guest ? `<a href="/signup">join</a>` : `<a href="#join">become a member</a>`} to unlock.</div>`
-      : `<p>${esc(po.body)}</p>`}</article>`;
+    const vis = po.visibility || 'public';
+    const allowed = canSee(vis);
+    const req = vis === 'clubhouse' ? 'Clubhouse' : 'Supporter';
+    const tagHtml = vis === 'public' ? '<span class="verified">✔</span>' : `<span class="memtag">★ ${req}</span>`;
+    const teaser = (po.body || '').slice(0, 140).trim();
+    return `<article class="post"><div class="pa"><span class="pav">${av}</span><div class="pmeta"><strong>${esc(p.name)}</strong> ${tagHtml}<div class="dt">${esc(po.date ?? '')}</div></div></div>${allowed
+      ? `<p>${esc(po.body)}</p>`
+      : `<div class="teaser"><p>${esc(teaser)}…</p><div class="locked">🔒 ${req}-only — ${d.guest ? `<a href="/signup">join</a>` : `<a href="#join">unlock with ${req}</a>`} to read.</div></div>`}</article>`;
   };
   const postsBlock = p.posts.length
     ? `<section class="card"><div class="ch"><h2>From ${esc(first)}</h2><a class="more inline" href="${gate('#posts')}">View more</a></div>${p.posts.map(postCard).join('')}</section>`
@@ -386,6 +413,14 @@ export function renderAthletePage(d: {
   .membadge{background:var(--bone);color:var(--ink);border-radius:14px;padding:12px 16px;margin:14px 0;font-weight:800;font-size:14px;letter-spacing:.3px}
   .memtag{font-size:10px;font-weight:800;letter-spacing:.5px;color:var(--ink);background:var(--bone);border-radius:999px;padding:2px 8px}
   .locked{border:1px dashed var(--b);border-radius:12px;padding:14px;color:var(--mut);font-size:14px;background:rgba(237,233,223,.03)}.locked a{color:var(--bone);border-bottom:1px solid var(--b)}
+  .sfan{color:var(--bone);font-weight:800}
+  #join{display:none}#join:target{display:block}
+  .tierrow{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin-top:6px}
+  .tcard{border:1px solid var(--b);border-radius:14px;padding:14px}.tcard.prem{border-color:var(--bone)}
+  .th2{font-weight:800;font-size:15px;margin-bottom:8px}.tlvl{font-size:10px;font-weight:800;letter-spacing:1px;text-transform:uppercase;color:var(--mut);border:1px solid var(--b);border-radius:999px;padding:2px 8px;margin-left:4px}
+  .trow{display:flex;gap:8px;flex-wrap:wrap;margin-top:4px}.trow .btn{flex:1;text-align:center}
+  .teaser p{color:var(--mut)}
+  .loy{margin-top:14px}.loybar{height:7px;border-radius:999px;background:var(--s);border:1px solid var(--b);overflow:hidden;margin-top:6px}.loybar span{display:block;height:100%;background:var(--bone)}
   .stats{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:16px 0 4px}
   .stat{background:var(--s);border:1px solid var(--b);border-radius:14px;padding:14px 8px;text-align:center}
   .stat .num{font-size:32px;font-weight:800;font-variant-numeric:tabular-nums;line-height:1}
@@ -473,19 +508,102 @@ export function renderMemberWelcome(d: { name: string; tierName: string; memberN
 }
 
 // sign-up — create a real account (browsing is open; acting needs this).
-export function renderSignup(next: string): string {
+export function renderSignup(next: string, role = 'fan'): string {
   const inp = 'display:block;width:100%;margin-top:6px;background:var(--s);border:1px solid var(--b);border-radius:10px;color:var(--bone);padding:11px;font:inherit';
+  const roleOpt = (val: string, title: string, sub: string) =>
+    `<label class="roleopt"><input type="radio" name="role" value="${val}"${role === val ? ' checked' : ''}><span class="rb"><strong>${title}</strong><span class="rsub">${sub}</span></span></label>`;
   return layout('Join the Horda', `
+    <style>
+      .roles{display:grid;gap:8px;margin:8px 0 4px}
+      .roleopt{display:block;cursor:pointer}.roleopt input{position:absolute;opacity:0}
+      .roleopt .rb{display:block;border:1.5px solid var(--b);border-radius:12px;padding:12px 14px}
+      .roleopt .rb strong{font-size:15px}.roleopt .rsub{display:block;color:var(--mut);font-size:12.5px;margin-top:2px}
+      .roleopt input:checked + .rb{border-color:var(--bone);background:var(--s)}
+    </style>
     <h1>Join the Horda</h1>
-    <p class="mut">Browsing is open. To follow, attend, predict, become a member, or claim your page, create a free account.</p>
+    <p class="mut">Browsing is open. Create a free account to follow, attend, predict, or run your own page.</p>
     <form method="post" action="/signup">
       <input type="hidden" name="next" value="${esc(next || '/')}">
+      <div class="mut" style="margin:14px 0 2px;font-size:13px">I'm here to…</div>
+      <div class="roles">
+        ${roleOpt('fan', 'Follow my sport', 'Fan — follow athletes & clubs, never miss a matchday')}
+        ${roleOpt('athlete', 'Create my athlete page', 'Athlete — your profile, posts, tiers & events')}
+        ${roleOpt('club', 'Claim our club / federation', 'Club or federation — verify and run your page')}
+      </div>
       <label class="mut" style="display:block;margin:12px 0">Name<input style="${inp}" name="name" required></label>
       <label class="mut" style="display:block;margin:12px 0">Email<input style="${inp}" type="email" name="email" required></label>
       <label class="mut" style="display:block;margin:12px 0">Password<input style="${inp}" type="password" name="password" required minlength="6"></label>
       <div class="row"><button type="submit">Create account</button></div>
     </form>
     <p class="mut" style="margin-top:14px">Already have one? <a href="/login" style="border-bottom:1px solid var(--b)">Log in</a>.</p>`, { back: next || '/' });
+}
+
+// --- onboarding: fan first-run (pick a sport, follow a few faces) ----------
+export function renderOnboardFan(d: { fanId: string; sport?: string; sports: { key: string; name: string }[]; athletes: { id: string; name: string; sport: string | null; region: string | null; verified?: boolean }[]; clubs: { id: string; name: string; sport: string | null; region: string | null; verified?: boolean }[]; followedCount: number }): string {
+  const chip = (label: string, key?: string) => `<a class="chip${(key ?? '') === (d.sport ?? '') ? ' on' : ''}" href="/onboarding/fan${key ? `?sport=${key}` : ''}">${esc(label)}</a>`;
+  const follow = (type: string, id: string, name: string, sub: string, verified?: boolean) =>
+    `<div class="ocard"><div class="ometa"><div class="on">${esc(name)}${verified ? ' <span class="sf">✦</span>' : ''}</div><div class="osub">${esc(sub)}</div></div><form method="post" action="/follow"><input type="hidden" name="fan_id" value="${d.fanId}"><input type="hidden" name="target_type" value="${type}"><input type="hidden" name="target_id" value="${id}"><button class="btn sm">Follow</button></form></div>`;
+  const list = [
+    ...d.athletes.map(a => follow('athlete', a.id, a.name, [a.sport, a.region].filter(Boolean).join(' · ') || 'athlete', a.verified)),
+    ...d.clubs.map(c => follow('club', c.id, c.name, [c.sport, c.region].filter(Boolean).join(' · ') || 'club', c.verified)),
+  ].join('') || `<p class="mut">No coverage for that sport yet — try another, or follow later.</p>`;
+  return layout('Set up your Horda', `
+    <style>.ocard{display:flex;align-items:center;justify-content:space-between;gap:10px;border:1px solid var(--b);border-radius:12px;padding:11px 13px;margin:8px 0}.on{font-weight:800;font-size:15px}.osub{color:var(--mut);font-size:12px;text-transform:capitalize}.btn.sm{padding:7px 14px;font-size:13px}.sf{color:var(--bone)}.chip{display:inline-block;border:1px solid var(--b);color:var(--mut);border-radius:999px;padding:6px 12px;font-size:12.5px;margin:0 6px 6px 0}.chip.on{background:var(--bone);color:var(--ink);border-color:var(--bone)}</style>
+    <h1>Find your people</h1>
+    <p class="mut">Follow a few to fill your feed. You can change this anytime.${d.followedCount ? ` <b>${d.followedCount} followed.</b>` : ''}</p>
+    <div style="margin:12px 0">${chip('All sports')}${d.sports.map(s => chip(s.name, s.key)).join('')}</div>
+    ${list}
+    <div class="row" style="margin-top:18px"><a class="btn" href="/onboarding/done">${d.followedCount ? 'Go to your feed →' : 'Skip for now →'}</a></div>`, { back: '/' });
+}
+
+// --- onboarding: AI-first. Describe yourself → we generate a polished page. ---
+export function renderAiPrompt(d: { title: string; lead: string; placeholder: string; generateAction: string; hidden?: string; back: string; altLink?: string }): string {
+  const ta = 'display:block;width:100%;margin-top:8px;background:var(--s);border:1px solid var(--b);border-radius:12px;color:var(--bone);padding:13px;font:inherit;min-height:150px;line-height:1.55';
+  return layout(d.title, `
+    <h1>${esc(d.title)}</h1>
+    <p class="mut">${esc(d.lead)}</p>
+    <form method="post" action="${esc(d.generateAction)}">${d.hidden ?? ''}
+      <textarea name="description" required placeholder="${esc(d.placeholder)}" style="${ta}"></textarea>
+      <div class="row" style="margin-top:12px"><button type="submit">✦ Generate my page</button></div>
+    </form>
+    <p class="mut" style="margin-top:12px;font-size:12.5px">We turn your words into a bold, on-brand page — a cooler headline, a striking cover, the works. You can tweak everything before it goes live.</p>
+    ${d.altLink ?? ''}`, { back: d.back });
+}
+
+export function renderProfilePreview(d: { kind: string; gen: { displayName: string; handle: string; headline: string; tagline: string; bio: string; cover: string; links?: Record<string, string> }; description: string; createAction: string; generateAction: string; hidden?: string; showHandle?: boolean }): string {
+  const inp = 'display:block;width:100%;margin-top:6px;background:var(--s);border:1px solid var(--b);border-radius:10px;color:var(--bone);padding:11px;font:inherit';
+  const g = d.gen;
+  return layout('Your page — preview', `
+    <style>.pvcover{width:100%;border-radius:16px;border:1px solid var(--b);display:block;aspect-ratio:1200/420;object-fit:cover}.pvh{font-size:12px;letter-spacing:1.5px;text-transform:uppercase;color:var(--mut);font-weight:700;margin:18px 0 6px}</style>
+    <h1>Here’s your page ✦</h1>
+    <p class="mut">Generated from what you told us. Edit anything, regenerate, or publish.</p>
+    <img class="pvcover" src="${esc(g.cover)}" alt="generated cover">
+    <div class="pvh">Headline</div><div style="font-size:20px;font-weight:800">${esc(g.headline || g.displayName)}</div>
+    <form method="post" action="${esc(d.createAction)}">${d.hidden ?? ''}
+      <input type="hidden" name="cover" value="${esc(g.cover)}">
+      <input type="hidden" name="links" value="${esc(JSON.stringify(g.links ?? {}))}">
+      ${g.links && Object.keys(g.links).length ? `<div class="pvh">Links found</div><div class="mut" style="font-size:12.5px">${Object.keys(g.links).map(k => esc(k)).join(' · ')}</div>` : ''}
+      <label class="mut" style="display:block;margin:14px 0 0">Name<input style="${inp}" name="name" value="${esc(g.displayName)}" required></label>
+      ${d.showHandle !== false ? `<label class="mut" style="display:block;margin:12px 0 0">Handle<input style="${inp}" name="handle" value="${esc(g.handle)}" required></label>` : ''}
+      <label class="mut" style="display:block;margin:12px 0 0">Tagline<input style="${inp}" name="tagline" value="${esc(g.tagline)}"></label>
+      <label class="mut" style="display:block;margin:12px 0 0">Bio / intro<textarea style="${inp};min-height:90px" name="bio">${esc(g.bio)}</textarea></label>
+      <div class="row" style="margin-top:14px"><button type="submit">Publish my page →</button></div>
+    </form>
+    <form method="post" action="${esc(d.generateAction)}" style="margin-top:8px">${d.hidden ?? ''}<input type="hidden" name="description" value="${esc(d.description)}"><div class="row"><button class="ghost" type="submit">↻ Regenerate</button></div></form>`, { back: '/' });
+}
+
+// --- onboarding: club / federation finds + claims its page -----------------
+export function renderOnboardClaim(d: { q: string; results: { kind: string; id: string; name: string; region: string | null }[] }): string {
+  const inp = 'flex:1;background:var(--s);border:1px solid var(--b);border-radius:10px;color:var(--bone);padding:11px;font:inherit';
+  const rows = d.results.length
+    ? d.results.map(r => `<div class="ocard"><div class="ometa"><div class="on">${esc(r.name)}</div><div class="osub">${esc(r.kind)}${r.region ? ' · ' + esc(r.region) : ''}</div></div><a class="btn sm" href="/claim/${r.kind}/${r.id}">Claim →</a></div>`).join('')
+    : (d.q ? `<p class="mut">No match for “${esc(d.q)}”. It may not be on Horda yet — <a href="/onboarding/athlete" style="border-bottom:1px solid var(--b)">create a page</a> or contact us to add your league.</p>` : '');
+  return layout('Claim your page', `
+    <style>.ocard{display:flex;align-items:center;justify-content:space-between;gap:10px;border:1px solid var(--b);border-radius:12px;padding:11px 13px;margin:8px 0}.on{font-weight:800;font-size:15px}.osub{color:var(--mut);font-size:12px;text-transform:capitalize}.btn.sm{padding:7px 14px;font-size:13px}</style>
+    <h1>Claim your club or federation</h1>
+    <p class="mut">Find your page, then verify you represent it — by an official email, a code on your site, or a quick review.</p>
+    <form method="get" action="/onboarding/claim"><div class="row" style="margin:12px 0"><input style="${inp}" name="q" value="${esc(d.q)}" placeholder="Search your club or federation"><button type="submit">Search</button></div></form>
+    ${rows}`, { back: '/' });
 }
 
 export function renderLogin(next: string): string {

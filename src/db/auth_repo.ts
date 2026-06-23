@@ -18,12 +18,19 @@ function verifyPw(pw: string, stored: string | null): boolean {
 
 export interface Account { id: string; email: string; displayName: string | null }
 
-export async function signup(db: Database, email: string, name: string, pw: string): Promise<{ accountId: string; fanId: string } | null> {
+export async function signup(db: Database, email: string, name: string, pw: string, role = 'fan'): Promise<{ accountId: string; fanId: string } | null> {
   const exists = (await db.query<{ id: string }>(`SELECT id FROM account WHERE email=$1`, [email])).rows[0];
   if (exists) return null;
-  const acc = (await db.query<{ id: string }>(`INSERT INTO account (email,display_name,password_hash) VALUES ($1,$2,$3) RETURNING id`, [email, name, hashPw(pw)])).rows[0];
+  const acc = (await db.query<{ id: string }>(`INSERT INTO account (email,display_name,password_hash,role) VALUES ($1,$2,$3,$4) RETURNING id`, [email, name, hashPw(pw), role])).rows[0];
+  // everyone gets a fan identity (even creators are fans of others)
   const fan = (await db.query<{ id: string }>(`INSERT INTO fan (account_id,handle,display_name) VALUES ($1,$2,$3) RETURNING id`, [acc.id, email.split('@')[0], name])).rows[0];
   return { accountId: acc.id, fanId: fan.id };
+}
+export async function accountRole(db: Database, accountId: string): Promise<string> {
+  return (await db.query<{ role: string }>(`SELECT role FROM account WHERE id=$1`, [accountId])).rows[0]?.role ?? 'fan';
+}
+export async function setOnboarded(db: Database, accountId: string): Promise<void> {
+  await db.query(`UPDATE account SET onboarded=true WHERE id=$1`, [accountId]);
 }
 
 export async function verifyLogin(db: Database, email: string, pw: string): Promise<string | null> {

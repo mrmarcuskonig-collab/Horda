@@ -7,7 +7,7 @@ import { getOrCreateSport, getOrCreateVariant, createClubWithTeam, commitResults
 import { createAthlete, createFan, followEntity, createPost, createBout, commitBoutResult, setAthleteProfile, setEventSpectator, addAffiliation } from '../db/engagement_repo.ts';
 import { createAssociation, createLeague, assignTeamToLeague, addToTeam, setBranding, getNextFixtureForTeam } from '../db/entity_repo.ts';
 import { createScheduledEvent, rsvp, featureEvent, markPaid, getTicketFor, listTicket } from '../db/events_repo.ts';
-import { setTier, joinMembership } from '../db/membership_repo.ts';
+import { setTier, joinMembership, recordLoyalty } from '../db/membership_repo.ts';
 import { grantOwnership } from '../db/auth_repo.ts';
 import { ingestUserUpload } from '../pipeline/index.ts';
 
@@ -109,12 +109,23 @@ Sa 28.06. 15:00 FC Beispiel – TSV Musterstadt
   await featureEvent(db, 'athlete', rico, ev2);
   await featureEvent(db, 'club', cid['FC Beispiel'], ev3);
 
-  // closeness monetization: paid supporter tiers
-  await setTier(db, 'athlete', rico, { name: "Raven's Corner", priceCents: 499, currency: 'EUR', perks: ['Members-only fight-week drops', 'Early & discounted tickets', 'Founding member badge'] });
-  await setTier(db, 'club', cid['FC Beispiel'], { name: 'Kurve Club', priceCents: 300, currency: 'EUR', perks: ['Members-only matchday vlog', 'Priority tickets', 'Crest badge'] });
-  // a members-only drop (FOMO) + a couple of founding members ("You" stays a non-member, so the lock shows)
-  await createPost(db, 'athlete', rico, 'Camp diary, week 3 — sparring footage + my game plan for Saturday. Members only. 🔒', undefined, 'members');
-  for (const [h, n] of [['ines', 'Ines'], ['karl', 'Karl']] as const) { const f = await createFan(db, h, n); await joinMembership(db, f, 'athlete', rico); }
+  // closeness monetization: Supporter (paid basic) + Clubhouse (premium) tiers
+  await setTier(db, 'athlete', rico, { level: 'supporter', name: "Raven's Corner", priceCents: 499, priceAnnualCents: 4900, currency: 'EUR', perks: ['Supporter-only fight-week posts', 'Early ticket access', 'Supporter badge'] });
+  await setTier(db, 'athlete', rico, { level: 'clubhouse', name: 'The Clubhouse', priceCents: 999, priceAnnualCents: 9900, currency: 'EUR', perks: ['Everything in Supporter', 'Exclusive camp drops & sparring footage', 'Monthly Q&A / AMA', 'Priority & discounted tickets', 'Grants Superfan status'] });
+  await setTier(db, 'club', cid['FC Beispiel'], { level: 'supporter', name: 'Kurve Club', priceCents: 300, priceAnnualCents: 3000, currency: 'EUR', perks: ['Supporter-only matchday vlog', 'Priority tickets', 'Crest badge'] });
+  // a supporter drop + a clubhouse-only drop (FOMO) + founding members ("You" stays free, so the locks show)
+  await createPost(db, 'athlete', rico, 'Camp diary, week 3 — game plan notes for Saturday. Supporters only.', undefined, 'supporter');
+  await createPost(db, 'athlete', rico, 'Full sparring footage + corner audio from today’s session. Clubhouse exclusive. 🔒', undefined, 'clubhouse');
+  for (const [h, n] of [['ines', 'Ines'], ['karl', 'Karl']] as const) { const f = await createFan(db, h, n); await joinMembership(db, f, 'athlete', rico, 'supporter', 'annual'); }
+
+  // earned Superfan (free path): Maja never pays but is relentlessly active → status by loyalty
+  const maja = await createFan(db, 'maja', 'Maja');
+  await followEntity(db, maja, 'athlete', rico);
+  for (let i = 0; i < 6; i++) await recordLoyalty(db, maja, 'athlete', rico, 'attend');
+  for (let i = 0; i < 4; i++) await recordLoyalty(db, maja, 'athlete', rico, 'share');
+  for (let i = 0; i < 3; i++) await recordLoyalty(db, maja, 'athlete', rico, 'predict_correct');
+  // "You" has started climbing (still below the threshold, so the upsell stays live)
+  for (const k of ['follow', 'share', 'predict', 'rsvp']) await recordLoyalty(db, fanId, 'athlete', rico, k);
 
   // tickets: a reseller holds one and lists it ("You" stays unpaid so the buy flow shows)
   const seller = await createFan(db, 'rieke', 'Rieke');

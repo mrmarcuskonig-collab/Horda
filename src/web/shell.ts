@@ -133,7 +133,7 @@ export function renderEntityProfile(vm: ProfileVM): string {
 <link rel="icon" href="/favicon.svg">${THEME_BOOT}<style>${DARK_CSS}</style></head><body>
   <header class="top"><a class="mark" href="/" aria-label="Horda — home">${ravenMarkCurrent(30)}</a><div class="rgt">${themeToggle()}<a class="dt" href="${vm.guest ? '/signup' : (vm.backHref ?? '/')}">${vm.guest ? 'log in' : '← back'}</a></div></header>
   ${hero}${tabs}
-  <div class="grid"><main>${(vm.editAction && vm.canEdit) ? editPanel(vm.editAction) : ''}${notice}${post}${attend}${eventsCard}${vm.tableHtml ?? ''}${merch}</main>${aside}</div>
+  <div class="grid"><main>${(vm.editAction && vm.canEdit) ? `<div class="row" style="margin:0 0 10px"><a class="btn ghost" href="${esc(vm.editAction.replace('/entity/', '/onboarding/brand/').replace('/branding', ''))}">✦ AI page setup</a></div>` + editPanel(vm.editAction) : ''}${notice}${post}${attend}${eventsCard}${vm.tableHtml ?? ''}${merch}</main>${aside}</div>
   ${gatebar}
   <div class="prov">${esc(vm.kindLabel)} profile · owner-controlled identity · system of record, no fan-to-fan venue. Social &amp; affiliation links are owner-chosen and point out.</div>
   ${bottomNav({ guest: vm.guest, fanId: vm.fanId })}

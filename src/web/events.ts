@@ -178,15 +178,17 @@ export function renderEventPage(d: EventDetail, ctx: {
   return layout(d.title, body, { back: hostHref(d.hostKind, d.hostId) });
 }
 
-// payment step — Stripe is the production swap; this records the paid state.
-export function renderCheckout(d: EventDetail, fanId: string): string {
+// payment step — real card payment via Stripe Checkout when configured.
+export function renderCheckout(d: EventDetail, fanId: string, live = false): string {
   const body = `
   <h1>Checkout</h1>
   <div class="card"><b>${esc(d.title)}</b><div class="mut" style="margin:6px 0">${esc([d.date, d.time].filter(Boolean).join(' · '))}${d.location ? ' · ' + esc(d.location) : ''}</div>
     <div style="font-size:30px;font-weight:800;margin-top:10px">${priceLabel(d)}</div></div>
   <form method="post" action="/e/${d.id}/pay"><input type="hidden" name="fan_id" value="${fanId}">
-    <div class="row"><button type="submit">Pay ${esc(priceLabel(d))} · get ticket</button></div></form>
-  <p class="mut" style="margin-top:12px">Demo checkout — payments are stubbed. Production wires Stripe here; the ticket + guest-list flow is already live.</p>`;
+    <div class="row"><button type="submit">${live ? `Pay ${esc(priceLabel(d))} with card` : `Pay ${esc(priceLabel(d))} · get ticket`}</button></div></form>
+  <p class="mut" style="margin-top:12px">${live
+    ? 'Secure payment by Stripe — you’ll be taken to Stripe’s checkout, then straight back with your ticket. Your card details never touch Horda.'
+    : 'Demo checkout — payments are stubbed (set STRIPE_SECRET_KEY to charge for real). The ticket + guest-list flow is already live.'}</p>`;
   return layout('Checkout · ' + d.title, body, { back: `/e/${d.id}` });
 }
 

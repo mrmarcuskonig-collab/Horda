@@ -24,9 +24,9 @@ eq('joining assigns founding member #3', no, 3);
 eq('member count now 3', await memberCount(db, 'athlete', rico), 3);
 eq('idempotent: re-join keeps #3', await joinMembership(db, ids.fanId, 'athlete', rico), 3);
 
-console.log('\n[membership · members-only drop exists]');
+console.log('\n[membership · tier-gated drops exist]');
 const prof = await getAthleteProfile(db, rico);
-ok('a members-only post is present (FOMO drop)', prof.posts.some(p => p.visibility === 'members'));
+ok('a tier-gated drop is present (FOMO)', prof.posts.some(p => p.visibility === 'supporter' || p.visibility === 'clubhouse' || p.visibility === 'members'));
 
 console.log('\n[tickets · gift + resale]');
 const ev2 = (await db.query<{ id: string }>(`SELECT id FROM event WHERE admission='paid' LIMIT 1`)).rows[0].id;

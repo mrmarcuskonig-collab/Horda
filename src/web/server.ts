@@ -7,7 +7,7 @@ import type { Database } from '../db/index.ts';
 import { getClubPage } from '../db/repo.ts';
 import {
   getAthleteProfile, getFanHome, getFollows, getUpcomingBout, getPrediction,
-  followEntity, makePrediction, attend, getAttendance, getAffiliations, getLatestPost, setAthleteProfile,
+  followEntity, makePrediction, attend, getAttendance, getAffiliations, getLatestPost, setAthleteProfile, createAthlete, createPost,
 } from '../db/engagement_repo.ts';
 import {
   getBranding, setBranding, getClub, getTeamsOfClub, getTeam, getRoster,
@@ -17,13 +17,17 @@ import { renderEntityProfile, tableDark } from './shell.ts';
 import { FAVICON_SVG } from './brand.ts';
 import { buildResultShare, buildFightShare, buildWeekDrop } from '../content/index.ts';
 import { createScheduledEvent, rsvp, getRsvp, getEventDetail, getGuestList, listUpcomingByHost, listProfileEvents, hostName, icsFor, approveRegistration, markPaid, featureEvent, getTicketFor, giftTicket, listTicket, getListings, buyListing } from '../db/events_repo.ts';
-import { getTier, joinMembership, getMembership, memberCount } from '../db/membership_repo.ts';
-import { signup, verifyLogin, createSession, sessionAccount, deleteSession, fanForAccount, owns, ownedEntities, grantOwnership } from '../db/auth_repo.ts';
+import { getTier, getTiers, joinMembership, getMembership, memberCount, recordLoyalty, loyaltyScore, isSuperfan, topSuperfans, type TierLevel } from '../db/membership_repo.ts';
+import { signup, verifyLogin, createSession, sessionAccount, deleteSession, fanForAccount, owns, ownedEntities, grantOwnership, accountRole, setOnboarded } from '../db/auth_repo.ts';
 import { getDiscover, REGIONS } from '../db/discover_repo.ts';
 import { renderEventPage, renderCreateEvent, renderManage, renderCheckout } from './events.ts';
 import { seedDemo, type DemoIds } from './seed.ts';
-import { renderIndex, renderDiscover, renderMap, renderAthletePage, renderFanHome, renderSignup, renderLogin, renderSharePage, renderMemberWelcome, renderClaimPending, renderClaimQueue } from './pages.ts';
+import { renderIndex, renderDiscover, renderMap, renderAthletePage, renderFanHome, renderSignup, renderLogin, renderSharePage, renderMemberWelcome, renderClaimPending, renderClaimQueue, renderOnboardFan, renderAiPrompt, renderProfilePreview, renderOnboardClaim } from './pages.ts';
+import { generateProfile, getModel, coverDataUri } from './profilegen.ts';
 import { requestClaim, verifyByChannelCode, listClaimsForReviewer, decideClaim, officialDomain, isAdmin as accountIsAdmin, type ClaimKind } from '../db/claim_repo.ts';
+import { getPayments } from './payments.ts';
+
+const payments = getPayments();
 
 const DEMO_FALLBACK = process.env.HORDA_DEMO !== '0';  // default on: usable without login
 const parseCookies = (h?: string): Record<string, string> => Object.fromEntries((h ?? '').split(';').map(c => c.trim().split('=')).filter(p => p[0]).map(([k, ...v]) => [k, decodeURIComponent(v.join('='))]));
@@ -52,16 +56,100 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
       const viewerGuest = !account || url.searchParams.get('guest') === '1';
       const canEdit = (kind: string, id: string) => viewerGuest ? Promise.resolve(false) : owns(db, account?.id ?? null, kind, id);
       const adminFlag = !!account && (account.id === ids.demoAccountId ? true : await accountIsAdmin(db, account.id));
+      const fwdProto = (req.headers['x-forwarded-proto'] as string | undefined)?.split(',')[0];
+      const origin = process.env.HORDA_URL || `${fwdProto || 'https'}://${req.headers['x-forwarded-host'] || req.headers.host || 'localhost'}`;
 
       if (path === '/favicon.svg') { res.writeHead(200, { 'content-type': 'image/svg+xml' }); res.end(FAVICON_SVG); return; }
 
       // --- auth ---
       if (req.method === 'POST' && path === '/signup') {
         const f = await parseForm(req);
-        const r = await signup(db, (f.email || '').toLowerCase().trim(), f.name || 'Fan', f.password || '');
+        const role = ['fan', 'athlete', 'club'].includes(f.role) ? f.role : 'fan';
+        const r = await signup(db, (f.email || '').toLowerCase().trim(), f.name || 'Fan', f.password || '', role);
         if (!r) return redirect(res, '/login');
         const token = await createSession(db, r.accountId);
-        res.writeHead(303, { 'set-cookie': `hz_session=${token}; Path=/; HttpOnly; SameSite=Lax`, location: f.next || '/' }); res.end(); return;
+        // route into the matching onboarding path; fan signups keep an explicit ?next intent
+        const dest = role === 'athlete' ? '/onboarding/athlete'
+          : role === 'club' ? '/onboarding/claim'
+            : (f.next && f.next !== '/') ? f.next : '/onboarding/fan';
+        res.writeHead(303, { 'set-cookie': `hz_session=${token}; Path=/; HttpOnly; SameSite=Lax`, location: dest }); res.end(); return;
+      }
+      // --- onboarding (first-run) ---
+      if (path === '/onboarding/fan') {
+        if (!account) return redirect(res, '/signup');
+        const sport = url.searchParams.get('sport') || undefined;
+        const data = await getDiscover(db, { sport });
+        const followed = await getFollows(db, viewer);
+        return html(res, renderOnboardFan({ fanId: viewer, sport, sports: data.sports, athletes: data.athletes.slice(0, 8), clubs: data.clubs.slice(0, 6), followedCount: followed.length }));
+      }
+      if (path === '/onboarding/done') {
+        if (account) await setOnboarded(db, account.id);
+        return redirect(res, `/fan/${viewer}`);
+      }
+      // AI-first athlete onboarding: describe → generate → preview → publish
+      if (path === '/onboarding/athlete' && req.method !== 'POST') {
+        if (!account) return redirect(res, '/signup');
+        return html(res, renderAiPrompt({
+          title: 'Create your athlete page', lead: 'Tell us, in your own words, what you do and the vibe you want. We’ll build it.',
+          placeholder: 'e.g. I’m Rico “The Raven” Vargas, a southpaw welterweight boxer out of Kreuzberg, Berlin. 2–0, all finishes.\nHere’s my site + socials: https://ricovargas.box · https://instagram.com/ricotheraven\nVibe: dark and intense, fight-week energy.',
+          generateAction: '/onboarding/athlete/generate', back: '/',
+          altLink: `<p class="mut" style="margin-top:14px">A club or federation instead? <a href="/onboarding/claim" style="border-bottom:1px solid var(--b)">Claim your page</a>.</p>`,
+        }));
+      }
+      if (req.method === 'POST' && path === '/onboarding/athlete/generate') {
+        if (!account) return redirect(res, '/signup');
+        const f = await parseForm(req);
+        const gen = await generateProfile({ kind: 'athlete', description: f.description || '' }, getModel());
+        return html(res, renderProfilePreview({ kind: 'athlete', gen: { ...gen, cover: coverDataUri(gen.cover) }, description: f.description || '', createAction: '/onboarding/athlete', generateAction: '/onboarding/athlete/generate' }));
+      }
+      if (req.method === 'POST' && path === '/onboarding/athlete') {
+        if (!account) return redirect(res, '/signup');
+        const f = await parseForm(req);
+        const aId = await createAthlete(db, f.name || 'Athlete', (f.handle || '').replace(/^@/, '') || undefined);
+        await db.query(`UPDATE athlete SET account_id=$1 WHERE id=$2`, [account.id, aId]);
+        await grantOwnership(db, account.id, 'athlete', aId);
+        let aLinks: Record<string, string> = {}; try { aLinks = JSON.parse(f.links || '{}'); } catch { /* ignore */ }
+        await setAthleteProfile(db, aId, { tagline: f.tagline || undefined, bannerUrl: f.cover || undefined, links: Object.keys(aLinks).length ? aLinks : undefined });
+        if (f.bio) await createPost(db, 'athlete', aId, f.bio);
+        await setOnboarded(db, account.id);
+        return redirect(res, `/athlete/${aId}`);
+      }
+      // AI-first branding for a claimed club/federation (owner only)
+      let brM;
+      if ((brM = path.match(/^\/onboarding\/brand\/(club|team|association)\/([^/]+)(\/generate)?$/))) {
+        if (!account) return redirect(res, '/signup');
+        const kind = brM[1], id = brM[2];
+        if (!(await owns(db, account.id, kind, id))) return redirect(res, `/${kind}/${id}`);
+        if (req.method === 'POST' && brM[3]) {
+          const f = await parseForm(req);
+          const gen = await generateProfile({ kind: 'club', description: f.description || '' }, getModel());
+          return html(res, renderProfilePreview({ kind: 'club', gen: { ...gen, cover: coverDataUri(gen.cover) }, description: f.description || '', createAction: `/onboarding/brand/${kind}/${id}`, generateAction: `/onboarding/brand/${kind}/${id}/generate`, showHandle: false }));
+        }
+        if (req.method === 'POST') {
+          const f = await parseForm(req);
+          const cur = await getBranding(db, kind, id);
+          let bLinks: Record<string, string> = {}; try { bLinks = JSON.parse(f.links || '{}'); } catch { /* ignore */ }
+          await setBranding(db, kind as any, id, { tagline: f.tagline || cur.tagline || undefined, links: { ...cur.links, ...bLinks }, avatarUrl: cur.avatarUrl || undefined, bannerUrl: f.cover || cur.bannerUrl || undefined });
+          if (f.bio) await createPost(db, kind, id, f.bio);
+          return redirect(res, `/${kind}/${id}`);
+        }
+        return html(res, renderAiPrompt({
+          title: 'Set up your page', lead: 'Describe your club or federation and the look you want. We’ll generate it.',
+          placeholder: 'e.g. FC Beispiel, a grassroots football club in Kreuzberg founded 1924, Kreisliga A. Proud, working-class, black-and-white. We want matchday energy.',
+          generateAction: `/onboarding/brand/${kind}/${id}/generate`, back: `/${kind}/${id}`,
+        }));
+      }
+      if (path === '/onboarding/claim') {
+        if (!account) return redirect(res, '/signup');
+        const q = (url.searchParams.get('q') || '').trim();
+        let results: { kind: string; id: string; name: string; region: string | null }[] = [];
+        if (q) {
+          const like = '%' + q.toLowerCase() + '%';
+          const clubs = (await db.query<any>(`SELECT id, name, region FROM club WHERE lower(name) LIKE $1 ORDER BY name LIMIT 10`, [like])).rows.map(r => ({ kind: 'club', id: r.id, name: r.name, region: r.region ?? null }));
+          const assoc = (await db.query<any>(`SELECT id, name FROM association WHERE lower(name) LIKE $1 ORDER BY name LIMIT 10`, [like])).rows.map(r => ({ kind: 'association', id: r.id, name: r.name, region: null }));
+          results = [...clubs, ...assoc];
+        }
+        return html(res, renderOnboardClaim({ q, results }));
       }
       if (req.method === 'POST' && path === '/login') {
         const f = await parseForm(req);
@@ -95,7 +183,7 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
         const kind = claimM[1] as ClaimKind, id = claimM[2];
         const entityHref = kind === 'athlete' ? `/athlete/${id}` : `/${kind}/${id}`;
         const r = await requestClaim(db, { id: account.id, email: account.email }, kind, id);
-        if (r.status === 'verified') return redirect(res, entityHref);
+        if (r.status === 'verified') return redirect(res, kind === 'athlete' ? entityHref : `/onboarding/brand/${kind}/${id}`);
         const name = (await hostName(db, kind, id)) || 'this page';
         const site = await officialDomain(db, kind, id);
         return html(res, renderClaimPending({ kind, id, name, code: r.code || '', site, backHref: entityHref }));
@@ -114,20 +202,32 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
         return redirect(res, '/claims');
       }
 
+      // loyalty: attribute points to the entity behind an action (drives earned Superfan)
+      const eventHost = async (eventId: string) => (await db.query<{ host_kind: string; host_id: string }>(`SELECT host_kind, host_id FROM event WHERE id=$1`, [eventId])).rows[0];
+      const loyaltyForEvent = async (fanId: string, eventId: string, kind: string) => { const h = await eventHost(eventId); if (h?.host_kind && h?.host_id) await recordLoyalty(db, fanId, h.host_kind, h.host_id, kind); };
+
+      if (req.method === 'POST' && path === '/loyalty/share') {
+        const f = await parseForm(req);
+        if (f.fan_id && f.owner_kind && f.owner_id) await recordLoyalty(db, f.fan_id, f.owner_kind, f.owner_id, 'share');
+        res.writeHead(204); res.end(); return;
+      }
       if (req.method === 'POST' && path === '/follow') {
         const f = await parseForm(req);
         await followEntity(db, f.fan_id, f.target_type as any, f.target_id);
+        await recordLoyalty(db, f.fan_id, f.target_type, f.target_id, 'follow');
         return redirect(res, req.headers.referer ?? `/athlete/${f.target_id}`);
       }
       if (req.method === 'POST' && path === '/predict') {
         const f = await parseForm(req);
         await makePrediction(db, f.fan_id, f.event_id, f.pick);
+        await loyaltyForEvent(f.fan_id, f.event_id, 'predict');
         return redirect(res, req.headers.referer ?? '/');
       }
       // ---- Luma-style scheduled events ----
       if (req.method === 'POST' && path === '/rsvp') {
         const f = await parseForm(req);
         await rsvp(db, f.fan_id, f.event_id, f.response as any);
+        if (f.response === 'going') await loyaltyForEvent(f.fan_id, f.event_id, 'rsvp');
         return redirect(res, req.headers.referer ?? `/e/${f.event_id}`);
       }
       if (req.method === 'POST' && path === '/events') {
@@ -147,7 +247,24 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
       }
       if (req.method === 'POST' && path === '/join') {
         const f = await parseForm(req);
-        await joinMembership(db, f.fan_id, f.owner_kind, f.owner_id);
+        const level: TierLevel = f.level === 'clubhouse' ? 'clubhouse' : 'supporter';
+        const billing = f.billing === 'annual' ? 'annual' : 'monthly';
+        const tier = await getTier(db, f.owner_kind, f.owner_id, level);
+        const amount = tier ? (billing === 'annual' ? (tier.priceAnnualCents ?? tier.priceCents * 10) : tier.priceCents) : 0;
+        if (payments.enabled && tier && amount > 0) {
+          const nm = await hostName(db, f.owner_kind, f.owner_id);
+          const back = f.owner_kind === 'athlete' ? `/athlete/${f.owner_id}` : f.owner_kind === 'team' ? `/team/${f.owner_id}` : f.owner_kind === 'association' ? `/association/${f.owner_id}` : `/club/${f.owner_id}`;
+          const { url } = await payments.createCheckout({
+            mode: 'subscription', amountCents: amount, currency: tier.currency || 'EUR',
+            interval: billing === 'annual' ? 'year' : 'month',
+            productName: `${tier.name} (${level}) · ${nm}`,
+            successUrl: `${origin}/checkout/success?session_id={CHECKOUT_SESSION_ID}`,
+            cancelUrl: `${origin}${back}`,
+            metadata: { kind: 'membership', owner_kind: f.owner_kind, owner_id: f.owner_id, fan_id: f.fan_id, tier_level: level, billing },
+          });
+          return redirect(res, url);
+        }
+        await joinMembership(db, f.fan_id, f.owner_kind, f.owner_id, level, payments.enabled ? billing : (amount > 0 ? billing : 'free'));
         return redirect(res, `/member/${f.owner_kind}/${f.owner_id}`);
       }
       if (req.method === 'POST' && path === '/ticket/gift') {
@@ -178,8 +295,32 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
       let cm;
       if (req.method === 'POST' && (cm = path.match(/^\/e\/([^/]+)\/pay$/))) {
         const f = await parseForm(req);
-        await markPaid(db, cm[1], f.fan_id);
-        return redirect(res, `/e/${cm[1]}`);
+        const evId = cm[1];
+        if (payments.enabled) {
+          const d = await getEventDetail(db, evId);
+          const { url } = await payments.createCheckout({
+            mode: 'payment', amountCents: d?.priceCents ?? 0, currency: d?.currency || 'EUR',
+            productName: `Ticket · ${d?.title ?? 'Event'}`,
+            successUrl: `${origin}/checkout/success?session_id={CHECKOUT_SESSION_ID}`,
+            cancelUrl: `${origin}/e/${evId}`,
+            metadata: { kind: 'ticket', event_id: evId, fan_id: f.fan_id },
+          });
+          return redirect(res, url);
+        }
+        await markPaid(db, evId, f.fan_id);
+        await loyaltyForEvent(f.fan_id, evId, 'attend');
+        return redirect(res, `/e/${evId}`);
+      }
+      // Stripe Checkout return — verify the session, then grant access (idempotent)
+      if (path === '/checkout/success') {
+        const sid = url.searchParams.get('session_id');
+        const sess = sid ? await payments.retrieve(sid).catch(() => null) : null;
+        if (sess?.paid) {
+          const m = sess.metadata;
+          if (m.kind === 'ticket' && m.event_id && m.fan_id) { await markPaid(db, m.event_id, m.fan_id); await loyaltyForEvent(m.fan_id, m.event_id, 'attend'); return redirect(res, `/e/${m.event_id}`); }
+          if (m.kind === 'membership' && m.fan_id) { await joinMembership(db, m.fan_id, m.owner_kind, m.owner_id, (m.tier_level as TierLevel) || 'supporter', m.billing || 'monthly'); return redirect(res, `/member/${m.owner_kind}/${m.owner_id}`); }
+        }
+        return redirect(res, '/');
       }
       if (req.method === 'POST' && (cm = path.match(/^\/e\/([^/]+)\/approve$/))) {
         const f = await parseForm(req);
@@ -189,7 +330,7 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
       if ((cm = path.match(/^\/e\/([^/]+)\/checkout$/))) {
         const d = await getEventDetail(db, cm[1]);
         if (!d) return html(res, 'Not found', 404);
-        return html(res, renderCheckout(d, viewer));
+        return html(res, renderCheckout(d, viewer, payments.enabled));
       }
       let em;
       if ((em = path.match(/^\/e\/([^/]+)\/ics$/))) {
@@ -221,6 +362,7 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
       if (req.method === 'POST' && path === '/attend') {
         const f = await parseForm(req);
         await attend(db, f.fan_id, f.event_id, (f.mode as any) ?? 'going');
+        await loyaltyForEvent(f.fan_id, f.event_id, 'rsvp');
         return redirect(res, req.headers.referer ?? '/');
       }
       if (path === '/signup') {
@@ -280,10 +422,12 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
         const attendance = (!guest && upcoming) ? await getAttendance(db, viewer, upcoming.eventId) : null;
         const affiliations = await getAffiliations(db, m[1]);
         const events = await listProfileEvents(db, 'athlete', m[1]);
-        const tier = await getTier(db, 'athlete', m[1]);
+        const tiers = await getTiers(db, 'athlete', m[1]);
         const membership = await getMembership(db, fanId, 'athlete', m[1]);
         const members = await memberCount(db, 'athlete', m[1]);
-        return html(res, renderAthletePage({ guest, fanId, profile, upcoming, attendance, affiliations, events, scheduleHref: `/host/athlete/${m[1]}/new`, tier, membership, memberCount: members, canEdit: await canEdit('athlete', m[1]) }));
+        const superfan = await isSuperfan(db, fanId, 'athlete', m[1]);
+        const lscore = fanId ? await loyaltyScore(db, fanId, 'athlete', m[1]) : 0;
+        return html(res, renderAthletePage({ guest, fanId, profile, upcoming, attendance, affiliations, events, scheduleHref: `/host/athlete/${m[1]}/new`, tiers, membership, superfan, loyalty: fanId ? { score: lscore, threshold: 200 } : null, memberCount: members, canEdit: await canEdit('athlete', m[1]) }));
       }
       if ((m = path.match(/^\/club\/([^/]+)$/))) {
         const guest = viewerGuest;
