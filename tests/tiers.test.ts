@@ -4,7 +4,7 @@ import { PGliteDatabase } from '../src/db/index.ts';
 import { seedDemo } from '../src/web/seed.ts';
 import { createFan } from '../src/db/engagement_repo.ts';
 import {
-  getTiers, getTier, joinMembership, getMembership, isSuperfan, loyaltyScore,
+  getTiers, getTier, joinMembership, cancelMembershipBySub, getMembership, isSuperfan, loyaltyScore,
   recordLoyalty, topSuperfans, canSeePost, SUPERFAN_THRESHOLD,
 } from '../src/db/membership_repo.ts';
 
@@ -41,6 +41,14 @@ ok('loyalty accrues (20) but below threshold → not superfan', (await loyaltySc
 for (let i = 0; i < 10; i++) await recordLoyalty(db, zoe, 'athlete', rico, 'attend'); // +200
 ok('crossing the threshold earns Superfan without paying', (await loyaltyScore(db, zoe, 'athlete', rico)) >= SUPERFAN_THRESHOLD && await isSuperfan(db, zoe, 'athlete', rico));
 ok('earned Superfan is NOT a paying member (status, not access)', (await getMembership(db, zoe, 'athlete', rico)) === null);
+
+console.log('\n[tiers · subscription cancellation (Stripe webhook)]');
+const sam = await createFan(db, 'sam', 'Sam');
+await joinMembership(db, sam, 'athlete', rico, 'clubhouse', 'monthly', 'sub_cancel_me');
+ok('paid member is active + superfan', (await getMembership(db, sam, 'athlete', rico))?.tierLevel === 'clubhouse' && await isSuperfan(db, sam, 'athlete', rico));
+ok('cancellation by sub id reports a hit', await cancelMembershipBySub(db, 'sub_cancel_me'));
+ok('canceled member loses active membership (reverts to free)', (await getMembership(db, sam, 'athlete', rico)) === null && !(await isSuperfan(db, sam, 'athlete', rico)));
+ok('unknown subscription id is a safe no-op', !(await cancelMembershipBySub(db, 'sub_does_not_exist')));
 
 console.log('\n[tiers · seeded Maja earns it, leaderboard]');
 ok('seeded Maja is an earned Superfan', (await topSuperfans(db, 'athlete', rico)).some(s => s.name === 'Maja'));

@@ -1,13 +1,14 @@
 // auth_repo.ts — accounts, password auth, sessions, and entity ownership.
 // The identity/ownership layer (the costly-to-change piece, so: explicit).
 // scrypt hashing is fine for the pilot; swap to a managed auth/bcrypt in prod.
-import { randomBytes, scryptSync, randomUUID, timingSafeEqual } from 'node:crypto';
+import { randomBytes, scryptSync, randomUUID, timingSafeEqual, createHash } from 'node:crypto';
 import type { Database } from './index.ts';
 
 function hashPw(pw: string): string {
   const salt = randomBytes(16).toString('hex');
   return salt + ':' + scryptSync(pw, salt, 32).toString('hex');
 }
+const sha256 = (s: string): string => createHash('sha256').update(s).digest('hex');
 function verifyPw(pw: string, stored: string | null): boolean {
   if (!stored) return false;
   const [salt, hex] = stored.split(':');
@@ -24,6 +25,18 @@ export async function signup(db: Database, email: string, name: string, pw: stri
   const acc = (await db.query<{ id: string }>(`INSERT INTO account (email,display_name,password_hash,role) VALUES ($1,$2,$3,$4) RETURNING id`, [email, name, hashPw(pw), role])).rows[0];
   // everyone gets a fan identity (even creators are fans of others)
   const fan = (await db.query<{ id: string }>(`INSERT INTO fan (account_id,handle,display_name) VALUES ($1,$2,$3) RETURNING id`, [acc.id, email.split('@')[0], name])).rows[0];
+  return { accountId: acc.id, fanId: fan.id };
+}
+// social login: find an account by email or create a passwordless one (linked to a fan)
+export async function upsertOauthAccount(db: Database, email: string, name: string): Promise<{ accountId: string; fanId: string | null }> {
+  const e = email.toLowerCase().trim();
+  const exist = (await db.query<{ id: string }>(`SELECT id FROM account WHERE email=$1`, [e])).rows[0];
+  if (exist) {
+    const fan = (await db.query<{ id: string }>(`SELECT id FROM fan WHERE account_id=$1 LIMIT 1`, [exist.id])).rows[0];
+    return { accountId: exist.id, fanId: fan?.id ?? null };
+  }
+  const acc = (await db.query<{ id: string }>(`INSERT INTO account (email,display_name,role) VALUES ($1,$2,'fan') RETURNING id`, [e, name || e])).rows[0];
+  const fan = (await db.query<{ id: string }>(`INSERT INTO fan (account_id,handle,display_name) VALUES ($1,$2,$3) RETURNING id`, [acc.id, e.split('@')[0], name || e])).rows[0];
   return { accountId: acc.id, fanId: fan.id };
 }
 export async function accountRole(db: Database, accountId: string): Promise<string> {
@@ -54,6 +67,32 @@ export async function deleteSession(db: Database, token: string): Promise<void> 
 
 export async function fanForAccount(db: Database, accountId: string): Promise<string | null> {
   return (await db.query<{ id: string }>(`SELECT id FROM fan WHERE account_id=$1 LIMIT 1`, [accountId])).rows[0]?.id ?? null;
+}
+
+// --- password reset --------------------------------------------------------
+// Create a single-use, 1-hour token for an email. Returns the *raw* token to put
+// in the link (only its hash is stored). Returns null if no such account — the
+// caller still shows a generic "if that email exists…" message (no enumeration).
+export async function createPasswordReset(db: Database, email: string, ttlMs = 3600_000): Promise<string | null> {
+  const acc = (await db.query<{ id: string }>(`SELECT id FROM account WHERE email=$1`, [email.toLowerCase().trim()])).rows[0];
+  if (!acc) return null;
+  const token = randomUUID() + randomUUID();
+  const expires = new Date(Date.now() + ttlMs).toISOString();
+  await db.query(`INSERT INTO password_reset (token_hash,account_id,expires_at) VALUES ($1,$2,$3)`, [sha256(token), acc.id, expires]);
+  return token;
+}
+// Consume a token: set the new password if the token is valid, unexpired and
+// unused. Single-use (marks used_at) and invalidates all sessions for safety.
+export async function resetPassword(db: Database, token: string, newPw: string): Promise<boolean> {
+  if (!token || !newPw) return false;
+  const row = (await db.query<{ account_id: string }>(
+    `SELECT account_id FROM password_reset WHERE token_hash=$1 AND used_at IS NULL AND expires_at > now()`,
+    [sha256(token)])).rows[0];
+  if (!row) return false;
+  await db.query(`UPDATE account SET password_hash=$2 WHERE id=$1`, [row.account_id, hashPw(newPw)]);
+  await db.query(`UPDATE password_reset SET used_at=now() WHERE token_hash=$1`, [sha256(token)]);
+  await db.query(`DELETE FROM session WHERE account_id=$1`, [row.account_id]); // force re-login everywhere
+  return true;
 }
 
 // --- ownership ------------------------------------------------------------

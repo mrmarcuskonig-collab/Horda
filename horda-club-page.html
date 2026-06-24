@@ -1,0 +1,126 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FC Beispiel — Horda</title>
+<style>
+  :root{color-scheme:light;--ink:#0B0B0C;--bone:#EDE9DF;--line:#0b0b0c1f;--mut:#0b0b0c99}
+  *{margin:0;box-sizing:border-box}
+  body{background:var(--bone);color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif;line-height:1.45;max-width:760px;margin:0 auto;padding:0 18px 60px}
+  .top{display:flex;justify-content:space-between;align-items:center;border-bottom:2px solid var(--ink);padding:16px 0 12px;position:sticky;top:0;background:var(--bone)}
+  .mark{font-weight:800;letter-spacing:3px;font-size:14px}
+  .mark .ph{color:var(--mut);font-weight:600;letter-spacing:1px}
+  h1{font-size:30px;font-weight:800;letter-spacing:.5px;margin:22px 0 2px}
+  .rec{color:var(--mut);font-size:14px;font-variant-numeric:tabular-nums}
+  h2{font-size:12px;letter-spacing:2px;text-transform:uppercase;font-weight:800;margin:30px 0 10px;border-bottom:1px solid var(--line);padding-bottom:6px}
+  table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums;font-size:14px}
+  th,td{text-align:right;padding:6px 4px;border-bottom:1px solid var(--line)}
+  th:nth-child(2),td.t{text-align:left}
+  th{font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--mut)}
+  td.pts{font-weight:800}
+  tr.me{background:var(--ink);color:var(--bone)}
+  tr.me td{border-color:#ffffff22}
+  ul{list-style:none}
+  li{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--line);font-size:14px}
+  .hl{flex:1}
+  .dt{color:var(--mut);font-size:12px;white-space:nowrap}
+  .pill,.venue,.kind,.flag{font-size:11px;font-weight:800;border:1.5px solid var(--ink);border-radius:6px;padding:1px 7px;white-space:nowrap}
+  .p-win{background:var(--ink);color:var(--bone)}
+  .p-loss{background:transparent}
+  .p-draw{background:var(--bone)}
+  .venue,.kind{color:var(--mut);border-color:var(--mut);font-weight:700;letter-spacing:1px}
+  .flag{border-color:var(--ink);background:repeating-linear-gradient(45deg,var(--ink),var(--ink) 3px,#444 3px,#444 6px);color:var(--bone)}
+  .empty{color:var(--mut)}
+  .prov{margin-top:30px;color:var(--mut);font-size:11px;border-top:1px solid var(--line);padding-top:12px}
+</style></head><body>
+  <div class="top"><div class="mark">HORDA <span class="ph">// wordmark placeholder</span></div><div class="rec">3W 1D 0L</div></div>
+  <h1>FC Beispiel</h1>
+  <div class="rec">Season record 3W 1D 0L · system of record</div>
+
+  <h2>League table</h2>
+  <table><thead><tr><th>#</th><th>Team</th><th>P</th><th>W</th><th>D</th><th>L</th><th>G</th><th>GD</th><th>Pts</th></tr></thead>
+  <tbody>
+    <tr class="me">
+      <td>1</td><td class="t">FC Beispiel</td>
+      <td>4</td><td>3</td><td>1</td><td>0</td>
+      <td>12:4</td><td>+8</td>
+      <td class="pts">10</td>
+    </tr>
+    <tr class="">
+      <td>2</td><td class="t">SV Example</td>
+      <td>2</td><td>0</td><td>2</td><td>0</td>
+      <td>3:3</td><td>0</td>
+      <td class="pts">2</td>
+    </tr>
+    <tr class="">
+      <td>3</td><td class="t">Berliner SC</td>
+      <td>2</td><td>0</td><td>1</td><td>1</td>
+      <td>3:5</td><td>-2</td>
+      <td class="pts">1</td>
+    </tr>
+    <tr class="">
+      <td>4</td><td class="t">TSV Musterstadt</td>
+      <td>2</td><td>0</td><td>1</td><td>1</td>
+      <td>2:4</td><td>-2</td>
+      <td class="pts">1</td>
+    </tr>
+    <tr class="">
+      <td>5</td><td class="t">SpVgg Altdorf</td>
+      <td>2</td><td>0</td><td>1</td><td>1</td>
+      <td>2:6</td><td>-4</td>
+      <td class="pts">1</td>
+    </tr></tbody></table>
+
+  <h2>Recent form</h2><ul>
+    <li><span class="pill p-win">W</span>
+      <span class="hl">FC Beispiel beat Berliner SC 3–1</span></li>
+    <li><span class="pill p-win">W</span>
+      <span class="hl">FC Beispiel beat SpVgg Altdorf 4–0</span></li>
+    <li><span class="pill p-win">W</span>
+      <span class="hl">FC Beispiel beat TSV Musterstadt 3–1</span></li>
+    <li><span class="pill p-draw">D</span>
+      <span class="hl">FC Beispiel drew with SV Example 2–2</span></li></ul>
+
+  <h2>Upcoming</h2><ul>
+    <li><span class="venue">H</span>
+      <span class="hl">TSV Musterstadt</span>
+      <span class="dt">2026-06-21 · 15:00</span>
+      </li>
+    <li><span class="venue">H</span>
+      <span class="hl">SV Example</span>
+      <span class="dt">2026-06-28 · 14:30</span>
+      </li>
+    <li><span class="venue">A</span>
+      <span class="hl">Berliner SC</span>
+      <span class="dt">2026-07-05 · 16:00</span>
+      </li></ul>
+
+  <h2>Coverage</h2><ul>
+    <li><span class="kind">FIXTURE</span>
+      <span class="hl">Berliner SC vs FC Beispiel</span>
+      <span class="dt">2026-07-05 · 16:00</span></li>
+    <li><span class="kind">FIXTURE</span>
+      <span class="hl">FC Beispiel vs SV Example</span>
+      <span class="dt">2026-06-28 · 14:30</span></li>
+    <li><span class="kind">FIXTURE</span>
+      <span class="hl">FC Beispiel vs TSV Musterstadt</span>
+      <span class="dt">2026-06-21 · 15:00</span></li>
+    <li><span class="kind">RESULT</span>
+      <span class="hl">Berliner SC 1–3 FC Beispiel</span>
+      <span class="dt">Full time</span></li>
+    <li><span class="kind">RESULT</span>
+      <span class="hl">TSV Musterstadt 1–1 SV Example</span>
+      <span class="dt">Full time</span></li>
+    <li><span class="kind">RESULT</span>
+      <span class="hl">SpVgg Altdorf 0–4 FC Beispiel</span>
+      <span class="dt">Full time</span></li>
+    <li><span class="kind">RESULT</span>
+      <span class="hl">FC Beispiel 3–1 TSV Musterstadt</span>
+      <span class="dt">Full time</span></li>
+    <li><span class="kind">RESULT</span>
+      <span class="hl">SV Example 2–2 FC Beispiel</span>
+      <span class="dt">Full time</span></li>
+    <li><span class="kind">RESULT</span>
+      <span class="hl">SpVgg Altdorf 2–2 Berliner SC</span>
+      <span class="dt">Full time</span></li></ul>
+
+  <div class="prov">Auto-generated from uploaded results &amp; fixtures. Source: ingested. Generated 2026-06-17T11:38:53.585Z.</div>
+</body></html>

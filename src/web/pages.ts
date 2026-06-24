@@ -4,6 +4,14 @@ import { socialIcon, kindIcon } from './icons.ts';
 import { editPanel, UPLOAD_SCRIPT } from './shell.ts';
 import { ravenMark, ravenMarkCurrent } from './brand.ts';
 import { THEME_BOOT, THEME_VARS, THM_CSS, themeToggle, bottomNav, verifiedBadge } from './theme.ts';
+import { oauthProviders } from './oauth.ts';
+
+// "Continue with Google / …" buttons — only render the providers configured via env
+function oauthButtons(next: string): string {
+  const ps = oauthProviders();
+  if (!ps.length) return '';
+  return `<div style="margin:6px 0 14px">${ps.map(p => `<a class="btn ghost" style="display:block;text-align:center;margin:8px 0" href="/auth/${p.id}?next=${encodeURIComponent(next || '/')}">Continue with ${esc(p.label)}</a>`).join('')}<div class="mut" style="text-align:center;font-size:12px;margin:10px 0">or</div></div>`;
+}
 import type { AthleteProfile, FanHome } from '../engagement/types.ts';
 import type { ClubPageModel } from '../read/types.ts';
 
@@ -180,7 +188,7 @@ export function renderDiscover(d: {
     ${results}
     ${empty}
   </div>
-  <div class="prov">The home for sports superfans. One place to follow the teams, athletes &amp; leagues you back. Across every sport — and the culture around it.</div>
+  <div class="prov">The home for sports superfans. One place to follow the teams, athletes &amp; leagues you back. Across every sport — and the culture around it.<br><a href="/create" style="border-bottom:1px solid var(--b)">For athletes &amp; clubs — set up your page →</a></div>
   ${bottomNav({ active: 'home', guest: d.guest, fanId: d.fanId })}
 </body></html>`;
 }
@@ -508,34 +516,37 @@ export function renderMemberWelcome(d: { name: string; tierName: string; memberN
 }
 
 // sign-up — create a real account (browsing is open; acting needs this).
-export function renderSignup(next: string, role = 'fan'): string {
+export function renderSignup(next: string): string {
   const inp = 'display:block;width:100%;margin-top:6px;background:var(--s);border:1px solid var(--b);border-radius:10px;color:var(--bone);padding:11px;font:inherit';
-  const roleOpt = (val: string, title: string, sub: string) =>
-    `<label class="roleopt"><input type="radio" name="role" value="${val}"${role === val ? ' checked' : ''}><span class="rb"><strong>${title}</strong><span class="rsub">${sub}</span></span></label>`;
+  const isCreator = next.includes('/onboarding/athlete') || next.includes('/onboarding/claim');
   return layout('Join the Horda', `
-    <style>
-      .roles{display:grid;gap:8px;margin:8px 0 4px}
-      .roleopt{display:block;cursor:pointer}.roleopt input{position:absolute;opacity:0}
-      .roleopt .rb{display:block;border:1.5px solid var(--b);border-radius:12px;padding:12px 14px}
-      .roleopt .rb strong{font-size:15px}.roleopt .rsub{display:block;color:var(--mut);font-size:12.5px;margin-top:2px}
-      .roleopt input:checked + .rb{border-color:var(--bone);background:var(--s)}
-    </style>
     <h1>Join the Horda</h1>
-    <p class="mut">Browsing is open. Create a free account to follow, attend, predict, or run your own page.</p>
+    <p class="mut">${isCreator ? 'Create your free account — then we’ll set up your page.' : 'Follow the athletes, clubs &amp; leagues you back. Never miss a matchday. Free.'}</p>
+    ${oauthButtons(next)}
     <form method="post" action="/signup">
       <input type="hidden" name="next" value="${esc(next || '/')}">
-      <div class="mut" style="margin:14px 0 2px;font-size:13px">I'm here to…</div>
-      <div class="roles">
-        ${roleOpt('fan', 'Follow my sport', 'Fan — follow athletes & clubs, never miss a matchday')}
-        ${roleOpt('athlete', 'Create my athlete page', 'Athlete — your profile, posts, tiers & events')}
-        ${roleOpt('club', 'Claim our club / federation', 'Club or federation — verify and run your page')}
-      </div>
       <label class="mut" style="display:block;margin:12px 0">Name<input style="${inp}" name="name" required></label>
       <label class="mut" style="display:block;margin:12px 0">Email<input style="${inp}" type="email" name="email" required></label>
       <label class="mut" style="display:block;margin:12px 0">Password<input style="${inp}" type="password" name="password" required minlength="6"></label>
       <div class="row"><button type="submit">Create account</button></div>
     </form>
-    <p class="mut" style="margin-top:14px">Already have one? <a href="/login" style="border-bottom:1px solid var(--b)">Log in</a>.</p>`, { back: next || '/' });
+    <p class="mut" style="margin-top:14px">Already have one? <a href="/login" style="border-bottom:1px solid var(--b)">Log in</a>.</p>
+    ${isCreator ? '' : `<p class="mut" style="margin-top:10px;font-size:12.5px">An athlete, club or federation? <a href="/create" style="border-bottom:1px solid var(--b)">Set up your page →</a></p>`}`, { back: next || '/' });
+}
+
+// the separate creator entrance (athletes self-create; clubs/federations claim)
+export function renderCreatorEntry(d: { guest: boolean }): string {
+  const athleteHref = d.guest ? '/signup?next=/onboarding/athlete' : '/onboarding/athlete';
+  const claimHref = d.guest ? '/signup?next=/onboarding/claim' : '/onboarding/claim';
+  return layout('Set up your page', `
+    <style>.cgrid{display:grid;gap:12px;margin-top:16px}.ccard{border:1px solid var(--b);border-radius:14px;padding:16px 18px}.ccard h2{margin:0 0 4px;font-size:17px;border:none;padding:0;text-transform:none;letter-spacing:0}.ccard p{color:var(--mut);font-size:13.5px;margin:0 0 12px}</style>
+    <h1>For athletes, clubs &amp; federations</h1>
+    <p class="mut">Run your own page on Horda — posts, members, tiers and events, all in one place.</p>
+    <div class="cgrid">
+      <div class="ccard"><h2>I’m an athlete</h2><p>Describe yourself in a sentence and we build your page — headline, cover, the lot. You own it instantly.</p><a class="btn" href="${athleteHref}">Create my page →</a> <a href="/athletes" style="margin-left:8px;font-size:13px;border-bottom:1px solid var(--b)">what you get →</a></div>
+      <div class="ccard"><h2>We’re a club or federation</h2><p>Find your page and verify you represent it (official email, a code on your site, or a quick review).</p><a class="btn" href="${claimHref}">Claim our page →</a> <a href="/clubs" style="margin-left:8px;font-size:13px;border-bottom:1px solid var(--b)">what you get →</a></div>
+    </div>
+    <p class="mut" style="margin-top:16px;font-size:12.5px">Just here to follow? <a href="/signup" style="border-bottom:1px solid var(--b)">Create a fan account →</a></p>`, { back: '/' });
 }
 
 // --- onboarding: fan first-run (pick a sport, follow a few faces) ----------
@@ -583,13 +594,18 @@ export function renderProfilePreview(d: { kind: string; gen: { displayName: stri
       <input type="hidden" name="cover" value="${esc(g.cover)}">
       <input type="hidden" name="links" value="${esc(JSON.stringify(g.links ?? {}))}">
       ${g.links && Object.keys(g.links).length ? `<div class="pvh">Links found</div><div class="mut" style="font-size:12.5px">${Object.keys(g.links).map(k => esc(k)).join(' · ')}</div>` : ''}
+      <div class="pvh">Profile picture</div>
+      <input type="file" accept="image/*" data-target="avatar" style="color:inherit;font:inherit"><input type="hidden" name="avatar">
+      <div class="pvh">Background photo <span class="mut" style="text-transform:none;letter-spacing:0;font-weight:400">— optional; replaces the generated cover</span></div>
+      <input type="file" accept="image/*" data-target="banner" style="color:inherit;font:inherit"><input type="hidden" name="banner">
       <label class="mut" style="display:block;margin:14px 0 0">Name<input style="${inp}" name="name" value="${esc(g.displayName)}" required></label>
       ${d.showHandle !== false ? `<label class="mut" style="display:block;margin:12px 0 0">Handle<input style="${inp}" name="handle" value="${esc(g.handle)}" required></label>` : ''}
       <label class="mut" style="display:block;margin:12px 0 0">Tagline<input style="${inp}" name="tagline" value="${esc(g.tagline)}"></label>
       <label class="mut" style="display:block;margin:12px 0 0">Bio / intro<textarea style="${inp};min-height:90px" name="bio">${esc(g.bio)}</textarea></label>
       <div class="row" style="margin-top:14px"><button type="submit">Publish my page →</button></div>
     </form>
-    <form method="post" action="${esc(d.generateAction)}" style="margin-top:8px">${d.hidden ?? ''}<input type="hidden" name="description" value="${esc(d.description)}"><div class="row"><button class="ghost" type="submit">↻ Regenerate</button></div></form>`, { back: '/' });
+    <form method="post" action="${esc(d.generateAction)}" style="margin-top:8px">${d.hidden ?? ''}<input type="hidden" name="description" value="${esc(d.description)}"><div class="row"><button class="ghost" type="submit">↻ Regenerate</button></div></form>
+    ${UPLOAD_SCRIPT}`, { back: '/' });
 }
 
 // --- onboarding: club / federation finds + claims its page -----------------
@@ -610,13 +626,55 @@ export function renderLogin(next: string): string {
   const inp = 'display:block;width:100%;margin-top:6px;background:var(--s);border:1px solid var(--b);border-radius:10px;color:var(--bone);padding:11px;font:inherit';
   return layout('Log in', `
     <h1>Log in</h1>
+    ${oauthButtons(next)}
     <form method="post" action="/login">
       <input type="hidden" name="next" value="${esc(next || '/')}">
       <label class="mut" style="display:block;margin:12px 0">Email<input style="${inp}" type="email" name="email" required></label>
       <label class="mut" style="display:block;margin:12px 0">Password<input style="${inp}" type="password" name="password" required></label>
       <div class="row"><button type="submit">Log in</button></div>
     </form>
-    <p class="mut" style="margin-top:14px">New here? <a href="/signup" style="border-bottom:1px solid var(--b)">Create an account</a>.</p>`, { back: next || '/' });
+    <p class="mut" style="margin-top:14px">New here? <a href="/signup" style="border-bottom:1px solid var(--b)">Create an account</a>. · <a href="/forgot" style="border-bottom:1px solid var(--b)">Forgot password?</a></p>`, { back: next || '/' });
+}
+
+// --- password reset ---------------------------------------------------------
+// Request form. After submit we always show the same confirmation (no email
+// enumeration), whether or not the address exists.
+export function renderForgot(sent: boolean, devLink?: string | null): string {
+  const inp = 'display:block;width:100%;margin-top:6px;background:var(--s);border:1px solid var(--b);border-radius:10px;color:var(--bone);padding:11px;font:inherit';
+  if (sent) return layout('Check your email', `
+    <h1>Check your email</h1>
+    <p class="mut">If an account exists for that address, we've sent a link to reset your password. It expires in 1 hour.</p>
+    ${devLink ? `<div class="card" style="margin-top:14px"><div class="mut" style="font-size:12px;text-transform:uppercase;letter-spacing:1.5px;font-weight:800">Dev mode — email not configured</div><p class="mut" style="font-size:13px;margin-top:6px">Use this link to continue:</p><a href="${esc(devLink)}" style="border-bottom:1px solid var(--b);word-break:break-all">${esc(devLink)}</a></div>` : ''}
+    <p class="mut" style="margin-top:14px"><a href="/login" style="border-bottom:1px solid var(--b)">Back to log in</a></p>`, { back: '/login' });
+  return layout('Reset password', `
+    <h1>Reset password</h1>
+    <p class="mut">Enter your email and we'll send you a link to set a new password.</p>
+    <form method="post" action="/forgot">
+      <label class="mut" style="display:block;margin:12px 0">Email<input style="${inp}" type="email" name="email" required></label>
+      <div class="row"><button type="submit">Send reset link</button></div>
+    </form>
+    <p class="mut" style="margin-top:14px"><a href="/login" style="border-bottom:1px solid var(--b)">Back to log in</a></p>`, { back: '/login' });
+}
+
+// Set-new-password form (reached from the email link). `error` is shown when the
+// token is invalid/expired; `done` after a successful reset.
+export function renderReset(token: string, opts: { error?: boolean; done?: boolean } = {}): string {
+  const inp = 'display:block;width:100%;margin-top:6px;background:var(--s);border:1px solid var(--b);border-radius:10px;color:var(--bone);padding:11px;font:inherit';
+  if (opts.done) return layout('Password updated', `
+    <h1>Password updated</h1>
+    <p class="mut">Your password has been changed and you've been signed out everywhere. You can log in with your new password now.</p>
+    <p style="margin-top:14px"><a href="/login"><button type="button">Log in</button></a></p>`, { back: '/login' });
+  if (opts.error) return layout('Link expired', `
+    <h1>This link is invalid or expired</h1>
+    <p class="mut">Reset links work once and expire after an hour. Request a fresh one.</p>
+    <p style="margin-top:14px"><a href="/forgot"><button type="button">Send a new link</button></a></p>`, { back: '/login' });
+  return layout('Choose a new password', `
+    <h1>Choose a new password</h1>
+    <form method="post" action="/reset">
+      <input type="hidden" name="token" value="${esc(token)}">
+      <label class="mut" style="display:block;margin:12px 0">New password<input style="${inp}" type="password" name="password" minlength="8" required></label>
+      <div class="row"><button type="submit">Update password</button></div>
+    </form>`, { back: '/login' });
 }
 
 // --- claim verification --------------------------------------------------
@@ -692,6 +750,7 @@ export function renderFanHome(d: { fanId: string; fanName: string; home: FanHome
   return layout(`${d.fanName}'s Horda`, `
     <h1>Your Horda</h1>
     <p class="mut">${esc(d.fanName)} · following ${d.follows.length}</p>
+    <div class="row"><a class="tag mutd" href="/create">＋ Run your own page</a></div>
     ${drop}${following}${notifs}${preds}${feed}
     <div class="prov">Your feed is coverage of what you follow — not a stream of other fans.</div>`, { back: '/', nav: { active: 'you', guest: false, fanId: d.fanId } });
 }

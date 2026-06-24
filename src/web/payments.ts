@@ -7,6 +7,8 @@
 //
 // One-time payment for event tickets; monthly subscription for membership tiers.
 
+import { createHmac, timingSafeEqual } from 'node:crypto';
+
 export interface CheckoutReq {
   mode: 'payment' | 'subscription';
   amountCents: number; currency: string; productName: string;
@@ -15,10 +17,11 @@ export interface CheckoutReq {
   cancelUrl: string;
   metadata: Record<string, string>;
 }
+export interface CheckoutResult { paid: boolean; metadata: Record<string, string>; subscriptionId: string | null }
 export interface Payments {
   readonly enabled: boolean;
   createCheckout(o: CheckoutReq): Promise<{ url: string }>;
-  retrieve(sessionId: string): Promise<{ paid: boolean; metadata: Record<string, string> } | null>;
+  retrieve(sessionId: string): Promise<CheckoutResult | null>;
 }
 
 type Fetcher = typeof fetch;
@@ -60,10 +63,11 @@ export class StripePayments implements Payments {
     return { url: s.url as string };
   }
 
-  async retrieve(sessionId: string): Promise<{ paid: boolean; metadata: Record<string, string> } | null> {
+  async retrieve(sessionId: string): Promise<CheckoutResult | null> {
     const s = await this.api('checkout/sessions/' + encodeURIComponent(sessionId), 'GET');
     const paid = s.payment_status === 'paid' || s.status === 'complete';
-    return { paid, metadata: (s.metadata ?? {}) as Record<string, string> };
+    const subscriptionId = typeof s.subscription === 'string' ? s.subscription : (s.subscription?.id ?? null);
+    return { paid, metadata: (s.metadata ?? {}) as Record<string, string>, subscriptionId };
   }
 }
 
@@ -76,4 +80,36 @@ export class StubPayments implements Payments {
 export function getPayments(fetcher: Fetcher = fetch): Payments {
   const key = process.env.STRIPE_SECRET_KEY;
   return key ? new StripePayments(key, fetcher) : new StubPayments();
+}
+
+// --- Stripe webhook signature verification -----------------------------------
+// Stripe signs the raw request body and sends `Stripe-Signature: t=…,v1=…`.
+// We recompute HMAC-SHA256 over `${t}.${rawBody}` with the endpoint's signing
+// secret (whsec_…) and constant-time compare. On success we return the parsed
+// event; on any mismatch/parse failure we return null (caller responds 400).
+// `toleranceSec` guards against replay (default 5 min); pass 0 to disable.
+export function verifyWebhook(
+  rawBody: string,
+  sigHeader: string | undefined,
+  secret: string | undefined,
+  nowSec: number = Math.floor(Date.now() / 1000),
+  toleranceSec = 300,
+): any | null {
+  if (!rawBody || !secret || !sigHeader) return null;
+  const parts: Record<string, string> = {};
+  for (const kv of sigHeader.split(',')) {
+    const i = kv.indexOf('=');
+    if (i > 0) parts[kv.slice(0, i).trim()] = kv.slice(i + 1).trim();
+  }
+  const t = parts['t'], v1 = parts['v1'];
+  if (!t || !v1) return null;
+  if (toleranceSec > 0 && Math.abs(nowSec - Number(t)) > toleranceSec) return null;
+  const expected = createHmac('sha256', secret).update(`${t}.${rawBody}`).digest('hex');
+  let okSig = false;
+  try {
+    const a = Buffer.from(expected), b = Buffer.from(v1);
+    okSig = a.length === b.length && timingSafeEqual(a, b);
+  } catch { return null; }
+  if (!okSig) return null;
+  try { return JSON.parse(rawBody); } catch { return null; }
 }

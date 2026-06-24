@@ -1,0 +1,12 @@
+import { startServer } from './src/web/server.ts';
+const app = await startServer(0);
+const base = `http://localhost:${app.port}`;
+await fetch(base + '/');
+const rico = app.ids.athletes?.[0]?.id;
+if (rico) await fetch(base + '/athlete/' + rico);
+if ((global as any).gc) (global as any).gc();
+const m = process.memoryUsage();
+const mb = (n:number)=> (n/1048576).toFixed(0);
+console.log(`RSS=${mb(m.rss)}MB heapUsed=${mb(m.heapUsed)}MB external=${mb(m.external)}MB arrayBuffers=${mb(m.arrayBuffers)}MB`);
+await app.close();
+process.exit(0);

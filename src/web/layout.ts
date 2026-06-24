@@ -38,6 +38,8 @@ export function layout(title: string, body: string, opts: { back?: string; nav?:
   form{display:inline}
   button{font:inherit;font-weight:800;letter-spacing:.5px;cursor:pointer;background:var(--bone);color:var(--ink);border:1.5px solid var(--bone);border-radius:999px;padding:9px 16px;font-size:14px}
   button.ghost{background:transparent;color:var(--bone)}
+  .btn{display:inline-block;background:var(--bone);color:var(--ink);font-weight:800;border:1.5px solid var(--bone);border-radius:999px;padding:9px 16px;font-size:14px}
+  .btn.ghost{background:transparent;color:var(--bone)}
   .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:12px 0}
   .prov{margin-top:28px;color:var(--mut);font-size:11px;border-top:1px solid var(--b);padding-top:12px}
 </style></head><body>

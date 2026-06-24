@@ -29,7 +29,17 @@ Everything else is done. No persistent disk needed — the database lives in Pos
 | `PORT` | provided by host | listen port (Render injects this automatically) |
 | `HORDA_DEMO` | `0` (prod) / `1` (showcase) | `0` = browsing open, acting needs sign-up, owner tools need ownership; `1` shows seeded demo content without login |
 | `STRIPE_SECRET_KEY` | `sk_test_…` / `sk_live_…` | optional — enables **real card payments** (Stripe Checkout) for paid tickets + memberships. Unset = payments stay stubbed. |
-| `HORDA_URL` | `https://joinhorda.com` | optional — canonical origin used to build Stripe return URLs. If unset, derived from the request host (fine on Render). |
+| `STRIPE_WEBHOOK_SECRET` | `whsec_…` | optional but recommended with Stripe — signing secret for the `/stripe/webhook` endpoint. Grants access even if the buyer closes the tab, and **delivers subscription cancellations** (member auto‑reverts to free). |
+| `ANTHROPIC_API_KEY` | `sk-ant-…` | optional — upgrades AI-first onboarding **copy** (headline/tagline/bio written by Claude). Unset = a built-in deterministic generator (still produces copy, links + the on-brand cover). |
+| `HORDA_AI_MODEL` | e.g. `claude-3-5-haiku-latest` | optional — which Claude model writes onboarding copy (default is a fast, cheap one). Set to a stronger model for higher-quality copy. |
+| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | from Google Cloud console | optional — enables “Continue with Google”. In the Google OAuth client, set the redirect URI to `https://joinhorda.com/auth/google/callback`. |
+| `FACEBOOK_CLIENT_ID` / `FACEBOOK_CLIENT_SECRET` | from Meta for Developers | optional — enables “Continue with Facebook” (redirect URI `https://joinhorda.com/auth/facebook/callback`). |
+| `S3_ENDPOINT` / `S3_BUCKET` / `S3_ACCESS_KEY_ID` / `S3_SECRET_ACCESS_KEY` | from your bucket provider | optional — enables **object storage** for uploaded photos (S3, Cloudflare R2, Backblaze B2). All four required together. Unset = images stored inline in the DB (today's behavior). |
+| `S3_PUBLIC_BASE` | `https://cdn.joinhorda.com` | optional — public URL prefix for stored images (e.g. an R2 public bucket or CDN). Defaults to `S3_ENDPOINT/S3_BUCKET`. |
+| `S3_REGION` | `auto` (R2) / `us-east-1` (AWS) | optional — bucket region; `auto` for Cloudflare R2. |
+| `RESEND_API_KEY` | `re_…` | optional — enables real transactional email (password reset) via Resend. Unset = a dev emailer that surfaces the reset link on-screen instead of sending. |
+| `EMAIL_FROM` | `Horda <noreply@joinhorda.com>` | optional — the From address for sent email. Must be a domain you've verified in Resend. |
+| `HORDA_URL` | `https://joinhorda.com` | optional — canonical origin used to build Stripe return URLs **and password-reset links**. If unset, derived from the request host (fine on Render). |
 
 ## Payments (Stripe) — only you can do this
 Card data never touches Horda — we use Stripe's hosted Checkout and only store the result. To turn real payments on:
@@ -39,7 +49,17 @@ Card data never touches Horda — we use Stripe's hosted Checkout and only store
 4. Redeploy. Paid tickets now open Stripe Checkout (one-time); paid memberships open a monthly subscription. After paying, the buyer is redirected back and access is granted automatically.
 5. When you've tested with Stripe **test cards** (e.g. `4242 4242 4242 4242`), swap in the **live** key `sk_live_…` to charge real money.
 
-> Do **not** paste your secret key into chat — only into Render's env settings. Later hardening: add a Stripe **webhook** (`checkout.session.completed`) so access is granted even if the buyer closes the tab before redirect, and handle subscription cancellations.
+> Do **not** paste your secret key into chat — only into Render's env settings.
+
+### Webhook (recommended — makes access reliable + cancellations work)
+The app exposes `POST /stripe/webhook`. To enable it:
+1. Stripe → **Developers → Webhooks → Add endpoint**.
+2. Endpoint URL: `https://joinhorda.com/stripe/webhook`.
+3. Select events: **`checkout.session.completed`** and **`customer.subscription.deleted`**.
+4. Create it, then copy the **Signing secret** (`whsec_…`).
+5. Render → Environment → add `STRIPE_WEBHOOK_SECRET` = that value. Redeploy.
+
+With this set, access is granted server‑to‑server even if the buyer closes the tab, and when a subscription is cancelled (by the member or Stripe) the membership auto‑reverts to free on the next page load. Without the secret the endpoint safely rejects all calls (returns 400) and the redirect path still grants access on success.
 
 ## Render (one web service + a Neon database)
 1. Create a free database at **neon.tech**, copy the connection string.

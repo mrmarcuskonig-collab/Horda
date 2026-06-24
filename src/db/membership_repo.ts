@@ -28,16 +28,24 @@ export async function getTier(db: Database, ownerKind: string, ownerId: string, 
 
 const RANK: Record<string, number> = { supporter: 1, clubhouse: 2 };
 
-export async function joinMembership(db: Database, fanId: string, ownerKind: string, ownerId: string, tierLevel: TierLevel = 'supporter', billing = 'free'): Promise<number> {
+export async function joinMembership(db: Database, fanId: string, ownerKind: string, ownerId: string, tierLevel: TierLevel = 'supporter', billing = 'free', subscriptionId: string | null = null): Promise<number> {
   const existing = (await db.query<any>(`SELECT member_no, tier_level FROM membership WHERE fan_id=$1 AND owner_kind=$2 AND owner_id=$3`, [fanId, ownerKind, ownerId])).rows[0];
   if (existing) {
     const level = (RANK[tierLevel] ?? 1) >= (RANK[existing.tier_level] ?? 1) ? tierLevel : existing.tier_level;  // upgrade, never silent downgrade
-    await db.query(`UPDATE membership SET tier_level=$4, billing=$5, status='active' WHERE fan_id=$1 AND owner_kind=$2 AND owner_id=$3`, [fanId, ownerKind, ownerId, level, billing]);
+    await db.query(`UPDATE membership SET tier_level=$4, billing=$5, status='active', stripe_subscription_id=coalesce($6, stripe_subscription_id) WHERE fan_id=$1 AND owner_kind=$2 AND owner_id=$3`, [fanId, ownerKind, ownerId, level, billing, subscriptionId]);
     return existing.member_no;
   }
   const next = (await db.query<any>(`SELECT coalesce(max(member_no),0)+1 n FROM membership WHERE owner_kind=$1 AND owner_id=$2`, [ownerKind, ownerId])).rows[0].n;
-  await db.query(`INSERT INTO membership (fan_id,owner_kind,owner_id,member_no,tier_level,billing) VALUES ($1,$2,$3,$4,$5,$6)`, [fanId, ownerKind, ownerId, next, tierLevel, billing]);
+  await db.query(`INSERT INTO membership (fan_id,owner_kind,owner_id,member_no,tier_level,billing,stripe_subscription_id) VALUES ($1,$2,$3,$4,$5,$6,$7)`, [fanId, ownerKind, ownerId, next, tierLevel, billing, subscriptionId]);
   return next;
+}
+
+// Stripe told us a subscription ended (cancellation, failed payment, etc.).
+// Deactivate the matching membership → access reverts to free Follow on next read.
+export async function cancelMembershipBySub(db: Database, subscriptionId: string): Promise<boolean> {
+  if (!subscriptionId) return false;
+  const r = await db.query<{ fan_id: string }>(`UPDATE membership SET status='canceled', tier_level='supporter' WHERE stripe_subscription_id=$1 AND status='active' RETURNING fan_id`, [subscriptionId]);
+  return r.rows.length > 0;
 }
 
 export interface MembershipRec { memberNo: number; tierLevel: TierLevel; billing: string }

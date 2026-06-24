@@ -1,0 +1,15 @@
+import { startServer } from './src/web/server.ts';
+import { signup, owns } from './src/db/auth_repo.ts';
+import { requestClaim, decideClaim } from './src/db/claim_repo.ts';
+const app = await startServer(0);
+const db = app.db; const club = app.ids.clubs[0].id;
+const sam = (await signup(db,'sam2@x.com','Sam','pw123456')).accountId;
+const r = await requestClaim(db,{id:sam,email:'sam2@x.com'},'club',club);
+console.log('requestClaim:', r);
+const cid = (await db.query(`SELECT id,status FROM claim_request WHERE account_id=$1 AND target_id=$2`,[sam,club])).rows[0];
+console.log('claim row:', cid);
+const ok = await decideClaim(db, cid.id, {id: app.ids.demoAccountId, email:'demo@horda.app', isAdmin:true}, true);
+console.log('decideClaim returned:', ok);
+console.log('owns after:', await owns(db, sam, 'club', club));
+console.log('claim status after:', (await db.query(`SELECT status FROM claim_request WHERE id=$1`,[cid.id])).rows[0]);
+await app.close(); process.exit(0);

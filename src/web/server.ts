@@ -2,6 +2,9 @@
 // Routes are thin: assemble data, render a page. Structured to lift into Next.js
 // route handlers later (each handler is already a pure data->HTML function).
 import { createServer, type Server } from 'node:http';
+import { randomUUID } from 'node:crypto';
+import { oauthProviders, authUrl as oauthAuthUrl, exchange as oauthExchange, isEnabled as oauthEnabled } from './oauth.ts';
+import { renderPitch } from './pitch.ts';
 import { openDatabase } from '../db/index.ts';
 import type { Database } from '../db/index.ts';
 import { getClubPage } from '../db/repo.ts';
@@ -17,17 +20,20 @@ import { renderEntityProfile, tableDark } from './shell.ts';
 import { FAVICON_SVG } from './brand.ts';
 import { buildResultShare, buildFightShare, buildWeekDrop } from '../content/index.ts';
 import { createScheduledEvent, rsvp, getRsvp, getEventDetail, getGuestList, listUpcomingByHost, listProfileEvents, hostName, icsFor, approveRegistration, markPaid, featureEvent, getTicketFor, giftTicket, listTicket, getListings, buyListing } from '../db/events_repo.ts';
-import { getTier, getTiers, joinMembership, getMembership, memberCount, recordLoyalty, loyaltyScore, isSuperfan, topSuperfans, type TierLevel } from '../db/membership_repo.ts';
-import { signup, verifyLogin, createSession, sessionAccount, deleteSession, fanForAccount, owns, ownedEntities, grantOwnership, accountRole, setOnboarded } from '../db/auth_repo.ts';
+import { getTier, getTiers, joinMembership, cancelMembershipBySub, getMembership, memberCount, recordLoyalty, loyaltyScore, isSuperfan, topSuperfans, type TierLevel } from '../db/membership_repo.ts';
+import { signup, verifyLogin, createSession, sessionAccount, deleteSession, fanForAccount, owns, ownedEntities, grantOwnership, accountRole, setOnboarded, upsertOauthAccount, createPasswordReset, resetPassword } from '../db/auth_repo.ts';
 import { getDiscover, REGIONS } from '../db/discover_repo.ts';
 import { renderEventPage, renderCreateEvent, renderManage, renderCheckout } from './events.ts';
 import { seedDemo, type DemoIds } from './seed.ts';
-import { renderIndex, renderDiscover, renderMap, renderAthletePage, renderFanHome, renderSignup, renderLogin, renderSharePage, renderMemberWelcome, renderClaimPending, renderClaimQueue, renderOnboardFan, renderAiPrompt, renderProfilePreview, renderOnboardClaim } from './pages.ts';
+import { renderIndex, renderDiscover, renderMap, renderAthletePage, renderFanHome, renderSignup, renderLogin, renderForgot, renderReset, renderSharePage, renderMemberWelcome, renderClaimPending, renderClaimQueue, renderOnboardFan, renderAiPrompt, renderProfilePreview, renderOnboardClaim, renderCreatorEntry } from './pages.ts';
+import { getEmailer, resetEmail } from './email.ts';
+import { storeImage } from './storage.ts';
 import { generateProfile, getModel, coverDataUri } from './profilegen.ts';
 import { requestClaim, verifyByChannelCode, listClaimsForReviewer, decideClaim, officialDomain, isAdmin as accountIsAdmin, type ClaimKind } from '../db/claim_repo.ts';
-import { getPayments } from './payments.ts';
+import { getPayments, verifyWebhook } from './payments.ts';
 
 const payments = getPayments();
+const emailer = getEmailer();
 
 const DEMO_FALLBACK = process.env.HORDA_DEMO !== '0';  // default on: usable without login
 const parseCookies = (h?: string): Record<string, string> => Object.fromEntries((h ?? '').split(';').map(c => c.trim().split('=')).filter(p => p[0]).map(([k, ...v]) => [k, decodeURIComponent(v.join('='))]));
@@ -42,6 +48,12 @@ async function parseForm(req: any): Promise<Record<string, string>> {
   const chunks: Buffer[] = [];
   for await (const c of req) chunks.push(c as Buffer);
   return Object.fromEntries(new URLSearchParams(Buffer.concat(chunks).toString()));
+}
+// Raw body — needed for Stripe webhook signature verification (must be the exact bytes).
+async function readRaw(req: any): Promise<string> {
+  const chunks: Buffer[] = [];
+  for await (const c of req) chunks.push(c as Buffer);
+  return Buffer.concat(chunks).toString('utf8');
 }
 
 export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
@@ -64,14 +76,13 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
       // --- auth ---
       if (req.method === 'POST' && path === '/signup') {
         const f = await parseForm(req);
-        const role = ['fan', 'athlete', 'club'].includes(f.role) ? f.role : 'fan';
+        const next = f.next || '';
+        // everyone signs up as a person (fan by default); the creator entrance routes via ?next
+        const role = next.includes('/onboarding/athlete') ? 'athlete' : next.includes('/onboarding/claim') ? 'club' : 'fan';
         const r = await signup(db, (f.email || '').toLowerCase().trim(), f.name || 'Fan', f.password || '', role);
         if (!r) return redirect(res, '/login');
         const token = await createSession(db, r.accountId);
-        // route into the matching onboarding path; fan signups keep an explicit ?next intent
-        const dest = role === 'athlete' ? '/onboarding/athlete'
-          : role === 'club' ? '/onboarding/claim'
-            : (f.next && f.next !== '/') ? f.next : '/onboarding/fan';
+        const dest = (next && next !== '/') ? next : '/onboarding/fan';
         res.writeHead(303, { 'set-cookie': `hz_session=${token}; Path=/; HttpOnly; SameSite=Lax`, location: dest }); res.end(); return;
       }
       // --- onboarding (first-run) ---
@@ -109,7 +120,9 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
         await db.query(`UPDATE athlete SET account_id=$1 WHERE id=$2`, [account.id, aId]);
         await grantOwnership(db, account.id, 'athlete', aId);
         let aLinks: Record<string, string> = {}; try { aLinks = JSON.parse(f.links || '{}'); } catch { /* ignore */ }
-        await setAthleteProfile(db, aId, { tagline: f.tagline || undefined, bannerUrl: f.cover || undefined, links: Object.keys(aLinks).length ? aLinks : undefined });
+        const aAvatar = await storeImage(f.avatar, 'avatars');
+        const aBanner = await storeImage(f.banner || f.cover, 'banners');
+        await setAthleteProfile(db, aId, { tagline: f.tagline || undefined, avatarUrl: aAvatar || undefined, bannerUrl: aBanner || undefined, links: Object.keys(aLinks).length ? aLinks : undefined });
         if (f.bio) await createPost(db, 'athlete', aId, f.bio);
         await setOnboarded(db, account.id);
         return redirect(res, `/athlete/${aId}`);
@@ -129,7 +142,9 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
           const f = await parseForm(req);
           const cur = await getBranding(db, kind, id);
           let bLinks: Record<string, string> = {}; try { bLinks = JSON.parse(f.links || '{}'); } catch { /* ignore */ }
-          await setBranding(db, kind as any, id, { tagline: f.tagline || cur.tagline || undefined, links: { ...cur.links, ...bLinks }, avatarUrl: cur.avatarUrl || undefined, bannerUrl: f.cover || cur.bannerUrl || undefined });
+          const bAvatar = await storeImage(f.avatar, 'avatars');
+          const bBanner = await storeImage(f.banner || f.cover, 'banners');
+          await setBranding(db, kind as any, id, { tagline: f.tagline || cur.tagline || undefined, links: { ...cur.links, ...bLinks }, avatarUrl: bAvatar || cur.avatarUrl || undefined, bannerUrl: bBanner || cur.bannerUrl || undefined });
           if (f.bio) await createPost(db, kind, id, f.bio);
           return redirect(res, `/${kind}/${id}`);
         }
@@ -162,6 +177,53 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
       if (path === '/logout') {
         if (cookies.hz_session) await deleteSession(db, cookies.hz_session);
         res.writeHead(303, { 'set-cookie': 'hz_session=; Path=/; Max-Age=0', location: '/' }); res.end(); return;
+      }
+      // --- password reset ---
+      if (path === '/forgot' && req.method !== 'POST') return html(res, renderForgot(false));
+      if (req.method === 'POST' && path === '/forgot') {
+        const f = await parseForm(req);
+        const token = await createPasswordReset(db, (f.email || '').toLowerCase().trim());
+        let devLink: string | null = null;
+        if (token) {
+          const link = `${origin}/reset?token=${token}`;
+          const msg = resetEmail(link);
+          await emailer.send({ to: (f.email || '').toLowerCase().trim(), subject: msg.subject, html: msg.html, text: msg.text }).catch(() => false);
+          if (!emailer.enabled) devLink = link;   // dev: surface the link since no email is sent
+        }
+        return html(res, renderForgot(true, devLink));   // same confirmation regardless (no enumeration)
+      }
+      if (path === '/reset' && req.method !== 'POST') {
+        const token = url.searchParams.get('token') || '';
+        return html(res, renderReset(token, { error: !token }));
+      }
+      if (req.method === 'POST' && path === '/reset') {
+        const f = await parseForm(req);
+        const okReset = await resetPassword(db, f.token || '', f.password || '');
+        return html(res, renderReset(f.token || '', okReset ? { done: true } : { error: true }));
+      }
+      // --- social login (OAuth2) ---
+      let oauthM;
+      if ((oauthM = path.match(/^\/auth\/([a-z]+)$/))) {
+        const p = oauthM[1];
+        if (!oauthEnabled(p)) return redirect(res, '/login');
+        const state = randomUUID();
+        const next = url.searchParams.get('next') || '';
+        res.writeHead(303, {
+          'set-cookie': `hz_oauth=${state}|${encodeURIComponent(next)}; Path=/; HttpOnly; SameSite=Lax; Max-Age=600`,
+          location: oauthAuthUrl(p, `${origin}/auth/${p}/callback`, state),
+        }); res.end(); return;
+      }
+      if ((oauthM = path.match(/^\/auth\/([a-z]+)\/callback$/))) {
+        const p = oauthM[1];
+        const code = url.searchParams.get('code') || '';
+        const [cstate, cnext = ''] = (cookies.hz_oauth || '').split('|');
+        if (!code || !cstate || url.searchParams.get('state') !== cstate) return redirect(res, '/login');
+        const profile = await oauthExchange(p, code, `${origin}/auth/${p}/callback`).catch(() => null);
+        if (!profile) return redirect(res, '/login');
+        const acc = await upsertOauthAccount(db, profile.email, profile.name);
+        const token = await createSession(db, acc.accountId);
+        const next = decodeURIComponent(cnext) || '/onboarding/fan';
+        res.writeHead(303, { 'set-cookie': [`hz_session=${token}; Path=/; HttpOnly; SameSite=Lax`, 'hz_oauth=; Path=/; Max-Age=0'], location: next || '/onboarding/fan' }); res.end(); return;
       }
       // claim verification: claiming is a REQUEST, not instant ownership.
       let claimM;
@@ -239,7 +301,7 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
         const id = await createScheduledEvent(db, {
           hostKind: f.host_kind as any, hostId: f.host_id, title: f.title || 'Untitled event',
           startsAt: f.starts_at || new Date().toISOString(), location: f.location, description: f.description,
-          coverUrl: f.cover || undefined, admission: (f.admission as any) || 'open',
+          coverUrl: (await storeImage(f.cover, 'events')) || undefined, admission: (f.admission as any) || 'open',
           priceCents: f.price ? Math.round(Number(f.price) * 100) : undefined, streams,
           capacity: f.capacity ? Number(f.capacity) : undefined,
         });
@@ -311,14 +373,36 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
         await loyaltyForEvent(f.fan_id, evId, 'attend');
         return redirect(res, `/e/${evId}`);
       }
-      // Stripe Checkout return — verify the session, then grant access (idempotent)
+      // Stripe webhook — source of truth for granting/revoking (works even if the
+      // buyer closes the tab; also delivers subscription cancellations). Verifies
+      // the signature against STRIPE_WEBHOOK_SECRET before trusting anything.
+      if (req.method === 'POST' && path === '/stripe/webhook') {
+        const raw = await readRaw(req);
+        const event = verifyWebhook(raw, req.headers['stripe-signature'] as string | undefined, process.env.STRIPE_WEBHOOK_SECRET);
+        if (!event) { res.writeHead(400); res.end('invalid signature'); return; }
+        try {
+          if (event.type === 'checkout.session.completed') {
+            const s = event.data?.object ?? {};
+            const m = (s.metadata ?? {}) as Record<string, string>;
+            const subId = typeof s.subscription === 'string' ? s.subscription : (s.subscription?.id ?? null);
+            if (m.kind === 'ticket' && m.event_id && m.fan_id) { await markPaid(db, m.event_id, m.fan_id); await loyaltyForEvent(m.fan_id, m.event_id, 'attend'); }
+            else if (m.kind === 'membership' && m.fan_id) { await joinMembership(db, m.fan_id, m.owner_kind, m.owner_id, (m.tier_level as TierLevel) || 'supporter', m.billing || 'monthly', subId); }
+          } else if (event.type === 'customer.subscription.deleted') {
+            const sub = event.data?.object ?? {};
+            if (sub.id) await cancelMembershipBySub(db, sub.id);
+          }
+        } catch { /* never 500 to Stripe — it would retry forever; we logged-and-acked */ }
+        res.writeHead(200, { 'content-type': 'application/json' }); res.end('{"received":true}'); return;
+      }
+      // Stripe Checkout return — verify the session, then grant access (idempotent).
+      // Belt-and-suspenders with the webhook above so access is instant on redirect.
       if (path === '/checkout/success') {
         const sid = url.searchParams.get('session_id');
         const sess = sid ? await payments.retrieve(sid).catch(() => null) : null;
         if (sess?.paid) {
           const m = sess.metadata;
           if (m.kind === 'ticket' && m.event_id && m.fan_id) { await markPaid(db, m.event_id, m.fan_id); await loyaltyForEvent(m.fan_id, m.event_id, 'attend'); return redirect(res, `/e/${m.event_id}`); }
-          if (m.kind === 'membership' && m.fan_id) { await joinMembership(db, m.fan_id, m.owner_kind, m.owner_id, (m.tier_level as TierLevel) || 'supporter', m.billing || 'monthly'); return redirect(res, `/member/${m.owner_kind}/${m.owner_id}`); }
+          if (m.kind === 'membership' && m.fan_id) { await joinMembership(db, m.fan_id, m.owner_kind, m.owner_id, (m.tier_level as TierLevel) || 'supporter', m.billing || 'monthly', sess.subscriptionId); return redirect(res, `/member/${m.owner_kind}/${m.owner_id}`); }
         }
         return redirect(res, '/');
       }
@@ -365,8 +449,13 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
         await loyaltyForEvent(f.fan_id, f.event_id, 'rsvp');
         return redirect(res, req.headers.referer ?? '/');
       }
+      if (path === '/athletes') return html(res, renderPitch('athletes', viewerGuest));
+      if (path === '/clubs') return html(res, renderPitch('clubs', viewerGuest));
+      if (path === '/create') {
+        return html(res, renderCreatorEntry({ guest: viewerGuest }));
+      }
       if (path === '/signup') {
-        return html(res, renderSignup(url.searchParams.get('next') ?? req.headers.referer ?? '/'));
+        return html(res, renderSignup(url.searchParams.get('next') ?? '/'));
       }
       // PUBLIC share pages (the acquisition loop) — open to everyone, like Shop.
       let sm;
@@ -400,13 +489,13 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
       let m;
       if (req.method === 'POST' && (m = path.match(/^\/athlete\/([^/]+)\/branding$/))) {
         const f = await parseForm(req);
-        await setAthleteProfile(db, m[1], { avatarUrl: f.avatar || undefined, bannerUrl: f.banner || undefined });
+        await setAthleteProfile(db, m[1], { avatarUrl: (await storeImage(f.avatar, 'avatars')) || undefined, bannerUrl: (await storeImage(f.banner, 'banners')) || undefined });
         return redirect(res, `/athlete/${m[1]}`);
       }
       if (req.method === 'POST' && (m = path.match(/^\/entity\/(club|team|association)\/([^/]+)\/branding$/))) {
         const f = await parseForm(req);
         const cur = await getBranding(db, m[1], m[2]);
-        await setBranding(db, m[1] as any, m[2], { tagline: cur.tagline ?? undefined, links: cur.links, avatarUrl: f.avatar || cur.avatarUrl || undefined, bannerUrl: f.banner || cur.bannerUrl || undefined });
+        await setBranding(db, m[1] as any, m[2], { tagline: cur.tagline ?? undefined, links: cur.links, avatarUrl: (await storeImage(f.avatar, 'avatars')) || cur.avatarUrl || undefined, bannerUrl: (await storeImage(f.banner, 'banners')) || cur.bannerUrl || undefined });
         return redirect(res, `/${m[1]}/${m[2]}`);
       }
       if ((m = path.match(/^\/fan\/([^/]+)$/))) {
