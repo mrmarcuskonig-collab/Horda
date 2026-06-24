@@ -614,6 +614,10 @@ async function loadDemoIds(db: Database): Promise<DemoIds> {
 }
 
 export async function startServer(port = Number(process.env.PORT ?? 8787)): Promise<{ server: Server; db: Database; ids: DemoIds; port: number; close: () => Promise<void> }> {
+  // Last line of defense: never let a stray async error (e.g. a late DB socket
+  // drop) crash the whole web process and blank every page. Log loudly instead.
+  process.on('unhandledRejection', (r) => console.error('[unhandledRejection]', r));
+  process.on('uncaughtException', (e) => console.error('[uncaughtException]', e));
   const db = await openDatabase();   // DATABASE_URL → server Postgres (prod); else embedded PGlite (HORDA_DATA persists)
   const fresh = (await db.query<{ r: string | null }>(`SELECT to_regclass('public.account')::text r`)).rows[0].r === null;
   const ids = fresh ? await seedDemo(db) : await loadDemoIds(db);              // seed once; reuse on restart

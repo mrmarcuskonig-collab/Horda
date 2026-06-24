@@ -42,13 +42,37 @@ export class PostgresDatabase implements Database {
     const Pool = pgmod.Pool ?? pgmod.default?.Pool;
     // Managed Postgres (Neon/Render/etc.) requires TLS; accept their cert chain.
     const ssl = /sslmode=disable/.test(connectionString) ? undefined : { rejectUnauthorized: false };
-    const pool = new Pool({ connectionString, ssl, max: 5 });
+    // idleTimeoutMillis below Neon's idle cutoff so WE close idle clients before
+    // the server does; keepAlive keeps sockets healthy.
+    const pool = new Pool({ connectionString, ssl, max: 5, idleTimeoutMillis: 10_000, keepAlive: true });
+    // CRITICAL: a pool emits an 'error' event when an *idle* client's connection
+    // drops (Neon/serverless reap idle connections constantly). With no listener,
+    // Node treats it as an uncaught error and CRASHES THE PROCESS — which returns
+    // empty/blank responses until Render restarts it. This listener makes the pool
+    // simply discard the dead client and carry on.
+    pool.on('error', (err: any) => console.error('[pg] idle client dropped (recovered):', err?.message ?? err));
     await pool.query('SELECT 1');            // fail fast if the URL/credentials are wrong
+    // Keep-alive ping every 4 min so Neon's free tier doesn't suspend the DB
+    // between visits (avoids a cold-start delay on the first click). unref() so
+    // it never keeps the process from exiting.
+    const ka = setInterval(() => { pool.query('SELECT 1').catch(() => {}); }, 240_000);
+    (ka as any).unref?.();
     return new PostgresDatabase(pool);
   }
   async query<T = any>(sql: string, params: any[] = []): Promise<{ rows: T[] }> {
-    const r = await this.pool.query(sql, params);
-    return { rows: r.rows as T[] };
+    try {
+      const r = await this.pool.query(sql, params);
+      return { rows: r.rows as T[] };
+    } catch (e: any) {
+      // Neon can close a connection between checkout and use; retry once on a
+      // fresh client for connection-level errors (not for real SQL errors).
+      const msg = String(e?.message ?? e);
+      if (/terminat|ECONNRESET|connection|server closed|socket hang|read ECONN/i.test(msg)) {
+        const r = await this.pool.query(sql, params);
+        return { rows: r.rows as T[] };
+      }
+      throw e;
+    }
   }
   async exec(sql: string): Promise<void> { await this.pool.query(sql); }
   async close(): Promise<void> { await this.pool.end(); }
