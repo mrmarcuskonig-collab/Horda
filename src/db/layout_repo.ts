@@ -12,9 +12,11 @@ export async function getAthleteSport(db: Database, athleteId: string): Promise<
     [athleteId])).rows[0]?.key;
   return derived ?? null;
 }
-export async function setAthleteSport(db: Database, athleteId: string, sport: string | null): Promise<void> {
+// Set the athlete's sport. `onlyIfEmpty` is used at onboarding (don't clobber);
+// the edit flow passes false to allow changing it.
+export async function setAthleteSport(db: Database, athleteId: string, sport: string | null, onlyIfEmpty = false): Promise<void> {
   if (!sport) return;
-  await db.query(`UPDATE athlete SET sport=$2 WHERE id=$1 AND sport IS NULL`, [athleteId, sport]);
+  await db.query(`UPDATE athlete SET sport=$2 WHERE id=$1${onlyIfEmpty ? ' AND sport IS NULL' : ''}`, [athleteId, sport]);
 }
 
 export async function getAthleteLayout(db: Database, athleteId: string): Promise<SectionPick[] | null> {

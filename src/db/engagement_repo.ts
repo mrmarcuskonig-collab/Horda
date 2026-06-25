@@ -30,7 +30,7 @@ export async function followEntity(db: Database, fanId: string, targetType: 'clu
 }
 
 // ---- the hub speaks: a post broadcasts to followers + notifies them ------
-export async function createPost(db: Database, authorType: 'athlete' | 'club' | 'team', authorId: string, body: string, eventId?: string, visibility: 'public' | 'members' = 'public'): Promise<string> {
+export async function createPost(db: Database, authorType: 'athlete' | 'club' | 'team', authorId: string, body: string, eventId?: string, visibility: 'public' | 'members' | 'supporter' | 'clubhouse' = 'public'): Promise<string> {
   const post = (await db.query<{ id: string }>(
     `INSERT INTO post (author_type,author_id,body,event_id,visibility) VALUES ($1,$2,$3,$4,$5::post_visibility) RETURNING id`,
     [authorType, authorId, body, eventId ?? null, visibility])).rows[0].id;

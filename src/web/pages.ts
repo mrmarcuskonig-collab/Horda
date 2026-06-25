@@ -308,6 +308,7 @@ export function renderAthletePage(d: {
   activation?: string;
   sections?: { key: string; on: boolean }[];
   ogTags?: string;
+  previewAsFan?: boolean;
 }): string {
   const isMember = !!d.membership;
   const viewerTier = d.membership?.tierLevel ?? null;
@@ -445,7 +446,7 @@ export function renderAthletePage(d: {
   // the connected top tabs jump to.
   const sectionMap: Record<string, string> = { record: recordBlock, nextup: attendBlock, drops: postsBlock, media: mediaBlock, events: eventsBlock, results: resultsBlock, merch, connected };
   const sectionsHtml = enabled.map(s => `<div id="sec-${s.key}" class="secanchor">${sectionMap[s.key] ?? ''}</div>`).join('\n');
-  const customizeBtn = d.canEdit ? `<div class="row" style="margin:6px 0 0"><a class="btn ghost sm" href="/athlete/${p.athleteId}/customize">⚙ Customize page</a></div>` : '';
+  const customizeBtn = d.canEdit ? `<div class="row" style="margin:6px 0 0"><a class="btn sm" href="/athlete/${p.athleteId}/compose">＋ Create</a><a class="btn ghost sm" href="/athlete/${p.athleteId}/customize">⚙ Edit page</a><a class="btn ghost sm" href="/athlete/${p.athleteId}?as=fan">👁 View as fan</a></div>` : '';
 
   const gatebar = d.guest
     ? `<div class="gatebar"><span><strong>Only members can see the content in full.</strong> You're browsing as a guest.</span><a class="btn" href="/signup">Log in to continue ›</a></div>`
@@ -544,6 +545,7 @@ export function renderAthletePage(d: {
   .prov{max-width:680px;margin:10px auto 30px;padding:0 16px;color:var(--mut);font-size:11px}
 </style></head><body>
   <header class="top"><div class="tl">${themeToggle()}</div><a class="mark" href="/" aria-label="Horda — home">${ravenMarkCurrent(30)}</a><div class="tr"><a class="dt" href="${d.guest ? '/signup' : `/fan/${d.fanId ?? ''}`}">${d.guest ? 'log in' : 'your feed →'}</a></div></header>
+  ${d.previewAsFan ? `<div style="background:var(--bone);color:var(--ink);text-align:center;font-size:13px;font-weight:700;padding:8px 14px">👁 Previewing as a fan — <a href="/athlete/${p.athleteId}" style="text-decoration:underline">exit preview</a></div>` : ''}
   ${cover}
   <div class="wrap">
     ${profhead}
@@ -562,9 +564,36 @@ export function renderAthletePage(d: {
 </body></html>`;
 }
 
+// Sport picker — used at creation (preview) and in edit. Stored value is a key.
+const SPORTS: [string, string][] = [['football', 'Football'], ['basketball', 'Basketball'], ['boxing', 'Boxing'], ['mma', 'MMA'], ['kickboxing', 'Kickboxing'], ['tennis', 'Tennis'], ['running', 'Running'], ['cycling', 'Cycling'], ['triathlon', 'Triathlon'], ['swimming', 'Swimming'], ['volleyball', 'Volleyball'], ['handball', 'Handball'], ['ice_hockey', 'Ice hockey'], ['rugby', 'Rugby'], ['athletics', 'Athletics'], ['golf', 'Golf'], ['climbing', 'Climbing'], ['surfing', 'Surfing'], ['esports', 'Esports']];
+export function sportSelect(name: string, current?: string | null, style = ''): string {
+  const cur = (current || '').toLowerCase();
+  const known = SPORTS.some(([k]) => k === cur);
+  const opts = ['<option value="">Choose a sport…</option>',
+    ...SPORTS.map(([k, n]) => `<option value="${k}"${k === cur ? ' selected' : ''}>${esc(n)}</option>`),
+    (cur && !known) ? `<option value="${esc(cur)}" selected>${esc(cur)}</option>` : ''];
+  return `<select name="${name}"${style ? ` style="${style}"` : ''}>${opts.join('')}</select>`;
+}
+
 // --- customize page: reorder + show/hide sections (per sport) + suggest a feature
-export function renderCustomize(d: { athleteId: string; fanId: string | null; sport: string | null; sections: { key: string; on: boolean }[] }): string {
+export function renderCustomize(d: { athleteId: string; fanId: string | null; sport: string | null; sections: { key: string; on: boolean }[]; links?: Record<string, string>; tiers?: { level: string; name: string; priceCents: number; priceAnnualCents: number | null; currency: string; perks: string[] }[]; saved?: boolean }): string {
   const ta = 'display:block;width:100%;margin-top:8px;background:var(--s);border:1px solid var(--b);border-radius:12px;color:var(--bone);padding:12px;font:inherit;min-height:90px';
+  const inp = 'display:block;width:100%;margin-top:6px;background:var(--s);border:1px solid var(--b);border-radius:10px;color:var(--bone);padding:10px;font:inherit';
+  const L = d.links ?? {};
+  const linkField = (key: string, label: string, ph: string) => `<label class="mut" style="display:block;margin:10px 0 0;font-size:13px">${esc(label)}<input style="${inp}" name="${key}" value="${esc(L[key] ?? '')}" placeholder="${ph}"></label>`;
+  // membership tier editor — set what fans pay for (wired to Stripe)
+  const eur = (c: number | null | undefined) => (c == null ? '' : (c / 100).toString());
+  const tierForm = (level: 'supporter' | 'clubhouse', dName: string, dMo: string, dYr: string, dPerks: string) => {
+    const t = (d.tiers ?? []).find(x => x.level === level);
+    return `<form method="post" action="/athlete/${esc(d.athleteId)}/tiers" style="border:1px solid var(--b);border-radius:14px;padding:14px;margin:10px 0;background:var(--s)">
+      <input type="hidden" name="level" value="${level}">
+      <div style="font-weight:800;font-size:15px;text-transform:capitalize">${level}${level === 'clubhouse' ? ' · grants Superfan' : ''}</div>
+      <label class="mut" style="display:block;margin:8px 0 0;font-size:13px">Name<input style="${inp}" name="name" value="${esc(t?.name ?? dName)}"></label>
+      <div style="display:flex;gap:10px"><label class="mut" style="flex:1;font-size:13px">Monthly €<input style="${inp}" name="price" type="number" min="0" step="0.5" value="${esc(t ? eur(t.priceCents) : dMo)}"></label><label class="mut" style="flex:1;font-size:13px">Annual €<input style="${inp}" name="annual" type="number" min="0" step="1" value="${esc(t ? eur(t.priceAnnualCents) : dYr)}"></label></div>
+      <label class="mut" style="display:block;margin:8px 0 0;font-size:13px">Perks (one per line)<textarea style="${ta};min-height:64px" name="perks">${esc(t ? t.perks.join('\n') : dPerks)}</textarea></label>
+      <div class="row" style="margin-top:10px"><button type="submit">Save ${level} tier</button></div>
+    </form>`;
+  };
   const rows = d.sections.map(s => {
     const m = SECTIONS[s.key]; if (!m) return '';
     return `<div class="secrow" data-key="${esc(s.key)}" draggable="true">
@@ -588,8 +617,32 @@ export function renderCustomize(d: { athleteId: string; fanId: string | null; sp
       .tgl{display:inline-flex;align-items:center;gap:5px;font-size:12px;color:var(--mut);margin-left:4px;cursor:pointer}.tgl input{accent-color:var(--bone)}
       .secrow.drag{opacity:.45}
     </style>
-    <h1>Customize your page</h1>
-    <p class="mut">Choose what fans see and the order. Drag the ⋮⋮ handle or use ▲▼, and toggle <b>Show</b> to hide a section. Defaults are tuned to ${d.sport ? esc(d.sport) : 'your sport'}.</p>
+    <h1>Edit your page</h1>
+
+    <div class="card" style="margin-top:6px">
+      <h2 style="font-size:13px;letter-spacing:1px;text-transform:uppercase;margin-bottom:6px">Profile details</h2>
+      <form method="post" action="/athlete/${esc(d.athleteId)}/profile">
+        <label class="mut" style="display:block;margin:4px 0 0;font-size:13px">Sport ${sportSelect('sport', d.sport, inp)}</label>
+        <p class="mut" style="font-size:12px;margin:6px 0 0">Your sport sets which sections fit (e.g. boxers lead with a W‑L‑D record).</p>
+        <div style="margin-top:8px;font-size:12px;letter-spacing:1px;text-transform:uppercase;color:var(--mut);font-weight:700">Connect socials</div>
+        ${linkField('instagram', 'Instagram', 'https://instagram.com/…')}
+        ${linkField('x', 'X / Twitter', 'https://x.com/…')}
+        ${linkField('tiktok', 'TikTok', 'https://tiktok.com/@…')}
+        ${linkField('youtube', 'YouTube', 'https://youtube.com/@…')}
+        ${linkField('website', 'Website', 'https://…')}
+        <div class="row" style="margin-top:12px"><button type="submit">Save details</button></div>
+      </form>
+    </div>
+
+    <div class="card" style="margin-top:16px">
+      <h2 style="font-size:13px;letter-spacing:1px;text-transform:uppercase;margin-bottom:2px">Membership tiers</h2>
+      <p class="mut" style="font-size:12.5px">Set what fans pay to back you. Leave a price empty to offer that tier free. Follow is always free.</p>
+      ${tierForm('supporter', 'Supporter', '4.99', '49', 'Members‑only drops\nEarly & priority tickets\nThe supporter badge')}
+      ${tierForm('clubhouse', 'Clubhouse', '12', '120', 'Everything in Supporter\nThe inside circle & perks\nInstant Superfan status')}
+    </div>
+
+    <h2 style="font-size:13px;letter-spacing:1px;text-transform:uppercase;margin:26px 0 4px">Sections</h2>
+    <p class="mut">Choose what fans see and the order. Drag the ⋮⋮ handle or use ▲▼, and toggle <b>Show</b> to hide a section.</p>
     <form id="secform" method="post" action="/athlete/${esc(d.athleteId)}/layout">
       <input type="hidden" name="order" id="orderfield">
       <div id="seclist">${rows}</div>
@@ -614,6 +667,32 @@ export function renderCustomize(d: { athleteId: string; fanId: string | null; sp
       list.addEventListener('dragover',function(e){e.preventDefault(); if(!dragging)return; var r=e.target.closest('.secrow'); if(!r||r===dragging)return; var b=r.getBoundingClientRect(); var after=(e.clientY-b.top)/b.height>0.5; list.insertBefore(dragging, after?r.nextElementSibling:r)});
       document.getElementById('secform').addEventListener('submit',function(){var rows=Array.prototype.slice.call(list.querySelectorAll('.secrow')); var order=rows.map(function(r){return {key:r.getAttribute('data-key'), on:r.querySelector('input[type=checkbox]').checked}}); document.getElementById('orderfield').value=JSON.stringify(order)});
     })();</script>
+  `, { back: `/athlete/${d.athleteId}`, nav: { active: 'you', guest: false, fanId: d.fanId } });
+}
+
+// --- creator composer: the "+" create menu, every item tier-gated ----------
+export function renderCompose(d: { athleteId: string; fanId: string | null; hasPaidTiers: boolean }): string {
+  const inp = 'display:block;width:100%;margin-top:6px;background:var(--s);border:1px solid var(--b);border-radius:10px;color:var(--bone);padding:11px;font:inherit';
+  const ta = 'display:block;width:100%;margin-top:8px;background:var(--s);border:1px solid var(--b);border-radius:12px;color:var(--bone);padding:13px;font:inherit;min-height:120px;line-height:1.55';
+  return layout('Create', `
+    <h1>Create</h1>
+    <p class="mut">Post a drop, schedule an event, or add merch — and choose exactly who can see each one.</p>
+    <div class="card">
+      <h2 style="font-size:13px;letter-spacing:1px;text-transform:uppercase;margin-bottom:2px">New drop</h2>
+      <form method="post" action="/athlete/${esc(d.athleteId)}/post">
+        <textarea name="body" required placeholder="Share an update — training, fight-week, behind-the-scenes…" style="${ta}"></textarea>
+        <label class="mut" style="display:block;margin:10px 0 0;font-size:13px">Who can see this?
+          <select name="visibility" style="${inp}">
+            <option value="public">Everyone — public (free followers too)</option>
+            <option value="supporter">★ Supporters only</option>
+            <option value="clubhouse">✦ Clubhouse only</option>
+          </select></label>
+        ${d.hasPaidTiers ? '' : `<p class="mut" style="font-size:12px;margin:8px 0 0">Tip: you haven't set a paid tier yet — <a href="/athlete/${esc(d.athleteId)}/customize" style="border-bottom:1px solid var(--b)">set Supporter/Clubhouse prices</a> so locked drops are worth paying for.</p>`}
+        <div class="row" style="margin-top:12px"><button type="submit">Publish drop</button></div>
+      </form>
+    </div>
+    <div class="card"><h2 style="font-size:13px;letter-spacing:1px;text-transform:uppercase;margin-bottom:6px">New event</h2><p class="mut" style="font-size:13.5px">Live stream, physical meet or fight night — set access (open / register / apply / paid) when you create it.</p><a class="btn ghost" href="/host/athlete/${esc(d.athleteId)}/new">Schedule an event →</a></div>
+    <div class="card"><h2 style="font-size:13px;letter-spacing:1px;text-transform:uppercase;margin-bottom:6px">Merch</h2><p class="mut" style="font-size:13.5px">Coming soon — sell tees, signed gear and matchday drops.</p></div>
   `, { back: `/athlete/${d.athleteId}`, nav: { active: 'you', guest: false, fanId: d.fanId } });
 }
 
@@ -653,7 +732,7 @@ export function renderMemberWelcome(d: { name: string; tierName: string; memberN
 }
 
 // sign-up — create a real account (browsing is open; acting needs this).
-export function renderSignup(next: string): string {
+export function renderSignup(next: string, follow = ''): string {
   const inp = 'display:block;width:100%;margin-top:6px;background:var(--s);border:1px solid var(--b);border-radius:10px;color:var(--bone);padding:11px;font:inherit';
   const isCreator = next.includes('/onboarding/athlete') || next.includes('/onboarding/claim');
   return layout('Join the Horda', `
@@ -662,6 +741,7 @@ export function renderSignup(next: string): string {
     ${oauthButtons(next)}
     <form method="post" action="/signup">
       <input type="hidden" name="next" value="${esc(next || '/')}">
+      ${follow ? `<input type="hidden" name="follow" value="${esc(follow)}">` : ''}
       <label class="mut" style="display:block;margin:12px 0">Name<input style="${inp}" name="name" required></label>
       <label class="mut" style="display:block;margin:12px 0">Email<input style="${inp}" type="email" name="email" required></label>
       <label class="mut" style="display:block;margin:12px 0">Password<input style="${inp}" type="password" name="password" required minlength="6"></label>
@@ -687,21 +767,38 @@ export function renderCreatorEntry(d: { guest: boolean }): string {
 }
 
 // --- onboarding: fan first-run (pick a sport, follow a few faces) ----------
-export function renderOnboardFan(d: { fanId: string; sport?: string; sports: { key: string; name: string }[]; athletes: { id: string; name: string; sport: string | null; region: string | null; verified?: boolean }[]; clubs: { id: string; name: string; sport: string | null; region: string | null; verified?: boolean }[]; followedCount: number }): string {
-  const chip = (label: string, key?: string) => `<a class="chip${(key ?? '') === (d.sport ?? '') ? ' on' : ''}" href="/onboarding/fan${key ? `?sport=${key}` : ''}">${esc(label)}</a>`;
-  const follow = (type: string, id: string, name: string, sub: string, verified?: boolean) =>
-    `<div class="ocard"><div class="ometa"><div class="on">${esc(name)}${verified ? ' <span class="sf">✦</span>' : ''}</div><div class="osub">${esc(sub)}</div></div><form method="post" action="/follow"><input type="hidden" name="fan_id" value="${d.fanId}"><input type="hidden" name="target_type" value="${type}"><input type="hidden" name="target_id" value="${id}"><button class="btn sm">Follow</button></form></div>`;
+export function renderOnboardFan(d: { fanId: string; sport?: string; sports: { key: string; name: string }[]; athletes: { id: string; name: string; sport: string | null; region: string | null; verified?: boolean }[]; clubs: { id: string; name: string; sport: string | null; region: string | null; verified?: boolean }[]; followedCount: number; preselect?: string[] }): string {
+  const pre = new Set(d.preselect ?? []);
+  const fq = pre.size ? `follow=${encodeURIComponent([...pre].join(','))}` : '';
+  const chip = (label: string, key?: string) => {
+    const q = [key ? `sport=${key}` : '', fq].filter(Boolean).join('&');
+    return `<a class="chip${(key ?? '') === (d.sport ?? '') ? ' on' : ''}" href="/onboarding/fan${q ? `?${q}` : ''}">${esc(label)}</a>`;
+  };
+  // Multi-select: a clicked athlete is pre-checked; selections stay visible and
+  // highlighted (deselectable). Nothing persists until "Save".
+  const pick = (type: string, id: string, name: string, sub: string, verified?: boolean) => {
+    const k = `${type}:${id}`;
+    return `<label class="pick"><input type="checkbox" name="t" value="${esc(k)}"${pre.has(k) ? ' checked' : ''}><span class="po"><span class="on">${esc(name)}${verified ? ' <span class="sf">✦</span>' : ''}</span><span class="osub">${esc(sub)}</span></span><span class="chk">✓</span></label>`;
+  };
   const list = [
-    ...d.athletes.map(a => follow('athlete', a.id, a.name, [a.sport, a.region].filter(Boolean).join(' · ') || 'athlete', a.verified)),
-    ...d.clubs.map(c => follow('club', c.id, c.name, [c.sport, c.region].filter(Boolean).join(' · ') || 'club', c.verified)),
-  ].join('') || `<p class="mut">No coverage for that sport yet — try another, or follow later.</p>`;
+    ...d.athletes.map(a => pick('athlete', a.id, a.name, [a.sport, a.region].filter(Boolean).join(' · ') || 'athlete', a.verified)),
+    ...d.clubs.map(c => pick('club', c.id, c.name, [c.sport, c.region].filter(Boolean).join(' · ') || 'club', c.verified)),
+  ].join('') || `<p class="mut">No coverage for that sport yet — try another, or skip.</p>`;
   return layout('Set up your Horda', `
-    <style>.ocard{display:flex;align-items:center;justify-content:space-between;gap:10px;border:1px solid var(--b);border-radius:12px;padding:11px 13px;margin:8px 0}.on{font-weight:800;font-size:15px}.osub{color:var(--mut);font-size:12px;text-transform:capitalize}.btn.sm{padding:7px 14px;font-size:13px}.sf{color:var(--bone)}.chip{display:inline-block;border:1px solid var(--b);color:var(--mut);border-radius:999px;padding:6px 12px;font-size:12.5px;margin:0 6px 6px 0}.chip.on{background:var(--bone);color:var(--ink);border-color:var(--bone)}</style>
+    <style>.pick{display:flex;align-items:center;gap:11px;border:1px solid var(--b);border-radius:12px;padding:11px 13px;margin:8px 0;cursor:pointer}
+    .pick input{position:absolute;opacity:0;width:0;height:0}
+    .pick .po{flex:1;min-width:0}.on{font-weight:800;font-size:15px}.osub{color:var(--mut);font-size:12px;text-transform:capitalize;display:block;margin-top:1px}.sf{color:var(--bone)}
+    .pick .chk{flex:0 0 24px;width:24px;height:24px;border-radius:50%;border:1.5px solid var(--b);display:flex;align-items:center;justify-content:center;color:transparent;font-weight:800;font-size:13px}
+    .pick:has(input:checked){border-color:var(--bone);background:rgba(237,233,223,.05)}
+    .pick:has(input:checked) .chk{background:var(--bone);color:var(--ink);border-color:var(--bone)}
+    .chip{display:inline-block;border:1px solid var(--b);color:var(--mut);border-radius:999px;padding:6px 12px;font-size:12.5px;margin:0 6px 6px 0}.chip.on{background:var(--bone);color:var(--ink);border-color:var(--bone)}</style>
     <h1>Find your people</h1>
-    <p class="mut">Follow a few to fill your feed. You can change this anytime.${d.followedCount ? ` <b>${d.followedCount} followed.</b>` : ''}</p>
+    <p class="mut">Pick a few to follow — they fill your feed. Tap to select or deselect; nothing's saved until you hit Save.${d.followedCount ? ` <b>Already following ${d.followedCount}.</b>` : ''}</p>
     <div style="margin:12px 0">${chip('All sports')}${d.sports.map(s => chip(s.name, s.key)).join('')}</div>
-    ${list}
-    <div class="row" style="margin-top:18px"><a class="btn" href="/onboarding/done">${d.followedCount ? 'Go to your feed →' : 'Skip for now →'}</a></div>`, { back: '/' });
+    <form method="post" action="/onboarding/follow">
+      ${list}
+      <div class="row" style="margin-top:18px"><button type="submit">Save &amp; continue →</button><a class="btn ghost" href="/onboarding/done">Skip</a></div>
+    </form>`, { back: '/' });
 }
 
 // --- onboarding: AI-first. Describe yourself → we generate a polished page. ---
@@ -729,8 +826,8 @@ export function renderProfilePreview(d: { kind: string; gen: { displayName: stri
     <div class="pvh">Headline</div><div style="font-size:20px;font-weight:800">${esc(g.headline || g.displayName)}</div>
     <form method="post" action="${esc(d.createAction)}">${d.hidden ?? ''}
       <input type="hidden" name="cover" value="${esc(g.cover)}">
-      <input type="hidden" name="sport" value="${esc(g.sport ?? '')}">
       <input type="hidden" name="links" value="${esc(JSON.stringify(g.links ?? {}))}">
+      <div class="pvh">Sport</div>${sportSelect('sport', g.sport, inp)}
       ${g.links && Object.keys(g.links).length ? `<div class="pvh">Links found</div><div class="mut" style="font-size:12.5px">${Object.keys(g.links).map(k => esc(k)).join(' · ')}</div>` : ''}
       <div class="pvh">Profile picture</div>
       <input type="file" accept="image/*" data-target="avatar" style="color:inherit;font:inherit"><input type="hidden" name="avatar">

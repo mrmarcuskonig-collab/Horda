@@ -52,7 +52,7 @@ ok('manual profile picture saved', row.avatar_url.includes('AVATARPNG'));
 
 console.log('\n[onboarding · fan + claim paths]');
 const cookieF = (sf.headers.get('set-cookie') || '').split(';')[0];
-ok('fan onboarding suggests faces to follow', (await (await fetch(base + '/onboarding/fan', { headers: { cookie: cookieF } })).text()).includes('action="/follow"'));
+ok('fan onboarding = multi-select follow picker (save to persist)', (await (await fetch(base + '/onboarding/fan', { headers: { cookie: cookieF } })).text()).includes('action="/onboarding/follow"'));
 const cookieC = (sc.headers.get('set-cookie') || '').split(';')[0];
 const cs = await (await fetch(base + '/onboarding/claim?q=Beispiel', { headers: { cookie: cookieC } })).text();
 ok('claim search finds the club + offers Claim', cs.includes('FC Beispiel') && cs.includes('/claim/club/'));

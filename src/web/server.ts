@@ -20,12 +20,12 @@ import { renderEntityProfile, tableDark } from './shell.ts';
 import { FAVICON_SVG } from './brand.ts';
 import { buildResultShare, buildFightShare, buildWeekDrop } from '../content/index.ts';
 import { createScheduledEvent, rsvp, getRsvp, getEventDetail, getGuestList, listUpcomingByHost, listProfileEvents, hostName, icsFor, approveRegistration, markPaid, featureEvent, getTicketFor, giftTicket, listTicket, getListings, buyListing } from '../db/events_repo.ts';
-import { getTier, getTiers, joinMembership, cancelMembershipBySub, getMembership, memberCount, recordLoyalty, loyaltyScore, isSuperfan, topSuperfans, type TierLevel } from '../db/membership_repo.ts';
+import { getTier, getTiers, setTier, joinMembership, cancelMembershipBySub, getMembership, memberCount, recordLoyalty, loyaltyScore, isSuperfan, topSuperfans, type TierLevel } from '../db/membership_repo.ts';
 import { signup, verifyLogin, createSession, sessionAccount, deleteSession, fanForAccount, owns, ownedEntities, grantOwnership, accountRole, setOnboarded, upsertOauthAccount, createPasswordReset, resetPassword } from '../db/auth_repo.ts';
 import { getDiscover, REGIONS } from '../db/discover_repo.ts';
 import { renderEventPage, renderCreateEvent, renderManage, renderCheckout } from './events.ts';
 import { seedDemo, type DemoIds } from './seed.ts';
-import { renderIndex, renderDiscover, renderMap, renderAthletePage, renderCustomize, renderFanHome, renderSignup, renderLogin, renderForgot, renderReset, renderSharePage, renderMemberWelcome, renderClaimPending, renderClaimQueue, renderOnboardFan, renderAiPrompt, renderProfilePreview, renderOnboardClaim, renderCreatorEntry } from './pages.ts';
+import { renderIndex, renderDiscover, renderMap, renderAthletePage, renderCustomize, renderCompose, renderFanHome, renderSignup, renderLogin, renderForgot, renderReset, renderSharePage, renderMemberWelcome, renderClaimPending, renderClaimQueue, renderOnboardFan, renderAiPrompt, renderProfilePreview, renderOnboardClaim, renderCreatorEntry } from './pages.ts';
 import { getEmailer, resetEmail } from './email.ts';
 import { ogMeta } from './layout.ts';
 import { storeImage } from './storage.ts';
@@ -86,7 +86,9 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
         const r = await signup(db, (f.email || '').toLowerCase().trim(), f.name || 'Fan', f.password || '', role);
         if (!r) return redirect(res, '/login');
         const token = await createSession(db, r.accountId);
-        const dest = (next && next !== '/') ? next : '/onboarding/fan';
+        let dest = (next && next !== '/') ? next : '/onboarding/fan';
+        // carry a "follow this creator" intent (from a Follow CTA) into the follow picker
+        if (f.follow && (dest === '/onboarding/fan' || dest.startsWith('/onboarding/fan'))) dest = `/onboarding/fan?follow=${encodeURIComponent(f.follow)}`;
         res.writeHead(303, { 'set-cookie': `hz_session=${token}; Path=/; HttpOnly; SameSite=Lax`, location: dest }); res.end(); return;
       }
       // --- onboarding (first-run) ---
@@ -95,7 +97,21 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
         const sport = url.searchParams.get('sport') || undefined;
         const data = await getDiscover(db, { sport });
         const followed = await getFollows(db, viewer);
-        return html(res, renderOnboardFan({ fanId: viewer, sport, sports: data.sports, athletes: data.athletes.slice(0, 8), clubs: data.clubs.slice(0, 6), followedCount: followed.length }));
+        const preselect = (url.searchParams.get('follow') || '').split(',').map(s => s.trim()).filter(Boolean);
+        return html(res, renderOnboardFan({ fanId: viewer, sport, sports: data.sports, athletes: data.athletes.slice(0, 8), clubs: data.clubs.slice(0, 6), followedCount: followed.length, preselect }));
+      }
+      // batch-follow from the onboarding picker (persists only on Save)
+      if (req.method === 'POST' && path === '/onboarding/follow') {
+        if (!account) return redirect(res, '/signup');
+        const picks = new URLSearchParams(await readRaw(req)).getAll('t');
+        for (const p of picks) {
+          const [type, id] = p.split(':');
+          if ((type === 'athlete' || type === 'club' || type === 'team') && id) {
+            await followEntity(db, viewer, type, id);
+            await recordLoyalty(db, viewer, type, id, 'follow');
+          }
+        }
+        return redirect(res, '/onboarding/done');
       }
       if (path === '/onboarding/done') {
         if (account) await setOnboarded(db, account.id);
@@ -477,7 +493,7 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
         return html(res, renderCreatorEntry({ guest: viewerGuest }));
       }
       if (path === '/signup') {
-        return html(res, renderSignup(url.searchParams.get('next') ?? '/'));
+        return html(res, renderSignup(url.searchParams.get('next') ?? '/', url.searchParams.get('follow') ?? ''));
       }
       // PUBLIC share pages (the acquisition loop) — open to everyone, like Shop.
       let sm;
@@ -519,7 +535,33 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
         if (!await canEdit('athlete', m[1])) return redirect(res, `/athlete/${m[1]}`);
         const sport = await getAthleteSport(db, m[1]);
         const sections = resolveLayout(sport, await getAthleteLayout(db, m[1]));
-        return html(res, renderCustomize({ athleteId: m[1], fanId: viewer, sport, sections }));
+        const prof = await getAthleteProfile(db, m[1]);
+        const cTiers = await getTiers(db, 'athlete', m[1]);
+        return html(res, renderCustomize({ athleteId: m[1], fanId: viewer, sport, sections, links: prof.links, tiers: cTiers }));
+      }
+      // save a membership tier (Supporter/Clubhouse) — owner only; wired to Stripe
+      if (req.method === 'POST' && (m = path.match(/^\/athlete\/([^/]+)\/tiers$/))) {
+        if (!await canEdit('athlete', m[1])) return redirect(res, `/athlete/${m[1]}`);
+        const f = await parseForm(req);
+        const level: TierLevel = f.level === 'clubhouse' ? 'clubhouse' : 'supporter';
+        const toCents = (v: string) => { const n = Math.round(Number(v) * 100); return Number.isFinite(n) && n >= 0 ? n : 0; };
+        const perks = (f.perks || '').split('\n').map(s => s.trim()).filter(Boolean).slice(0, 8);
+        await setTier(db, 'athlete', m[1], {
+          level, name: (f.name || (level === 'clubhouse' ? 'Clubhouse' : 'Supporter')).slice(0, 60),
+          priceCents: toCents(f.price || '0'), priceAnnualCents: f.annual ? toCents(f.annual) : null,
+          currency: 'EUR', perks,
+        });
+        return redirect(res, `/athlete/${m[1]}/customize`);
+      }
+      // save profile details (sport + social links) — owner only
+      if (req.method === 'POST' && (m = path.match(/^\/athlete\/([^/]+)\/profile$/))) {
+        if (!await canEdit('athlete', m[1])) return redirect(res, `/athlete/${m[1]}`);
+        const f = await parseForm(req);
+        await setAthleteSport(db, m[1], f.sport || null, false);   // allow change
+        const links: Record<string, string> = {};
+        for (const k of ['instagram', 'x', 'tiktok', 'youtube', 'website']) if (f[k]) links[k] = f[k];
+        await setAthleteProfile(db, m[1], { links });
+        return redirect(res, `/athlete/${m[1]}`);
       }
       if (req.method === 'POST' && (m = path.match(/^\/athlete\/([^/]+)\/layout$/))) {
         if (!await canEdit('athlete', m[1])) return redirect(res, `/athlete/${m[1]}`);
@@ -528,6 +570,19 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
         const sport = await getAthleteSport(db, m[1]);
         const clean = resolveLayout(sport, Array.isArray(parsed) ? parsed.map((x: any) => ({ key: String(x?.key ?? ''), on: !!x?.on })) : null);
         await setAthleteLayout(db, m[1], clean);
+        return redirect(res, `/athlete/${m[1]}`);
+      }
+      // "+" composer (owner) — create menu; new drop with per-tier visibility
+      if ((m = path.match(/^\/athlete\/([^/]+)\/compose$/))) {
+        if (!await canEdit('athlete', m[1])) return redirect(res, `/athlete/${m[1]}`);
+        const hasPaid = (await getTiers(db, 'athlete', m[1])).some(t => t.priceCents > 0 || (t.priceAnnualCents ?? 0) > 0);
+        return html(res, renderCompose({ athleteId: m[1], fanId: viewer, hasPaidTiers: hasPaid }));
+      }
+      if (req.method === 'POST' && (m = path.match(/^\/athlete\/([^/]+)\/post$/))) {
+        if (!await canEdit('athlete', m[1])) return redirect(res, `/athlete/${m[1]}`);
+        const f = await parseForm(req);
+        const vis = ['supporter', 'clubhouse', 'public'].includes(f.visibility) ? f.visibility : 'public';
+        if ((f.body || '').trim()) await createPost(db, 'athlete', m[1], f.body.trim(), undefined, vis as any);
         return redirect(res, `/athlete/${m[1]}`);
       }
       // creators propose new features → continuous product improvement
@@ -569,11 +624,13 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
         const members = await memberCount(db, 'athlete', m[1]);
         const superfan = await isSuperfan(db, fanId, 'athlete', m[1]);
         const lscore = fanId ? await loyaltyScore(db, fanId, 'athlete', m[1]) : 0;
-        const athOwner = await canEdit('athlete', m[1]);
+        const asFan = url.searchParams.get('as') === 'fan';   // owner previews their page as a fan
+        const realOwner = await canEdit('athlete', m[1]);
+        const athOwner = realOwner && !asFan;
         const athAct = athOwner ? renderChecklist(await athleteChecklist(db, m[1])) : '';
         const athSections = resolveLayout(await getAthleteSport(db, m[1]), await getAthleteLayout(db, m[1]));
         const athOg = ogMeta({ title: `${profile.name} on Horda`, description: profile.tagline || `Follow ${profile.name} on Horda — drops, events and superfan access.`, url: `${origin}/athlete/${m[1]}`, image: profile.bannerUrl || profile.avatarUrl, type: 'profile' });
-        return html(res, renderAthletePage({ guest, fanId, profile, upcoming, attendance, affiliations, events, scheduleHref: `/host/athlete/${m[1]}/new`, tiers, membership, superfan, loyalty: fanId ? { score: lscore, threshold: 200 } : null, memberCount: members, canEdit: athOwner, activation: athAct, sections: athSections, ogTags: athOg }));
+        return html(res, renderAthletePage({ guest, fanId, profile, upcoming, attendance, affiliations, events, scheduleHref: `/host/athlete/${m[1]}/new`, tiers, membership, superfan, loyalty: fanId ? { score: lscore, threshold: 200 } : null, memberCount: members, canEdit: athOwner, activation: athAct, sections: athSections, ogTags: athOg, previewAsFan: realOwner && asFan }));
       }
       if ((m = path.match(/^\/club\/([^/]+)$/))) {
         const guest = viewerGuest;
