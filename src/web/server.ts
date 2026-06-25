@@ -4,7 +4,7 @@
 import { createServer, type Server } from 'node:http';
 import { randomUUID } from 'node:crypto';
 import { oauthProviders, authUrl as oauthAuthUrl, exchange as oauthExchange, isEnabled as oauthEnabled } from './oauth.ts';
-import { renderPitch } from './pitch.ts';
+import { renderAbout, renderAboutCreators, renderAboutFeatures, renderAboutPricing } from './pitch.ts';
 import { openDatabase, applySchema } from '../db/index.ts';
 import type { Database } from '../db/index.ts';
 import { getClubPage } from '../db/repo.ts';
@@ -25,10 +25,12 @@ import { signup, verifyLogin, createSession, sessionAccount, deleteSession, fanF
 import { getDiscover, REGIONS } from '../db/discover_repo.ts';
 import { renderEventPage, renderCreateEvent, renderManage, renderCheckout } from './events.ts';
 import { seedDemo, type DemoIds } from './seed.ts';
-import { renderIndex, renderDiscover, renderMap, renderAthletePage, renderFanHome, renderSignup, renderLogin, renderForgot, renderReset, renderSharePage, renderMemberWelcome, renderClaimPending, renderClaimQueue, renderOnboardFan, renderAiPrompt, renderProfilePreview, renderOnboardClaim, renderCreatorEntry } from './pages.ts';
+import { renderIndex, renderDiscover, renderMap, renderAthletePage, renderCustomize, renderFanHome, renderSignup, renderLogin, renderForgot, renderReset, renderSharePage, renderMemberWelcome, renderClaimPending, renderClaimQueue, renderOnboardFan, renderAiPrompt, renderProfilePreview, renderOnboardClaim, renderCreatorEntry } from './pages.ts';
 import { getEmailer, resetEmail } from './email.ts';
 import { storeImage } from './storage.ts';
 import { fanChecklist, athleteChecklist, entityChecklist, renderChecklist } from './activation.ts';
+import { getAthleteSport, setAthleteSport, getAthleteLayout, setAthleteLayout, createFeatureRequest } from '../db/layout_repo.ts';
+import { resolveLayout } from './sections.ts';
 import { generateProfile, getModel, coverDataUri } from './profilegen.ts';
 import { requestClaim, verifyByChannelCode, listClaimsForReviewer, decideClaim, officialDomain, isAdmin as accountIsAdmin, type ClaimKind } from '../db/claim_repo.ts';
 import { getPayments, verifyWebhook } from './payments.ts';
@@ -124,6 +126,7 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
         const aAvatar = await storeImage(f.avatar, 'avatars');
         const aBanner = await storeImage(f.banner || f.cover, 'banners');
         await setAthleteProfile(db, aId, { tagline: f.tagline || undefined, avatarUrl: aAvatar || undefined, bannerUrl: aBanner || undefined, links: Object.keys(aLinks).length ? aLinks : undefined });
+        if (f.sport) await setAthleteSport(db, aId, f.sport);   // drives sport-appropriate default sections
         if (f.bio) await createPost(db, 'athlete', aId, f.bio);
         await setOnboarded(db, account.id);
         return redirect(res, `/athlete/${aId}`);
@@ -463,8 +466,12 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
         await loyaltyForEvent(f.fan_id, f.event_id, 'rsvp');
         return redirect(res, req.headers.referer ?? '/');
       }
-      if (path === '/athletes') return html(res, renderPitch('athletes', viewerGuest));
-      if (path === '/clubs') return html(res, renderPitch('clubs', viewerGuest));
+      if (path === '/about') return html(res, renderAbout(viewerGuest));
+      if (path === '/about/creators') return html(res, renderAboutCreators(viewerGuest));
+      if (path === '/about/features') return html(res, renderAboutFeatures(viewerGuest));
+      if (path === '/about/pricing') return html(res, renderAboutPricing(viewerGuest));
+      if (path === '/athletes') return redirect(res, '/about/creators');
+      if (path === '/clubs') return redirect(res, '/about/creators');
       if (path === '/create') {
         return html(res, renderCreatorEntry({ guest: viewerGuest }));
       }
@@ -506,6 +513,28 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
         await setAthleteProfile(db, m[1], { avatarUrl: (await storeImage(f.avatar, 'avatars')) || undefined, bannerUrl: (await storeImage(f.banner, 'banners')) || undefined });
         return redirect(res, `/athlete/${m[1]}`);
       }
+      // athlete customizes their page sections (owner-only)
+      if ((m = path.match(/^\/athlete\/([^/]+)\/customize$/))) {
+        if (!await canEdit('athlete', m[1])) return redirect(res, `/athlete/${m[1]}`);
+        const sport = await getAthleteSport(db, m[1]);
+        const sections = resolveLayout(sport, await getAthleteLayout(db, m[1]));
+        return html(res, renderCustomize({ athleteId: m[1], fanId: viewer, sport, sections }));
+      }
+      if (req.method === 'POST' && (m = path.match(/^\/athlete\/([^/]+)\/layout$/))) {
+        if (!await canEdit('athlete', m[1])) return redirect(res, `/athlete/${m[1]}`);
+        const f = await parseForm(req);
+        let parsed: any = []; try { parsed = JSON.parse(f.order || '[]'); } catch { /* ignore */ }
+        const sport = await getAthleteSport(db, m[1]);
+        const clean = resolveLayout(sport, Array.isArray(parsed) ? parsed.map((x: any) => ({ key: String(x?.key ?? ''), on: !!x?.on })) : null);
+        await setAthleteLayout(db, m[1], clean);
+        return redirect(res, `/athlete/${m[1]}`);
+      }
+      // creators propose new features → continuous product improvement
+      if (req.method === 'POST' && path === '/feature-request') {
+        const f = await parseForm(req);
+        await createFeatureRequest(db, account?.id ?? null, f.sport || null, f.context || null, f.body || '');
+        return redirect(res, req.headers.referer ?? '/');
+      }
       if (req.method === 'POST' && (m = path.match(/^\/entity\/(club|team|association)\/([^/]+)\/branding$/))) {
         const f = await parseForm(req);
         const cur = await getBranding(db, m[1], m[2]);
@@ -541,7 +570,8 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
         const lscore = fanId ? await loyaltyScore(db, fanId, 'athlete', m[1]) : 0;
         const athOwner = await canEdit('athlete', m[1]);
         const athAct = athOwner ? renderChecklist(await athleteChecklist(db, m[1])) : '';
-        return html(res, renderAthletePage({ guest, fanId, profile, upcoming, attendance, affiliations, events, scheduleHref: `/host/athlete/${m[1]}/new`, tiers, membership, superfan, loyalty: fanId ? { score: lscore, threshold: 200 } : null, memberCount: members, canEdit: athOwner, activation: athAct }));
+        const athSections = resolveLayout(await getAthleteSport(db, m[1]), await getAthleteLayout(db, m[1]));
+        return html(res, renderAthletePage({ guest, fanId, profile, upcoming, attendance, affiliations, events, scheduleHref: `/host/athlete/${m[1]}/new`, tiers, membership, superfan, loyalty: fanId ? { score: lscore, threshold: 200 } : null, memberCount: members, canEdit: athOwner, activation: athAct, sections: athSections }));
       }
       if ((m = path.match(/^\/club\/([^/]+)$/))) {
         const guest = viewerGuest;
@@ -563,7 +593,7 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
         return html(res, renderEntityProfile({
           kindLabel: 'Club', guest, fanId: guest ? null : viewer, name: club.name, nickname: club.name,
           tagline: brand.tagline, avatarUrl: brand.avatarUrl, bannerUrl: brand.bannerUrl, links: brand.links,
-          tabs: [{ label: 'Highlight' }, { label: 'Squad' }, { label: 'Fixtures' }, { label: 'Table' }, { label: 'Shop', shop: true }],
+          tabs: [{ label: 'Highlight' }, { label: 'Squad' }, { label: 'Fixtures' }, { label: 'Shop', shop: true }],
           statLine, notice, post: cp ? { author: club.name, body: cp.body, date: cp.date } : undefined,
           upcoming, attendance, tableHtml, merch: true, backHref: '/', editAction: `/entity/club/${m[1]}/branding`, canEdit: await canEdit('club', m[1]),
           activation: (await canEdit('club', m[1])) ? renderChecklist(await entityChecklist(db, 'club', m[1])) : '',
@@ -589,7 +619,7 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
           tagline: brand.tagline, avatarUrl: brand.avatarUrl, bannerUrl: brand.bannerUrl, links: brand.links,
           parent: { label: team.club_name, href: `/club/${team.club_id}` },
           about: `${team.sport} · ${[team.division, team.gender].filter(Boolean).join(' · ')}`,
-          tabs: [{ label: 'Highlight' }, { label: 'Squad' }, { label: 'Fixtures' }, { label: 'Table' }, { label: 'Shop', shop: true }],
+          tabs: [{ label: 'Highlight' }, { label: 'Squad' }, { label: 'Fixtures' }, { label: 'Shop', shop: true }],
           statLine, notice: nf ? `[Notice] Next match: ${team.name} vs ${nf.opp} — ${nf.date ?? 'soon'}.` : '',
           upcoming, attendance, tableHtml, merch: true, backHref: `/club/${team.club_id}`, editAction: `/entity/team/${m[1]}/branding`, canEdit: await canEdit('team', m[1]),
           activation: (await canEdit('team', m[1])) ? renderChecklist(await entityChecklist(db, 'team', m[1])) : '',

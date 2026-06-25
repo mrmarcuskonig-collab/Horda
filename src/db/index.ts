@@ -117,6 +117,8 @@ export async function applySchema(db: Database, migrationsDir = 'db/migrations')
         '0020': () => relExists('public.password_reset'),
         '0021': () => enumHas('post_visibility', 'supporter'),
         '0022': () => enumHas('post_visibility', 'clubhouse'),
+        '0023': () => colExists('athlete', 'layout'),
+        '0024': () => relExists('public.feature_request'),
       };
       for (const f of files) {
         const probe = present[f.slice(0, 4)];

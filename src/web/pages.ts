@@ -5,6 +5,7 @@ import { editPanel, UPLOAD_SCRIPT } from './shell.ts';
 import { ravenMark, ravenMarkCurrent } from './brand.ts';
 import { THEME_BOOT, THEME_VARS, THM_CSS, themeToggle, bottomNav, verifiedBadge } from './theme.ts';
 import { oauthProviders } from './oauth.ts';
+import { SECTIONS } from './sections.ts';
 
 // "Continue with Google / …" buttons — only render the providers configured via env
 function oauthButtons(next: string): string {
@@ -221,7 +222,7 @@ export function renderDiscover(d: {
     ${clubs}
     ${empty}
   </div>
-  <div class="prov">The home for sports superfans. One place to follow the teams, athletes &amp; leagues you back. Across every sport — and the culture around it.<br><a href="/create" style="border-bottom:1px solid var(--b)">For athletes &amp; clubs — set up your page →</a></div>
+  <div class="prov">The home for sports superfans. One place to follow the teams, athletes &amp; leagues you back. Across every sport — and the culture around it.<br><a href="/about" style="border-bottom:1px solid var(--b)">For athletes &amp; clubs — see what you get →</a></div>
   ${bottomNav({ active: 'home', guest: d.guest, fanId: d.fanId })}
 </body></html>`;
 }
@@ -305,6 +306,7 @@ export function renderAthletePage(d: {
   memberCount?: number;
   canEdit?: boolean;
   activation?: string;
+  sections?: { key: string; on: boolean }[];
 }): string {
   const isMember = !!d.membership;
   const viewerTier = d.membership?.tierLevel ?? null;
@@ -331,10 +333,10 @@ export function renderAthletePage(d: {
     ${socials ? `<div class="icons">${socials}</div>` : ''}
     ${p.tagline ? `<p class="tagline">${esc(p.tagline)}</p>` : ''}`;
 
-  const tab = (label: string, on = false, shop = false) => shop
-    ? `<a class="tab" href="${gate('#shop')}">${label} ↗</a>`
-    : `<a class="tab${on ? ' on' : ''}" href="${on ? '#' : gate('#')}">${label}</a>`;
-  const tabs = `<nav class="tabs">${tab('Highlight', true)}${tab('Posts')}${tab('Media')}${tab('Schedule')}${tab('Record')}${tab('Shop', false, true)}</nav>`;
+  // Tabs are the athlete's chosen sections, in order — they scroll to each section.
+  const order = d.sections ?? [{ key: 'record', on: true }, { key: 'nextup', on: true }, { key: 'results', on: true }, { key: 'drops', on: true }, { key: 'events', on: true }, { key: 'media', on: true }, { key: 'merch', on: true }, { key: 'connected', on: true }];
+  const enabled = order.filter(s => s.on && SECTIONS[s.key]);
+  const tabs = `<nav class="tabs">${enabled.map((s, i) => `<a class="tab${i === 0 ? ' on' : ''}" href="#sec-${s.key}">${esc(SECTIONS[s.key].short)}</a>`).join('')}</nav>`;
 
   const membership = `<div class="joinb"><div><strong>Join the Horda</strong><div class="bsub">Get closer to ${esc(first)} — drops, fight alerts, members-only moments.</div></div><a class="btn dark" href="${gate('#join')}">Join Now</a></div>`;
 
@@ -424,8 +426,9 @@ export function renderAthletePage(d: {
     : '';
 
   const resultsBlock = p.recentResults.length
-    ? `<section class="card"><h2>Record</h2><ul style="list-style:none">${p.recentResults.map(r => `<li style="display:flex;gap:10px;align-items:center;padding:9px 0;border-bottom:1px solid var(--b)"><span class="tag mutd">●</span><span style="flex:1">${esc(r.headline)}</span>${r.eventId ? `<a class="tag mutd" href="/share/result/${r.eventId}">share</a>` : ''}<span class="dt">${esc(r.date ?? '')}</span></li>`).join('')}</ul></section>`
+    ? `<section class="card"><h2>Recent results</h2><ul style="list-style:none">${p.recentResults.map(r => `<li style="display:flex;gap:10px;align-items:center;padding:9px 0;border-bottom:1px solid var(--b)"><span class="tag mutd">●</span><span style="flex:1">${esc(r.headline)}</span>${r.eventId ? `<a class="tag mutd" href="/share/result/${r.eventId}">share</a>` : ''}<span class="dt">${esc(r.date ?? '')}</span></li>`).join('')}</ul></section>`
     : '';
+  const recordBlock = `<section class="card"><h2>Win / Loss / Draw</h2>${stats}</section>`;
 
   const merch = `<section class="card"><h2>Merch</h2><div class="shelf">${
     ['Raven tee — €34', 'Fight-night hoodie — €69', 'Signed hand wraps — €49'].map(m => `<a class="mItem" href="#shop"><div class="mImg"></div><div class="mName">${esc(m)}</div></a>`).join('')
@@ -435,6 +438,12 @@ export function renderAthletePage(d: {
     ? `<div class="affs">${d.affiliations.map(a => `<a class="aff" href="${a.href ? gate(a.href) : gate('#')}"><span class="ai">${kindIcon(a.kind)}</span><span class="al">${esc(a.label)}</span><span class="av">${esc(a.kind)}</span></a>`).join('')}</div>`
     : '';
   const connected = `<section class="card"><h2>Connected</h2>${affs || '<div class="dim2">No links yet.</div>'}</section>`;
+
+  // Render the athlete's chosen sections in order, each with a scroll anchor that
+  // the connected top tabs jump to.
+  const sectionMap: Record<string, string> = { record: recordBlock, nextup: attendBlock, drops: postsBlock, media: mediaBlock, events: eventsBlock, results: resultsBlock, merch, connected };
+  const sectionsHtml = enabled.map(s => `<div id="sec-${s.key}" class="secanchor">${sectionMap[s.key] ?? ''}</div>`).join('\n');
+  const customizeBtn = d.canEdit ? `<div class="row" style="margin:6px 0 0"><a class="btn ghost sm" href="/athlete/${p.athleteId}/customize">⚙ Customize page</a></div>` : '';
 
   const gatebar = d.guest
     ? `<div class="gatebar"><span><strong>Only members can see the content in full.</strong> You're browsing as a guest.</span><a class="btn" href="/signup">Log in to continue ›</a></div>`
@@ -447,9 +456,11 @@ export function renderAthletePage(d: {
   *{margin:0;box-sizing:border-box}
   body{background:var(--ink);color:var(--bone);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif;line-height:1.5;padding-bottom:96px}
   a{color:inherit;text-decoration:none}
-  .top{display:flex;justify-content:space-between;align-items:center;padding:11px 18px;border-bottom:1px solid var(--b);position:sticky;top:0;background:var(--scrim);backdrop-filter:blur(10px);z-index:20}
-  .top .rgt{display:flex;align-items:center;gap:10px}
-  .mark{display:flex;align-items:center;color:var(--bone)}.mark svg{display:block}
+  html{scroll-behavior:smooth}
+  .top{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;padding:11px 18px;border-bottom:1px solid var(--b);position:sticky;top:0;background:var(--scrim);backdrop-filter:blur(10px);z-index:20}
+  .top .tl{justify-self:start;display:flex;align-items:center}.top .tr{justify-self:end;display:flex;align-items:center;gap:10px}
+  .mark{display:flex;align-items:center;justify-content:center;justify-self:center;color:var(--bone)}.mark svg{display:block}
+  .secanchor{scroll-margin-top:108px}
   .dt{color:var(--mut);font-size:12px;white-space:nowrap}
   .cover{position:relative;height:240px;overflow:hidden}
   .cover img{width:100%;height:100%;object-fit:cover}
@@ -530,29 +541,78 @@ export function renderAthletePage(d: {
   .gatebar .btn{background:var(--ink);color:var(--bone);border-color:var(--ink)}
   .prov{max-width:680px;margin:10px auto 30px;padding:0 16px;color:var(--mut);font-size:11px}
 </style></head><body>
-  <header class="top"><a class="mark" href="/" aria-label="Horda — home">${ravenMarkCurrent(30)}</a><div class="rgt">${themeToggle()}<a class="dt" href="${d.guest ? '/signup' : `/fan/${d.fanId ?? ''}`}">${d.guest ? 'log in' : 'your feed →'}</a></div></header>
+  <header class="top"><div class="tl">${themeToggle()}</div><a class="mark" href="/" aria-label="Horda — home">${ravenMarkCurrent(30)}</a><div class="tr"><a class="dt" href="${d.guest ? '/signup' : `/fan/${d.fanId ?? ''}`}">${d.guest ? 'log in' : 'your feed →'}</a></div></header>
   ${cover}
   <div class="wrap">
     ${profhead}
     ${tabs}
     ${d.activation ?? ''}
+    ${customizeBtn}
     ${d.canEdit ? editPanel(`/athlete/${p.athleteId}/branding`) : ''}
     ${membership}
     ${tierCard}
-    ${stats}
-    ${attendBlock}
-    ${postsBlock}
-    ${mediaBlock}
-    ${eventsBlock}
-    ${resultsBlock}
-    ${merch}
-    ${connected}
+    ${sectionsHtml}
   </div>
   ${gatebar}
   <div class="prov">Athlete-owned profile · persons self-create on Horda · coverage only, no fan-to-fan venue. Social &amp; affiliation links are athlete-chosen and point out.</div>
   ${bottomNav({ guest: d.guest, fanId: d.fanId })}
   ${d.canEdit ? UPLOAD_SCRIPT : ''}
 </body></html>`;
+}
+
+// --- customize page: reorder + show/hide sections (per sport) + suggest a feature
+export function renderCustomize(d: { athleteId: string; fanId: string | null; sport: string | null; sections: { key: string; on: boolean }[] }): string {
+  const ta = 'display:block;width:100%;margin-top:8px;background:var(--s);border:1px solid var(--b);border-radius:12px;color:var(--bone);padding:12px;font:inherit;min-height:90px';
+  const rows = d.sections.map(s => {
+    const m = SECTIONS[s.key]; if (!m) return '';
+    return `<div class="secrow" data-key="${esc(s.key)}" draggable="true">
+      <span class="grab" aria-hidden="true">⋮⋮</span>
+      <div class="secmeta"><div class="secname">${esc(m.label)}</div><div class="secdesc">${esc(m.desc)}</div></div>
+      <div class="secact">
+        <button type="button" data-move="up" aria-label="Move up" title="Move up">▲</button>
+        <button type="button" data-move="down" aria-label="Move down" title="Move down">▼</button>
+        <label class="tgl"><input type="checkbox" ${s.on ? 'checked' : ''}><span>Show</span></label>
+      </div>
+    </div>`;
+  }).join('');
+  return layout('Customize your page', `
+    <style>
+      #seclist{margin:14px 0}
+      .secrow{display:flex;align-items:center;gap:12px;border:1px solid var(--b);border-radius:14px;padding:12px 14px;margin:8px 0;background:var(--s)}
+      .grab{cursor:grab;color:var(--mut);font-size:16px;letter-spacing:-2px;user-select:none}
+      .secmeta{flex:1;min-width:0}.secname{font-weight:700;font-size:15px}.secdesc{color:var(--mut);font-size:12.5px}
+      .secact{display:flex;align-items:center;gap:6px}
+      .secact button{width:30px;height:30px;padding:0;border-radius:8px;border:1px solid var(--b);background:transparent;color:var(--bone);font-size:11px;cursor:pointer}
+      .tgl{display:inline-flex;align-items:center;gap:5px;font-size:12px;color:var(--mut);margin-left:4px;cursor:pointer}.tgl input{accent-color:var(--bone)}
+      .secrow.drag{opacity:.45}
+    </style>
+    <h1>Customize your page</h1>
+    <p class="mut">Choose what fans see and the order. Drag the ⋮⋮ handle or use ▲▼, and toggle <b>Show</b> to hide a section. Defaults are tuned to ${d.sport ? esc(d.sport) : 'your sport'}.</p>
+    <form id="secform" method="post" action="/athlete/${esc(d.athleteId)}/layout">
+      <input type="hidden" name="order" id="orderfield">
+      <div id="seclist">${rows}</div>
+      <div class="row"><button type="submit">Save layout</button><a class="btn ghost" href="/athlete/${esc(d.athleteId)}">Cancel</a></div>
+    </form>
+    <div class="card" style="margin-top:26px">
+      <h2 style="font-size:13px;letter-spacing:1px;text-transform:uppercase;margin-bottom:6px">Missing something?</h2>
+      <p class="mut" style="font-size:13px">Suggest a feature for your page — it goes straight into our product roadmap.</p>
+      <form method="post" action="/feature-request">
+        <input type="hidden" name="context" value="athlete-page">
+        <input type="hidden" name="sport" value="${esc(d.sport ?? '')}">
+        <textarea name="body" required placeholder="e.g. a sponsors section, a highlight reel, a head-to-head vs an opponent, my training stats…" style="${ta}"></textarea>
+        <div class="row"><button type="submit">Send suggestion</button></div>
+      </form>
+    </div>
+    <script>(function(){
+      var list=document.getElementById('seclist'); if(!list)return;
+      list.addEventListener('click',function(e){var b=e.target.closest('[data-move]'); if(!b)return; var r=b.closest('.secrow'); var d=b.getAttribute('data-move'); if(d==='up'&&r.previousElementSibling){list.insertBefore(r,r.previousElementSibling)} if(d==='down'&&r.nextElementSibling){list.insertBefore(r.nextElementSibling,r)}});
+      var dragging=null;
+      list.addEventListener('dragstart',function(e){var r=e.target.closest('.secrow'); if(r){dragging=r; r.classList.add('drag')}});
+      list.addEventListener('dragend',function(){if(dragging){dragging.classList.remove('drag');dragging=null}});
+      list.addEventListener('dragover',function(e){e.preventDefault(); if(!dragging)return; var r=e.target.closest('.secrow'); if(!r||r===dragging)return; var b=r.getBoundingClientRect(); var after=(e.clientY-b.top)/b.height>0.5; list.insertBefore(dragging, after?r.nextElementSibling:r)});
+      document.getElementById('secform').addEventListener('submit',function(){var rows=Array.prototype.slice.call(list.querySelectorAll('.secrow')); var order=rows.map(function(r){return {key:r.getAttribute('data-key'), on:r.querySelector('input[type=checkbox]').checked}}); document.getElementById('orderfield').value=JSON.stringify(order)});
+    })();</script>
+  `, { back: `/athlete/${d.athleteId}`, nav: { active: 'you', guest: false, fanId: d.fanId } });
 }
 
 // PUBLIC share page — the acquisition loop. Open to everyone (like Shop): a
@@ -618,8 +678,8 @@ export function renderCreatorEntry(d: { guest: boolean }): string {
     <h1>For athletes, clubs &amp; federations</h1>
     <p class="mut">Run your own page on Horda — posts, members, tiers and events, all in one place.</p>
     <div class="cgrid">
-      <div class="ccard"><h2>I’m an athlete</h2><p>Describe yourself in a sentence and we build your page — headline, cover, the lot. You own it instantly.</p><a class="btn" href="${athleteHref}">Create my page →</a> <a href="/athletes" style="margin-left:8px;font-size:13px;border-bottom:1px solid var(--b)">what you get →</a></div>
-      <div class="ccard"><h2>We’re a club or federation</h2><p>Find your page and verify you represent it (official email, a code on your site, or a quick review).</p><a class="btn" href="${claimHref}">Claim our page →</a> <a href="/clubs" style="margin-left:8px;font-size:13px;border-bottom:1px solid var(--b)">what you get →</a></div>
+      <div class="ccard"><h2>I’m an athlete</h2><p>Describe yourself in a sentence and we build your page — headline, cover, the lot. You own it instantly.</p><a class="btn" href="${athleteHref}">Create my page →</a> <a href="/about#features" style="margin-left:8px;font-size:13px;border-bottom:1px solid var(--b)">what you get →</a></div>
+      <div class="ccard"><h2>We’re a club or federation</h2><p>Find your page and verify you represent it (official email, a code on your site, or a quick review).</p><a class="btn" href="${claimHref}">Claim our page →</a> <a href="/about#features" style="margin-left:8px;font-size:13px;border-bottom:1px solid var(--b)">what you get →</a></div>
     </div>
     <p class="mut" style="margin-top:16px;font-size:12.5px">Just here to follow? <a href="/signup" style="border-bottom:1px solid var(--b)">Create a fan account →</a></p>`, { back: '/' });
 }
@@ -656,7 +716,7 @@ export function renderAiPrompt(d: { title: string; lead: string; placeholder: st
     ${d.altLink ?? ''}`, { back: d.back });
 }
 
-export function renderProfilePreview(d: { kind: string; gen: { displayName: string; handle: string; headline: string; tagline: string; bio: string; cover: string; links?: Record<string, string> }; description: string; createAction: string; generateAction: string; hidden?: string; showHandle?: boolean }): string {
+export function renderProfilePreview(d: { kind: string; gen: { displayName: string; handle: string; headline: string; tagline: string; bio: string; cover: string; sport?: string; links?: Record<string, string> }; description: string; createAction: string; generateAction: string; hidden?: string; showHandle?: boolean }): string {
   const inp = 'display:block;width:100%;margin-top:6px;background:var(--s);border:1px solid var(--b);border-radius:10px;color:var(--bone);padding:11px;font:inherit';
   const g = d.gen;
   return layout('Your page — preview', `
@@ -667,6 +727,7 @@ export function renderProfilePreview(d: { kind: string; gen: { displayName: stri
     <div class="pvh">Headline</div><div style="font-size:20px;font-weight:800">${esc(g.headline || g.displayName)}</div>
     <form method="post" action="${esc(d.createAction)}">${d.hidden ?? ''}
       <input type="hidden" name="cover" value="${esc(g.cover)}">
+      <input type="hidden" name="sport" value="${esc(g.sport ?? '')}">
       <input type="hidden" name="links" value="${esc(JSON.stringify(g.links ?? {}))}">
       ${g.links && Object.keys(g.links).length ? `<div class="pvh">Links found</div><div class="mut" style="font-size:12.5px">${Object.keys(g.links).map(k => esc(k)).join(' · ')}</div>` : ''}
       <div class="pvh">Profile picture</div>

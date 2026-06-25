@@ -133,7 +133,9 @@ export function renderEventPage(d: EventDetail, ctx: {
     .rb{display:inline-block;font:inherit;font-size:14px;font-weight:600;border:1px solid var(--b);color:var(--bone);background:transparent;border-radius:999px;padding:9px 16px;cursor:pointer;text-decoration:none}
     .rb:hover{border-color:var(--bone)}
     .rb.sm{font-size:12.5px;padding:6px 13px}
-    .rb.p{background:var(--bone);color:var(--ink);border-color:var(--bone)}.rb.on{background:var(--bone);color:var(--ink);border-color:var(--bone)}
+    /* primary = an action to take (outlined, emphasized); on = your current selection (filled) */
+    .rb.p{background:transparent;color:var(--bone);border-color:var(--bone);font-weight:700}.rb.p:hover{background:rgba(237,233,223,.08)}
+    .rb.on{background:var(--bone);color:var(--ink);border-color:var(--bone)}
     .rb.block{display:block;width:100%;text-align:center;padding:12px;font-size:15px}
     .myr{font-size:14px;margin:4px 0}.admtag{font-size:10px;font-weight:600;letter-spacing:1px;text-transform:uppercase;border:1px solid var(--b);color:var(--mut);border-radius:999px;padding:3px 10px}
     .tk{font-weight:600;margin:6px 0 10px}.tkin{background:var(--ink);border:1px solid var(--b);border-radius:999px;color:var(--bone);padding:8px 12px;font:inherit;width:120px;margin-right:6px}

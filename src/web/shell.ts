@@ -133,9 +133,9 @@ export function renderEntityProfile(vm: ProfileVM): string {
 
   return `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${esc(vm.name)} — Horda</title>
 <link rel="icon" href="/favicon.svg">${THEME_BOOT}<style>${DARK_CSS}</style></head><body>
-  <header class="top"><a class="mark" href="/" aria-label="Horda — home">${ravenMarkCurrent(30)}</a><div class="rgt">${themeToggle()}${vm.guest ? `<a class="dt" href="/signup">log in</a>` : `<a class="backx" href="${esc(vm.backHref ?? '/')}" aria-label="Back" title="Back">‹</a>`}</div></header>
+  <header class="top"><div class="tl">${themeToggle()}</div><a class="mark" href="/" aria-label="Horda — home">${ravenMarkCurrent(30)}</a><div class="tr">${vm.guest ? `<a class="dt" href="/signup">log in</a>` : `<a class="backx" href="${esc(vm.backHref ?? '/')}" aria-label="Back" title="Back">‹</a>`}</div></header>
   ${hero}${tabs}
-  <div class="grid"><main>${vm.activation ?? ''}${(vm.editAction && vm.canEdit) ? `<div class="row" style="margin:0 0 10px"><a class="btn ghost" href="${esc(vm.editAction.replace('/entity/', '/onboarding/brand/').replace('/branding', ''))}">✦ AI page setup</a></div>` + editPanel(vm.editAction) : ''}${notice}${post}${attend}${eventsCard}${vm.tableHtml ?? ''}${merch}</main>${aside}</div>
+  <div class="grid"><main>${vm.activation ?? ''}${(vm.editAction && vm.canEdit) ? `<div class="row" style="margin:0 0 10px"><a class="btn ghost" href="${esc(vm.editAction.replace('/entity/', '/onboarding/brand/').replace('/branding', ''))}">✦ AI page setup</a></div>` + editPanel(vm.editAction) : ''}${notice}${post}${attend}${eventsCard}${merch}</main>${aside}</div>
   ${gatebar}
   <div class="prov">${esc(vm.kindLabel)} profile · owner-controlled identity · system of record, no fan-to-fan venue. Social &amp; affiliation links are owner-chosen and point out.</div>
   ${bottomNav({ guest: vm.guest, fanId: vm.fanId })}
@@ -156,9 +156,10 @@ export const DARK_CSS = `
   *{margin:0;box-sizing:border-box}
   body{background:var(--ink);color:var(--bone);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif;line-height:1.45;padding-bottom:96px}
   a{color:inherit;text-decoration:none}
-  .top{display:flex;justify-content:space-between;align-items:center;padding:12px 20px;border-bottom:1px solid var(--b);position:sticky;top:0;background:var(--scrim);backdrop-filter:blur(10px);z-index:9}
-  .top .rgt{display:flex;align-items:center;gap:10px}
-  .mark{display:flex;align-items:center;color:var(--bone)}.mark svg{display:block}
+  html{scroll-behavior:smooth}
+  .top{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;padding:12px 20px;border-bottom:1px solid var(--b);position:sticky;top:0;background:var(--scrim);backdrop-filter:blur(10px);z-index:9}
+  .top .tl{justify-self:start;display:flex;align-items:center}.top .tr{justify-self:end;display:flex;align-items:center;gap:10px}
+  .mark{display:flex;align-items:center;justify-content:center;justify-self:center;color:var(--bone)}.mark svg{display:block}
   .heroin,.heroin h1{color:#EDE9DF}
   .heroin .kindtag{color:rgba(237,233,223,.72);border-color:rgba(237,233,223,.28)}
   .dt{color:var(--mut);font-size:12px;white-space:nowrap}
@@ -175,8 +176,8 @@ export const DARK_CSS = `
   .btn.ghost{background:transparent;color:var(--bone)}button.btn{font:inherit}
   .tabs{display:flex;gap:18px;padding:12px 20px;border-bottom:1px solid var(--b);overflow-x:auto}
   .tab{color:var(--mut);font-weight:700;font-size:14px;white-space:nowrap;padding:4px 0}.tab.on{color:var(--bone);border-bottom:2px solid var(--bone)}
-  .grid{display:grid;grid-template-columns:1fr 340px;gap:18px;max-width:1040px;margin:18px auto;padding:0 20px}
-  @media(max-width:820px){.grid{grid-template-columns:1fr}}
+  .grid{display:block;max-width:680px;margin:16px auto;padding:0 16px}
+  .grid main{margin-bottom:0}
   .card{background:var(--s);border:1px solid var(--b);border-radius:14px;padding:16px 18px;margin-bottom:16px}
   h2{font-size:13px;letter-spacing:1.5px;text-transform:uppercase;margin-bottom:12px}
   .notice{display:flex;gap:10px;align-items:flex-start;font-size:14px}.meg{font-weight:800}
@@ -194,7 +195,7 @@ export const DARK_CSS = `
   .tbl th,.tbl td{text-align:right;padding:7px 4px;border-bottom:1px solid var(--b)}.tbl th:nth-child(2),.tbl td.t{text-align:left}
   .tbl th{font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--mut)}.tbl td.pts{font-weight:800}
   .tbl tr.me{background:var(--bone);color:var(--ink)}.tbl tr.me td{border-color:rgba(11,11,12,.15)}
-  .sidec{position:sticky;top:64px}
+  .sidec{}
   .sh{display:flex;justify-content:space-between;gap:10px}.sn{font-size:20px;font-weight:800}
   .sav{width:54px;height:54px;border-radius:50%;overflow:hidden;border:2px solid var(--bone);flex:0 0 auto}.sav img,.sav svg{width:100%;height:100%;object-fit:cover}
   .icons{display:flex;gap:15px;margin:14px 0}.ic{width:22px;height:22px;color:var(--bone);opacity:.85}.ic svg{width:22px;height:22px;display:block}.ic:hover{opacity:1}
@@ -206,7 +207,7 @@ export const DARK_CSS = `
   .affs{margin-top:6px}.aff{display:flex;align-items:center;gap:10px;padding:11px 4px;border-bottom:1px solid var(--b)}.aff:last-child{border-bottom:none}
   .ai{width:20px;height:20px;color:var(--bone);opacity:.8}.ai svg{width:20px;height:20px;display:block}
   .al{flex:1;font-weight:600;font-size:14px}.av{font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--mut);border:1px solid var(--b);border-radius:6px;padding:2px 7px}
-  .gatebar{max-width:1000px;margin:18px auto 8px;background:var(--bone);color:var(--ink);display:flex;justify-content:center;align-items:center;gap:16px;padding:14px 18px;font-size:14px;border-radius:14px;flex-wrap:wrap;text-align:center}
+  .gatebar{max-width:680px;margin:18px auto 8px;background:var(--bone);color:var(--ink);display:flex;justify-content:center;align-items:center;gap:16px;padding:14px 18px;font-size:14px;border-radius:14px;flex-wrap:wrap;text-align:center}
   .gatebar .btn{background:var(--ink);color:var(--bone);border-color:var(--ink)}
-  .prov{max-width:1040px;margin:8px auto 30px;padding:0 20px;color:var(--mut);font-size:11px}
+  .prov{max-width:680px;margin:8px auto 30px;padding:0 16px;color:var(--mut);font-size:11px}
 `;
