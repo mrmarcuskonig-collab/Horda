@@ -19,11 +19,11 @@ export const THEME_BOOT = `<script>try{if(localStorage.getItem('hz_theme')==='li
 export const THM_CSS = `.thm{display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:999px;border:1.5px solid var(--b);background:transparent;color:var(--bone);cursor:pointer;padding:0;flex:0 0 auto}.thm:hover{border-color:var(--bone)}.thm svg{display:block}
   .vbadge{display:inline-flex;vertical-align:-2px;margin-left:4px;color:currentColor}.vbadge svg{display:block}
   .bnav{position:fixed;left:0;right:0;bottom:0;z-index:40;border-top:1px solid var(--b);background:var(--scrim);backdrop-filter:blur(14px)}
-  .bninner{max-width:680px;margin:0 auto;display:flex;justify-content:space-around;align-items:center;padding:7px 6px calc(7px + env(safe-area-inset-bottom))}
-  .bnav a{flex:1;max-width:130px;display:flex;flex-direction:column;align-items:center;gap:3px;color:var(--mut);font-size:10px;font-weight:500;letter-spacing:.2px;padding:3px 0}
+  .bninner{max-width:680px;margin:0 auto;display:flex;justify-content:space-around;align-items:center;padding:11px 6px calc(11px + env(safe-area-inset-bottom))}
+  .bnav a{flex:1;max-width:130px;display:flex;align-items:center;justify-content:center;color:var(--mut);padding:3px 0}
   .bnav a.on{color:var(--bone)}
   .bnav a:hover{color:var(--bone)}
-  .bnav svg{width:24px;height:24px;display:block}`;
+  .bnav svg{width:25px;height:25px;display:block}`;
 
 // A small "verified / official page" seal — uses currentColor so it reads on any
 // surface. Shown on pages that have been claim-verified (real trust signal).
@@ -41,7 +41,7 @@ const NAV_ICON = {
 export function bottomNav(o: { active?: string; guest: boolean; fanId: string | null }): string {
   const you = o.guest ? '/signup' : `/fan/${o.fanId ?? ''}`;
   const tab = (key: string, href: string, label: string, icon: string) =>
-    `<a href="${href}" class="${o.active === key ? 'on' : ''}" aria-label="${label}"${o.active === key ? ' aria-current="page"' : ''}>${icon}<span class="lbl">${label}</span></a>`;
+    `<a href="${href}" class="${o.active === key ? 'on' : ''}" aria-label="${label}" title="${label}"${o.active === key ? ' aria-current="page"' : ''}>${icon}</a>`;
   return `<nav class="bnav" aria-label="Primary"><div class="bninner">
     ${tab('home', '/', 'Home', NAV_ICON.home)}
     ${tab('explore', '/map', 'Explore', NAV_ICON.explore)}

@@ -1,6 +1,7 @@
 // payments.test.ts — Stripe Checkout adapter, verified with an injected fetch
 // (no real network, no keys). Run: node tests/payments.test.ts
-import { StripePayments, StubPayments } from '../src/web/payments.ts';
+import { StripePayments, StubPayments, verifyWebhook } from '../src/web/payments.ts';
+import { createHmac } from 'node:crypto';
 
 let pass = 0, fail = 0;
 const ok = (n: string, c: boolean) => { console.log(`  ${c ? 'PASS' : 'FAIL'}  ${n}`); c ? pass++ : fail++; };
@@ -41,6 +42,29 @@ ok('subscription mode = monthly recurring', lastInit.body.includes('mode=subscri
 
 const got = await sp.retrieve('cs_1');
 ok('retrieve reports paid + returns metadata', got!.paid === true && got!.metadata.event_id === 'e1');
+
+// retrieve surfaces the subscription id (needed to map cancellations back to a member)
+let subFetch: any = async (u: string) => u.includes('/checkout/sessions/')
+  ? { ok: true, json: async () => ({ id: 'cs_2', status: 'complete', subscription: 'sub_ABC', metadata: { kind: 'membership' } }) }
+  : { ok: true, json: async () => ({ url: 'https://checkout.stripe.com/c/pay/cs_2' }) };
+const got2 = await new StripePayments('sk_test_123', subFetch).retrieve('cs_2');
+ok('retrieve surfaces the subscription id', got2!.subscriptionId === 'sub_ABC');
+
+// --- webhook signature verification ---
+console.log('\n[payments · webhook signatures]');
+const secret = 'whsec_test_secret';
+const body = JSON.stringify({ type: 'checkout.session.completed', data: { object: { metadata: { kind: 'membership', fan_id: 'f1' }, subscription: 'sub_9' } } });
+const now = Math.floor(Date.now() / 1000);
+const sign = (t: number, b: string, sec = secret) => `t=${t},v1=${createHmac('sha256', sec).update(`${t}.${b}`).digest('hex')}`;
+
+const evt = verifyWebhook(body, sign(now, body), secret, now);
+ok('valid signature → parsed event', evt?.type === 'checkout.session.completed' && evt.data.object.subscription === 'sub_9');
+ok('wrong secret → rejected', verifyWebhook(body, sign(now, body, 'whsec_wrong'), secret, now) === null);
+ok('tampered body → rejected', verifyWebhook(body + ' ', sign(now, body), secret, now) === null);
+ok('stale timestamp → rejected (replay guard)', verifyWebhook(body, sign(now - 1000, body), secret, now) === null);
+ok('missing signature header → rejected', verifyWebhook(body, undefined, secret, now) === null);
+ok('no secret configured → rejected', verifyWebhook(body, sign(now, body), undefined, now) === null);
+ok('malformed header → rejected', verifyWebhook(body, 'garbage', secret, now) === null);
 
 console.log(`\n──────────── ${pass} passed, ${fail} failed ────────────`);
 if (fail > 0) process.exit(1);

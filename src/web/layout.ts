@@ -42,9 +42,10 @@ export function layout(title: string, body: string, opts: { back?: string; nav?:
   .btn.ghost{background:transparent;color:var(--bone)}
   .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:12px 0}
   .prov{margin-top:28px;color:var(--mut);font-size:11px;border-top:1px solid var(--b);padding-top:12px}
+  .backx{display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:999px;border:1.5px solid var(--b);color:var(--bone);font-size:22px;line-height:1;text-decoration:none;padding-bottom:2px}.backx:hover{border-color:var(--bone)}
 </style></head><body>
   <div class="top"><a class="mark" href="/" aria-label="Horda — home">${ravenMarkCurrent(30)}</a>
-  <div style="display:flex;align-items:center;gap:10px">${themeToggle()}${opts.back ? `<a class="dt" href="${esc(opts.back)}">← back</a>` : '<span class="dt">system of record</span>'}</div></div>
+  <div style="display:flex;align-items:center;gap:10px">${opts.back ? `<a class="backx" href="${esc(opts.back)}" aria-label="Back" title="Back">‹</a>` : ''}${themeToggle()}${opts.back ? '' : '<span class="dt">system of record</span>'}</div></div>
   ${body}
   ${bottomNav(opts.nav ?? { guest: true, fanId: null })}
 </body></html>`;

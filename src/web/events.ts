@@ -50,11 +50,13 @@ export function renderEventPage(d: EventDetail, ctx: {
 
   const secondary = `${respForm('not_going', "Can't go")} ${respForm('interested', 'Interested')}`;
 
-  // watch live (online) — YouTube / Twitch / Discord
+  // watch live (online) — YouTube / Twitch / Instagram / TikTok / Discord
   const ch = d.streams || {};
   const watch = [
     ch.youtube ? linkBtn('Watch on YouTube ↗', ch.youtube) : '',
     ch.twitch ? linkBtn('Watch on Twitch ↗', ch.twitch) : '',
+    ch.instagram ? linkBtn('Watch on Instagram ↗', ch.instagram) : '',
+    ch.tiktok ? linkBtn('Watch on TikTok ↗', ch.tiktok) : '',
     ch.discord ? linkBtn('Watch in Discord ↗', ch.discord) : '',
   ].filter(Boolean).join('');
 
@@ -217,6 +219,8 @@ export function renderCreateEvent(hostKind: string, hostId: string, hostName: st
     <label style="${fld}">Price € (paid only)<input style="${inp}" type="number" name="price" min="0" step="0.5" placeholder="15"></label>
     <label style="${fld}">YouTube live link<input style="${inp}" name="youtube" placeholder="https://youtube.com/…"></label>
     <label style="${fld}">Twitch link<input style="${inp}" name="twitch" placeholder="https://twitch.tv/…"></label>
+    <label style="${fld}">Instagram Live link<input style="${inp}" name="instagram" placeholder="https://instagram.com/…"></label>
+    <label style="${fld}">TikTok Live link<input style="${inp}" name="tiktok" placeholder="https://tiktok.com/@…/live"></label>
     <label style="${fld}">Discord link<input style="${inp}" name="discord" placeholder="https://discord.gg/…"></label>
     <label style="${fld}">Capacity (optional)<input style="${inp}" type="number" name="capacity" min="1"></label>
     <div class="row"><button type="submit">Publish event</button></div>

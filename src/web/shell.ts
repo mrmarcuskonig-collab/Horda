@@ -29,6 +29,7 @@ export interface ProfileVM {
   about?: string;
   merch?: boolean;
   backHref?: string;
+  activation?: string;                // owner: "finish your setup" checklist (pre-rendered)
 }
 
 // Owner-only edit panel: pick a crest/avatar + banner; the client reads the files
@@ -66,7 +67,7 @@ export function renderEntityProfile(vm: ProfileVM): string {
 
   const hero = `<div class="hero">
     ${vm.bannerUrl ? `<img class="bg" src="${esc(vm.bannerUrl)}" alt="">` : `<div class="bg ph"><span class="kick">${esc(vm.nickname || vm.name)}</span></div>`}
-    <div class="heroin"><span class="kindtag">${esc(vm.kindLabel)}</span><h1>${esc(vm.name)}</h1><a class="btn" href="${gate('#join')}">Join Now</a></div>
+    <div class="heroin"><span class="kindtag">${esc(vm.kindLabel)}</span><h1>${esc(vm.name)}</h1><a class="btn" href="${gate('#join')}">Join the Horda</a></div>
   </div>`;
 
   const tab = (label: string, on = false, shop = false) => shop
@@ -77,7 +78,8 @@ export function renderEntityProfile(vm: ProfileVM): string {
   const notice = vm.notice ? `<div class="card notice"><span class="meg">▸</span><span>${esc(vm.notice)}</span></div>` : '';
 
   const post = vm.post ? `<section class="card"><h2>From ${esc(first)}</h2>
-    <div class="post"><div class="pa"><span class="dot"></span><strong>${esc(vm.post.author)}</strong> <span class="verified">✔</span></div>
+    <p class="feednote">Open updates for everyone · members unlock the inside ones.</p>
+    <div class="post"><div class="pa"><span class="dot"></span><strong>${esc(vm.post.author)}</strong> <span class="vchip open">Open</span></div>
     <p>${esc(vm.post.body)}</p><div class="dt">${esc(vm.post.date ?? '')}</div></div>
     <a class="more" href="${gate('#posts')}">View more</a></section>` : '';
 
@@ -131,9 +133,9 @@ export function renderEntityProfile(vm: ProfileVM): string {
 
   return `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${esc(vm.name)} — Horda</title>
 <link rel="icon" href="/favicon.svg">${THEME_BOOT}<style>${DARK_CSS}</style></head><body>
-  <header class="top"><a class="mark" href="/" aria-label="Horda — home">${ravenMarkCurrent(30)}</a><div class="rgt">${themeToggle()}<a class="dt" href="${vm.guest ? '/signup' : (vm.backHref ?? '/')}">${vm.guest ? 'log in' : '← back'}</a></div></header>
+  <header class="top"><a class="mark" href="/" aria-label="Horda — home">${ravenMarkCurrent(30)}</a><div class="rgt">${themeToggle()}${vm.guest ? `<a class="dt" href="/signup">log in</a>` : `<a class="backx" href="${esc(vm.backHref ?? '/')}" aria-label="Back" title="Back">‹</a>`}</div></header>
   ${hero}${tabs}
-  <div class="grid"><main>${(vm.editAction && vm.canEdit) ? `<div class="row" style="margin:0 0 10px"><a class="btn ghost" href="${esc(vm.editAction.replace('/entity/', '/onboarding/brand/').replace('/branding', ''))}">✦ AI page setup</a></div>` + editPanel(vm.editAction) : ''}${notice}${post}${attend}${eventsCard}${vm.tableHtml ?? ''}${merch}</main>${aside}</div>
+  <div class="grid"><main>${vm.activation ?? ''}${(vm.editAction && vm.canEdit) ? `<div class="row" style="margin:0 0 10px"><a class="btn ghost" href="${esc(vm.editAction.replace('/entity/', '/onboarding/brand/').replace('/branding', ''))}">✦ AI page setup</a></div>` + editPanel(vm.editAction) : ''}${notice}${post}${attend}${eventsCard}${vm.tableHtml ?? ''}${merch}</main>${aside}</div>
   ${gatebar}
   <div class="prov">${esc(vm.kindLabel)} profile · owner-controlled identity · system of record, no fan-to-fan venue. Social &amp; affiliation links are owner-chosen and point out.</div>
   ${bottomNav({ guest: vm.guest, fanId: vm.fanId })}
@@ -160,6 +162,7 @@ export const DARK_CSS = `
   .heroin,.heroin h1{color:#EDE9DF}
   .heroin .kindtag{color:rgba(237,233,223,.72);border-color:rgba(237,233,223,.28)}
   .dt{color:var(--mut);font-size:12px;white-space:nowrap}
+  .backx{display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:999px;border:1.5px solid var(--b);color:var(--bone);font-size:22px;line-height:1;text-decoration:none;padding-bottom:2px}.backx:hover{border-color:var(--bone)}
   .hero{position:relative;height:330px;overflow:hidden}
   .hero .bg{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
   .hero .ph{display:flex;align-items:center;justify-content:center;background:radial-gradient(120% 120% at 72% 18%,rgba(237,233,223,.10),transparent 60%),var(--ink)}
@@ -179,6 +182,8 @@ export const DARK_CSS = `
   .notice{display:flex;gap:10px;align-items:flex-start;font-size:14px}.meg{font-weight:800}
   .post .pa{display:flex;align-items:center;gap:8px;margin-bottom:6px}.post .dot{width:26px;height:26px;border-radius:50%;background:var(--b);display:inline-block}
   .verified{color:var(--mut)}.post p{font-size:15px;margin-bottom:6px}
+  .feednote{color:var(--mut);font-size:12px;margin:-4px 0 10px}
+  .vchip{font-size:10px;font-weight:700;letter-spacing:.4px;border-radius:999px;padding:2px 8px;border:1px solid var(--b);color:var(--mut);white-space:nowrap}
   .more{display:block;text-align:center;border:1px solid var(--b);border-radius:10px;padding:9px;margin-top:12px;font-weight:700;font-size:13px}
   .evt{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;font-size:16px}
   .notyet{color:var(--mut);margin-bottom:10px}.opts{display:flex;gap:8px;flex-wrap:wrap}.opts form{display:inline}.going{font-weight:800}

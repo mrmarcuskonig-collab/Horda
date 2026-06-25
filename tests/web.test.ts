@@ -122,6 +122,7 @@ ok('resale listing visible (from Rieke)', paidAfter.includes('Resale') && paidAf
 // membership (closeness monetization) + members-only FOMO
 ok('tier picker shows Supporter + Clubhouse with monthly/annual', athlete.includes("Raven's Corner") && athlete.includes('The Clubhouse') && athlete.includes('/mo') && athlete.includes('/yr'));
 ok('tier-gated drop is locked (teaser) for a non-member guest', guest.includes('Supporter-only') || guest.includes('Clubhouse-only'));
+ok('exclusivity is legible: per-post access chips + blurred lock + framing note', guest.includes('class="vchip') && guest.includes('class="blur"') && guest.includes('class="lockpill"') && guest.includes('class="feednote"'));
 await fetch(base + '/join', form({ fan_id: app.ids.fanId, owner_kind: 'athlete', owner_id: rico, level: 'supporter', billing: 'annual' }));
 const welcome = await get(`/member/athlete/${rico}`);
 ok('join → shareable founding-member welcome', welcome.includes("You're in") && welcome.includes('Founding member') && welcome.includes('twitter.com/intent'));
@@ -134,23 +135,25 @@ ok('athlete profile shows its events + a FEATURED cross-post', athleteImg.includ
 
 // --- live start screen (public, filterable, gated personalization) ---
 const land = await get('/?guest=1');
-ok('start screen: broad sport menu + free location field (no hard-coded cities)', land.includes('All sports') && land.includes('Boxing') && land.includes('Basketball') && land.includes('Everywhere') && land.includes('Enter your location') && !land.includes('>Hamburg</a>'));
-ok('start screen shows live coverage (athlete + results)', land.includes(`/athlete/${rico}`) && land.includes('Latest results'));
+ok('start screen: broad sport menu + free location field (no hard-coded cities)', land.includes('All sports') && land.includes('Boxing') && land.includes('Basketball') && land.includes('Everywhere') && land.includes('City or country') && !land.includes('>Hamburg</a>'));
+ok('location field offers type-ahead suggestions + use-my-location', land.includes('<datalist id="loclist"') && land.includes('id="locbtn"') && land.includes('navigator.geolocation'));
+ok('start screen leads with athletes + events (no results section)', land.includes(`/athlete/${rico}`) && land.includes('Public events') && !land.includes('Latest results'));
 ok('guest gets a gated "your feed" CTA', land.includes('Your Horda') && land.includes('Get your feed'));
 const filtered = await get(`/?sport=boxing&region=Hamburg`);
 ok('filter narrows to taste (Hamburg boxing → Max, not Rico)', filtered.includes(`/athlete/${max}`) && !filtered.includes(`/athlete/${rico}`));
 // fyndafit-inspired surface: story rail (Join + Creator map first), big featured photos, regional map, theme toggle
-ok('story rail leads with Join + Creator map tiles', land.includes('class="rail"') && land.includes('>Join<') && land.includes('Creator map'));
+ok('story rail leads with Join + Creator map tiles', land.includes('class="rail"') && land.includes('>Join the Horda<') && land.includes('Creator map'));
 ok('story rail shows athlete faces with names', land.includes('class="story"') && land.includes('class="ring"'));
 ok('featured photo cards with identity chip', land.includes('class="fcard"') && land.includes('class="fid"') && land.includes('class="fnm"'));
 const mapPage = await get('/map');
 ok('creator map is its own page (Leaflet + CARTO), removed from landing', mapPage.includes('id="map"') && mapPage.includes('cartocdn.com') && !land.includes('id="map"'));
+ok('map markers are avatar rings that link to the profile (no name/popup label)', mapPage.includes("className:'hz-av'") && mapPage.includes('class="mav"') && mapPage.includes('window.location.href=p.href') && !mapPage.includes('bindPopup'));
 ok('landing footer carries the superfan tagline', land.includes('The home for sports superfans'));
 ok('theme toggle present + no-flash boot script', land.includes('class="thm"') && land.includes("localStorage.getItem('hz_theme')"));
 ok('light theme variables defined app-wide', land.includes('data-theme="light"') && (await get(`/athlete/${rico}`)).includes('data-theme="light"'));
 ok('map filters with taste too (Hamburg boxing excludes Rico everywhere)', !filtered.includes(`/athlete/${rico}`));
 // instagram-like usability: persistent bottom tab bar + verified trust badges
-ok('persistent bottom tab bar with familiar tabs', land.includes('class="bnav"') && land.includes('>Home<') && land.includes('>Explore<') && land.includes('>You<'));
+ok('persistent bottom tab bar, icon-only (labels via aria-label, no text)', land.includes('class="bnav"') && land.includes('aria-label="Home"') && land.includes('aria-label="You"') && !land.includes('class="lbl"') && !land.includes('>Home<'));
 ok('bottom nav appears on inner pages too (athlete)', (await get(`/athlete/${rico}`)).includes('class="bnav"'));
 ok('verified badge on a claim-verified athlete (Rico is owned)', land.includes('class="vbadge"'));
 const cg = await get(`/club/${club}?guest=1`);

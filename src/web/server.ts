@@ -5,7 +5,7 @@ import { createServer, type Server } from 'node:http';
 import { randomUUID } from 'node:crypto';
 import { oauthProviders, authUrl as oauthAuthUrl, exchange as oauthExchange, isEnabled as oauthEnabled } from './oauth.ts';
 import { renderPitch } from './pitch.ts';
-import { openDatabase } from '../db/index.ts';
+import { openDatabase, applySchema } from '../db/index.ts';
 import type { Database } from '../db/index.ts';
 import { getClubPage } from '../db/repo.ts';
 import {
@@ -28,6 +28,7 @@ import { seedDemo, type DemoIds } from './seed.ts';
 import { renderIndex, renderDiscover, renderMap, renderAthletePage, renderFanHome, renderSignup, renderLogin, renderForgot, renderReset, renderSharePage, renderMemberWelcome, renderClaimPending, renderClaimQueue, renderOnboardFan, renderAiPrompt, renderProfilePreview, renderOnboardClaim, renderCreatorEntry } from './pages.ts';
 import { getEmailer, resetEmail } from './email.ts';
 import { storeImage } from './storage.ts';
+import { fanChecklist, athleteChecklist, entityChecklist, renderChecklist } from './activation.ts';
 import { generateProfile, getModel, coverDataUri } from './profilegen.ts';
 import { requestClaim, verifyByChannelCode, listClaimsForReviewer, decideClaim, officialDomain, isAdmin as accountIsAdmin, type ClaimKind } from '../db/claim_repo.ts';
 import { getPayments, verifyWebhook } from './payments.ts';
@@ -268,35 +269,42 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
       const eventHost = async (eventId: string) => (await db.query<{ host_kind: string; host_id: string }>(`SELECT host_kind, host_id FROM event WHERE id=$1`, [eventId])).rows[0];
       const loyaltyForEvent = async (fanId: string, eventId: string, kind: string) => { const h = await eventHost(eventId); if (h?.host_kind && h?.host_id) await recordLoyalty(db, fanId, h.host_kind, h.host_id, kind); };
 
+      // Engagement writes act as the SERVER-RESOLVED fan (viewer), never a
+      // form-supplied fan_id — so loyalty/follows/RSVPs can't be forged for others.
       if (req.method === 'POST' && path === '/loyalty/share') {
         const f = await parseForm(req);
-        if (f.fan_id && f.owner_kind && f.owner_id) await recordLoyalty(db, f.fan_id, f.owner_kind, f.owner_id, 'share');
+        if (viewer && f.owner_kind && f.owner_id) await recordLoyalty(db, viewer, f.owner_kind, f.owner_id, 'share');
         res.writeHead(204); res.end(); return;
       }
       if (req.method === 'POST' && path === '/follow') {
         const f = await parseForm(req);
-        await followEntity(db, f.fan_id, f.target_type as any, f.target_id);
-        await recordLoyalty(db, f.fan_id, f.target_type, f.target_id, 'follow');
+        await followEntity(db, viewer, f.target_type as any, f.target_id);
+        await recordLoyalty(db, viewer, f.target_type, f.target_id, 'follow');
         return redirect(res, req.headers.referer ?? `/athlete/${f.target_id}`);
       }
       if (req.method === 'POST' && path === '/predict') {
         const f = await parseForm(req);
-        await makePrediction(db, f.fan_id, f.event_id, f.pick);
-        await loyaltyForEvent(f.fan_id, f.event_id, 'predict');
+        await makePrediction(db, viewer, f.event_id, f.pick);
+        await loyaltyForEvent(viewer, f.event_id, 'predict');
         return redirect(res, req.headers.referer ?? '/');
       }
       // ---- Luma-style scheduled events ----
       if (req.method === 'POST' && path === '/rsvp') {
         const f = await parseForm(req);
-        await rsvp(db, f.fan_id, f.event_id, f.response as any);
-        if (f.response === 'going') await loyaltyForEvent(f.fan_id, f.event_id, 'rsvp');
+        await rsvp(db, viewer, f.event_id, f.response as any);
+        if (f.response === 'going') await loyaltyForEvent(viewer, f.event_id, 'rsvp');
         return redirect(res, req.headers.referer ?? `/e/${f.event_id}`);
       }
       if (req.method === 'POST' && path === '/events') {
         const f = await parseForm(req);
+        // only the entity's owner may schedule events for it (no impersonation)
+        if (viewerGuest) return redirect(res, '/signup');
+        if (!await owns(db, account?.id ?? null, f.host_kind, f.host_id)) return redirect(res, `/${f.host_kind === 'athlete' ? 'athlete' : f.host_kind}/${f.host_id}`);
         const streams: any = {};
         if (f.youtube) streams.youtube = f.youtube;
         if (f.twitch) streams.twitch = f.twitch;
+        if (f.instagram) streams.instagram = f.instagram;
+        if (f.tiktok) streams.tiktok = f.tiktok;
         if (f.discord) streams.discord = f.discord;
         const id = await createScheduledEvent(db, {
           hostKind: f.host_kind as any, hostId: f.host_id, title: f.title || 'Untitled event',
@@ -322,11 +330,11 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
             productName: `${tier.name} (${level}) · ${nm}`,
             successUrl: `${origin}/checkout/success?session_id={CHECKOUT_SESSION_ID}`,
             cancelUrl: `${origin}${back}`,
-            metadata: { kind: 'membership', owner_kind: f.owner_kind, owner_id: f.owner_id, fan_id: f.fan_id, tier_level: level, billing },
+            metadata: { kind: 'membership', owner_kind: f.owner_kind, owner_id: f.owner_id, fan_id: viewer, tier_level: level, billing },
           });
           return redirect(res, url);
         }
-        await joinMembership(db, f.fan_id, f.owner_kind, f.owner_id, level, payments.enabled ? billing : (amount > 0 ? billing : 'free'));
+        await joinMembership(db, viewer, f.owner_kind, f.owner_id, level, payments.enabled ? billing : (amount > 0 ? billing : 'free'));
         return redirect(res, `/member/${f.owner_kind}/${f.owner_id}`);
       }
       if (req.method === 'POST' && path === '/ticket/gift') {
@@ -338,7 +346,7 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
         return redirect(res, `/e/${f.event_id}`);
       }
       if (req.method === 'POST' && path === '/ticket/buy') {
-        const f = await parseForm(req); await buyListing(db, f.ticket_id, f.fan_id);
+        const f = await parseForm(req); await buyListing(db, f.ticket_id, viewer);
         return redirect(res, `/e/${f.event_id}`);
       }
       let mm;
@@ -351,6 +359,8 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
       }
       if (req.method === 'POST' && path === '/feature') {
         const f = await parseForm(req);
+        // only the owner of the entity being featured-on may cross-post
+        if (!await owns(db, account?.id ?? null, f.feat_kind, f.feat_id)) return redirect(res, req.headers.referer ?? `/e/${f.event_id}`);
         await featureEvent(db, f.feat_kind, f.feat_id, f.event_id);
         return redirect(res, req.headers.referer ?? `/e/${f.event_id}`);
       }
@@ -365,12 +375,12 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
             productName: `Ticket · ${d?.title ?? 'Event'}`,
             successUrl: `${origin}/checkout/success?session_id={CHECKOUT_SESSION_ID}`,
             cancelUrl: `${origin}/e/${evId}`,
-            metadata: { kind: 'ticket', event_id: evId, fan_id: f.fan_id },
+            metadata: { kind: 'ticket', event_id: evId, fan_id: viewer },
           });
           return redirect(res, url);
         }
-        await markPaid(db, evId, f.fan_id);
-        await loyaltyForEvent(f.fan_id, evId, 'attend');
+        await markPaid(db, evId, viewer);
+        await loyaltyForEvent(viewer, evId, 'attend');
         return redirect(res, `/e/${evId}`);
       }
       // Stripe webhook — source of truth for granting/revoking (works even if the
@@ -408,6 +418,9 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
       }
       if (req.method === 'POST' && (cm = path.match(/^\/e\/([^/]+)\/approve$/))) {
         const f = await parseForm(req);
+        const ev = await getEventDetail(db, cm[1]);
+        if (!ev) return html(res, 'Not found', 404);
+        if (!await canEdit(ev.hostKind ?? '', ev.hostId ?? '')) return redirect(res, `/e/${cm[1]}`);  // owner-only
         await approveRegistration(db, cm[1], f.fan_id);
         return redirect(res, `/manage/${cm[1]}`);
       }
@@ -437,6 +450,7 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
       if ((em = path.match(/^\/manage\/([^/]+)$/))) {
         const d = await getEventDetail(db, em[1]);
         if (!d) return html(res, 'Not found', 404);
+        if (!await canEdit(d.hostKind ?? '', d.hostId ?? '')) return redirect(res, `/e/${em[1]}`);  // guest list is owner-only
         return html(res, renderManage(d, await getGuestList(db, em[1])));
       }
       if ((em = path.match(/^\/host\/(athlete|club|team|association)\/([^/]+)\/new$/))) {
@@ -481,8 +495,8 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
       if (path === '/map') {
         const data = await getDiscover(db, {});
         const points = [
-          ...data.athletes.filter(a => a.region).map(a => ({ name: a.name, region: a.region, href: `/athlete/${a.id}`, kind: 'athlete' })),
-          ...data.clubs.filter(c => c.region).map(c => ({ name: c.name, region: c.region, href: `/club/${c.id}`, kind: 'club' })),
+          ...data.athletes.filter(a => a.region).map(a => ({ name: a.name, region: a.region, href: `/athlete/${a.id}`, kind: 'athlete', avatar: a.avatar || a.banner || null })),
+          ...data.clubs.filter(c => c.region).map(c => ({ name: c.name, region: c.region, href: `/club/${c.id}`, kind: 'club', avatar: c.avatar || null })),
         ];
         return html(res, renderMap({ guest: viewerGuest, fanId: viewer, points }));
       }
@@ -501,11 +515,20 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
       if ((m = path.match(/^\/fan\/([^/]+)$/))) {
         const home = await getFanHome(db, m[1]);
         const follows = await getFollows(db, m[1]);
-        return html(res, renderFanHome({ fanId: m[1], fanName: 'You', home, follows }));
+        const fanAct = renderChecklist(await fanChecklist(db, m[1]));
+        // "Your pages": the creator side of the SAME account — switch here, and
+        // manage the events each page runs. Only on the owner's own fan home.
+        const ownPages = (account && m[1] === viewer)
+          ? await Promise.all((await ownedEntities(db, account.id)).map(async e => ({ ...e, events: await listProfileEvents(db, e.kind, e.id) })))
+          : [];
+        return html(res, renderFanHome({ fanId: m[1], fanName: 'You', home, follows, activation: fanAct, pages: ownPages }));
       }
       if ((m = path.match(/^\/athlete\/([^/]+)$/))) {
         const guest = viewerGuest;
         const fanId = guest ? null : viewer;
+        // existence + uuid-format guard so a bad/typo id is a clean 404, not a 500
+        const aExists = /^[0-9a-fA-F-]{36}$/.test(m[1]) && (await db.query(`SELECT 1 FROM athlete WHERE id=$1`, [m[1]])).rows[0];
+        if (!aExists) return html(res, '<p>Athlete not found. <a href="/">Home</a></p>', 404);
         const profile = await getAthleteProfile(db, m[1]);
         const upcoming = await getUpcomingBout(db, m[1]);
         const attendance = (!guest && upcoming) ? await getAttendance(db, viewer, upcoming.eventId) : null;
@@ -516,7 +539,9 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
         const members = await memberCount(db, 'athlete', m[1]);
         const superfan = await isSuperfan(db, fanId, 'athlete', m[1]);
         const lscore = fanId ? await loyaltyScore(db, fanId, 'athlete', m[1]) : 0;
-        return html(res, renderAthletePage({ guest, fanId, profile, upcoming, attendance, affiliations, events, scheduleHref: `/host/athlete/${m[1]}/new`, tiers, membership, superfan, loyalty: fanId ? { score: lscore, threshold: 200 } : null, memberCount: members, canEdit: await canEdit('athlete', m[1]) }));
+        const athOwner = await canEdit('athlete', m[1]);
+        const athAct = athOwner ? renderChecklist(await athleteChecklist(db, m[1])) : '';
+        return html(res, renderAthletePage({ guest, fanId, profile, upcoming, attendance, affiliations, events, scheduleHref: `/host/athlete/${m[1]}/new`, tiers, membership, superfan, loyalty: fanId ? { score: lscore, threshold: 200 } : null, memberCount: members, canEdit: athOwner, activation: athAct }));
       }
       if ((m = path.match(/^\/club\/([^/]+)$/))) {
         const guest = viewerGuest;
@@ -541,6 +566,7 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
           tabs: [{ label: 'Highlight' }, { label: 'Squad' }, { label: 'Fixtures' }, { label: 'Table' }, { label: 'Shop', shop: true }],
           statLine, notice, post: cp ? { author: club.name, body: cp.body, date: cp.date } : undefined,
           upcoming, attendance, tableHtml, merch: true, backHref: '/', editAction: `/entity/club/${m[1]}/branding`, canEdit: await canEdit('club', m[1]),
+          activation: (await canEdit('club', m[1])) ? renderChecklist(await entityChecklist(db, 'club', m[1])) : '',
           events: await listProfileEvents(db, 'club', m[1]), scheduleHref: `/host/club/${m[1]}/new`,
           members: { title: 'Teams', items: teams.map(t => ({ kind: 'team', label: t.name + (t.division ? ` · ${t.division}` : ''), href: `/team/${t.id}`, tag: t.gender || undefined })) },
         }));
@@ -566,6 +592,7 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
           tabs: [{ label: 'Highlight' }, { label: 'Squad' }, { label: 'Fixtures' }, { label: 'Table' }, { label: 'Shop', shop: true }],
           statLine, notice: nf ? `[Notice] Next match: ${team.name} vs ${nf.opp} — ${nf.date ?? 'soon'}.` : '',
           upcoming, attendance, tableHtml, merch: true, backHref: `/club/${team.club_id}`, editAction: `/entity/team/${m[1]}/branding`, canEdit: await canEdit('team', m[1]),
+          activation: (await canEdit('team', m[1])) ? renderChecklist(await entityChecklist(db, 'team', m[1])) : '',
           events: await listProfileEvents(db, 'team', m[1]), scheduleHref: `/host/team/${m[1]}/new`,
           members: { title: 'Squad', items: roster.map(p => ({ kind: 'athlete', label: p.name, href: `/athlete/${p.id}`, tag: p.handle ? '@' + p.handle : undefined })) },
         }));
@@ -585,6 +612,7 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
           statLine: { label: 'MEMBER CLUBS', value: String(clubs.length), sub: 'in sanctioned leagues' },
           notice: `[Notice] ${assoc.name} sanctions ${leagues.length} competition(s).`,
           merch: false, backHref: '/', editAction: `/entity/association/${m[1]}/branding`, canEdit: await canEdit('association', m[1]),
+          activation: (await canEdit('association', m[1])) ? renderChecklist(await entityChecklist(db, 'association', m[1])) : '',
           events: await listProfileEvents(db, 'association', m[1]), scheduleHref: `/host/association/${m[1]}/new`,
           members: { title: 'Member clubs', items: clubs.map(c => ({ kind: 'club', label: c.name, href: `/club/${c.id}` })) },
           secondary: { title: 'Competitions', items: leagues.map(l => ({ kind: 'league', label: l.name, href: '#' })) },
@@ -620,6 +648,8 @@ export async function startServer(port = Number(process.env.PORT ?? 8787)): Prom
   process.on('uncaughtException', (e) => console.error('[uncaughtException]', e));
   const db = await openDatabase();   // DATABASE_URL → server Postgres (prod); else embedded PGlite (HORDA_DATA persists)
   const fresh = (await db.query<{ r: string | null }>(`SELECT to_regclass('public.account')::text r`)).rows[0].r === null;
+  const pending = await applySchema(db);   // ALWAYS apply pending migrations (new + existing DBs alike)
+  if (pending.length) console.log(`[migrations] applied: ${pending.join(', ')}`);
   const ids = fresh ? await seedDemo(db) : await loadDemoIds(db);              // seed once; reuse on restart
   const server = await buildApp(db, ids);
   await new Promise<void>(r => server.listen(port, r));

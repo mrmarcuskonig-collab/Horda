@@ -89,10 +89,52 @@ export async function openDatabase(): Promise<Database> {
 }
 
 // --- schema + seed runners (operate on the real db/ SQL files) -------------
+// Tracked migrations: every pending .sql is applied in order on EVERY startup
+// (not just on a fresh DB), and recorded in schema_migrations so it runs once.
+// This is what lets new migrations reach an already-deployed database.
 export async function applySchema(db: Database, migrationsDir = 'db/migrations'): Promise<string[]> {
+  await db.exec(`CREATE TABLE IF NOT EXISTS schema_migrations (filename text PRIMARY KEY, applied_at timestamptz NOT NULL DEFAULT now())`);
   const files = readdirSync(migrationsDir).filter(f => f.endsWith('.sql')).sort();
-  for (const f of files) await db.exec(readFileSync(join(migrationsDir, f), 'utf8'));
-  return files;
+  const trackerCount = (await db.query<{ n: number }>(`SELECT count(*)::int n FROM schema_migrations`)).rows[0].n;
+
+  // Bootstrap for databases created before this tracker existed: don't try to
+  // re-run (and crash on) migrations whose changes are already present. Probe
+  // for each modern migration's key object; mark already-present ones applied.
+  if (trackerCount === 0) {
+    const legacy = (await db.query<{ r: string | null }>(`SELECT to_regclass('public.account')::text r`)).rows[0].r !== null;
+    if (legacy) {
+      const colExists = async (t: string, c: string) =>
+        (await db.query(`SELECT 1 FROM information_schema.columns WHERE table_name=$1 AND column_name=$2`, [t, c])).rows.length > 0;
+      const relExists = async (r: string) =>
+        (await db.query<{ x: string | null }>(`SELECT to_regclass($1)::text x`, [r])).rows[0].x !== null;
+      const enumHas = async (typ: string, val: string) =>
+        (await db.query(`SELECT 1 FROM pg_enum e JOIN pg_type t ON t.oid=e.enumtypid WHERE t.typname=$1 AND e.enumlabel=$2`, [typ, val])).rows.length > 0;
+      const present: Record<string, () => Promise<boolean>> = {
+        '0016': () => relExists('public.claim_request'),
+        '0017': async () => (await colExists('membership_tier', 'level')) && (await relExists('public.loyalty_event')),
+        '0018': () => colExists('account', 'role'),
+        '0019': () => colExists('membership', 'stripe_subscription_id'),
+        '0020': () => relExists('public.password_reset'),
+        '0021': () => enumHas('post_visibility', 'supporter'),
+        '0022': () => enumHas('post_visibility', 'clubhouse'),
+      };
+      for (const f of files) {
+        const probe = present[f.slice(0, 4)];
+        const already = probe ? await probe() : true;  // pre-modern files: assume applied on a legacy DB
+        if (already) await db.query(`INSERT INTO schema_migrations (filename) VALUES ($1) ON CONFLICT DO NOTHING`, [f]);
+      }
+    }
+  }
+
+  const done = new Set((await db.query<{ filename: string }>(`SELECT filename FROM schema_migrations`)).rows.map(r => r.filename));
+  const applied: string[] = [];
+  for (const f of files) {
+    if (done.has(f)) continue;
+    await db.exec(readFileSync(join(migrationsDir, f), 'utf8'));
+    await db.query(`INSERT INTO schema_migrations (filename) VALUES ($1) ON CONFLICT DO NOTHING`, [f]);
+    applied.push(f);
+  }
+  return applied;
 }
 
 export async function applySeed(db: Database, seedFile = 'db/seed/seed_trio.sql'): Promise<void> {

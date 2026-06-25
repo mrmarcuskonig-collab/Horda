@@ -42,6 +42,34 @@ function avatarSvg(name: string): string {
   return `<svg viewBox="0 0 104 104" xmlns="http://www.w3.org/2000/svg"><rect width="104" height="104" fill="#0B0B0C"/><text x="52" y="52" dy=".36em" text-anchor="middle" font-family="Helvetica,Arial,sans-serif" font-size="40" font-weight="800" fill="#EDE9DF">${esc(initials)}</text></svg>`;
 }
 // --- the live start screen (public, Weverse-style: product, not marketing) --
+// Curated location suggestions (merged with regions actually present in the
+// data). Beachhead-first: German cities + Länder, then a few countries.
+const LOC_CURATED = [
+  'Berlin', 'Hamburg', 'München', 'Köln', 'Frankfurt', 'Stuttgart', 'Düsseldorf', 'Leipzig',
+  'Dortmund', 'Essen', 'Bremen', 'Dresden', 'Hannover', 'Nürnberg', 'Bochum', 'Wuppertal',
+  'Bayern', 'Baden-Württemberg', 'Nordrhein-Westfalen', 'Hessen', 'Sachsen', 'Niedersachsen',
+  'Brandenburg', 'Rheinland-Pfalz', 'Schleswig-Holstein', 'Thüringen',
+  'Germany', 'Austria', 'Switzerland',
+];
+// Geolocation: only on explicit click, and we resolve to a COARSE nearest city
+// (never put raw coordinates in the URL). Auto-submits the filter on pick.
+const LOC_SCRIPT = `<script>(function(){
+var f=document.getElementById('locform'),i=document.getElementById('locin'),b=document.getElementById('locbtn');
+if(!f||!i){return}
+i.addEventListener('input',function(){var os=document.querySelectorAll('#loclist option');for(var n=0;n<os.length;n++){if(os[n].value===i.value){f.submit();return}}});
+if(b){b.addEventListener('click',function(){
+ if(!navigator.geolocation){return}
+ b.classList.add('busy');
+ navigator.geolocation.getCurrentPosition(function(p){
+  var C={Berlin:[52.52,13.40],Hamburg:[53.55,9.99],"München":[48.14,11.58],"Köln":[50.94,6.96],Frankfurt:[50.11,8.68],Stuttgart:[48.78,9.18],"Düsseldorf":[51.23,6.78],Leipzig:[51.34,12.37],Dortmund:[51.51,7.47],Bremen:[53.08,8.80],Hannover:[52.37,9.73],"Nürnberg":[49.45,11.08],Dresden:[51.05,13.74]};
+  var la=p.coords.latitude,lo=p.coords.longitude,best=null,bd=1e9;
+  for(var k in C){var a=la-C[k][0],o=lo-C[k][1],dd=a*a+o*o;if(dd<bd){bd=dd;best=k}}
+  if(best){i.value=best;f.submit()}else{b.classList.remove('busy')}
+ },function(){b.classList.remove('busy')},{timeout:8000,maximumAge:600000});
+})}
+})();
+</script>`;
+
 export function renderDiscover(d: {
   guest: boolean; fanId: string | null; sport?: string; region?: string;
   data: { sports: { key: string; name: string }[]; regions?: string[];
@@ -60,15 +88,18 @@ export function renderDiscover(d: {
   const POPULAR: [string, string][] = [['football', 'Football'], ['basketball', 'Basketball'], ['boxing', 'Boxing'], ['tennis', 'Tennis'], ['running', 'Running'], ['mma', 'MMA'], ['cycling', 'Cycling'], ['volleyball', 'Volleyball'], ['handball', 'Handball'], ['ice_hockey', 'Ice hockey'], ['triathlon', 'Triathlon']];
   const sportChips = `<div class="chips scroll">${chip('All sports', !d.sport, qp(undefined, d.region))}${POPULAR.map(([k, n]) => chip(n, d.sport === k, qp(k, d.region))).join('')}</div>`;
 
-  // Location: no hard-coded cities — a free field that works for a rural village
-  // or Los Angeles. Submits on Enter (no button). Active location shows as a chip.
-  const locRow = `<div class="chips locrow">${chip('Everywhere', !d.region, qp(d.sport, undefined))}<form class="locform" method="get" action="/">${d.sport ? `<input type="hidden" name="sport" value="${esc(d.sport)}">` : ''}<input name="region" value="${esc(d.region ?? '')}" placeholder="Enter your location" class="locin" autocomplete="off" aria-label="Enter your location"></form>${d.region ? `<a class="chip on" href="${qp(d.sport, undefined)}" title="Clear location">${esc(d.region)} ✕</a>` : ''}</div>`;
+  // Location: a free field (works for a rural village or Los Angeles) with
+  // type-ahead suggestions, plus a "use my location" pin. Suggestions = regions
+  // present in the data + a curated city/country list. Submits on pick/Enter.
+  const locOpts = Array.from(new Set([...(d.data.regions ?? []), ...LOC_CURATED].filter(Boolean)));
+  const pinSvg = `<svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" d="M12 21s7-6.3 7-11a7 7 0 1 0-14 0c0 4.7 7 11 7 11Z"/><circle cx="12" cy="10" r="2.3" fill="none" stroke="currentColor" stroke-width="1.6"/></svg>`;
+  const locRow = `<div class="chips locrow">${chip('Everywhere', !d.region, qp(d.sport, undefined))}<form class="locform" method="get" action="/" id="locform">${d.sport ? `<input type="hidden" name="sport" value="${esc(d.sport)}">` : ''}<span class="locwrap"><input name="region" value="${esc(d.region ?? '')}" list="loclist" placeholder="City or country" class="locin" autocomplete="off" aria-label="City or country" id="locin"><button type="button" class="locbtn" id="locbtn" title="Use my location" aria-label="Use my location">${pinSvg}</button></span><datalist id="loclist">${locOpts.map(o => `<option value="${esc(o)}"></option>`).join('')}</datalist></form>${d.region ? `<a class="chip on" href="${qp(d.sport, undefined)}" title="Clear location">${esc(d.region)} ✕</a>` : ''}</div>${LOC_SCRIPT}`;
 
   const ringImg = (url: string | null, name: string) => url ? `<img src="${esc(url)}" alt="">` : avatarSvg(name);
 
   // story rail — Join + Creator map first (the two key learnings), then athlete faces
   const rail = `<div class="rail">
-    <a class="story" href="/signup" aria-label="Join Horda"><span class="ring act"><svg viewBox="0 0 24 24" width="19" height="19" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.35" stroke-linecap="round" d="M12 5.75v12.5M5.75 12h12.5"/></svg></span><span class="sname">Join</span></a>
+    <a class="story" href="/signup" aria-label="Join the Horda"><span class="ring act"><svg viewBox="0 0 24 24" width="19" height="19" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.35" stroke-linecap="round" d="M12 5.75v12.5M5.75 12h12.5"/></svg></span><span class="sname">Join the Horda</span></a>
     <a class="story" href="/map" aria-label="Open the creator map"><span class="ring act"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.35" stroke-linejoin="round" stroke-linecap="round" d="M9 4.3 3.6 6.1v13.6L9 17.9l6 1.8 5.4-1.8V4.1L15 5.9 9 4.3Z"/><path fill="none" stroke="currentColor" stroke-width="1.1" stroke-linecap="round" opacity=".8" d="M9 4.5v13.4M15 6v13.4"/></svg></span><span class="sname">Creator map</span></a>
     ${d.data.athletes.map(a => `<a class="story" href="/athlete/${a.id}"><span class="ring">${ringImg(a.avatar || a.banner, a.name)}</span><span class="sname">${esc(a.name.split(' ')[0])}</span></a>`).join('')}
   </div>`;
@@ -86,15 +117,14 @@ export function renderDiscover(d: {
   const card = (href: string, title: string, sub: string, badge: string, verified = false) =>
     `<a class="dcard" href="${href}"><div class="dav">${avatarSvg(title)}</div><div class="dmeta"><div class="dt-title">${esc(title)}${verified ? verifiedBadge() : ''}</div><div class="dt-sub">${esc(sub)}</div></div><span class="dbadge">${esc(badge)}</span></a>`;
 
-  const upcoming = d.data.upcoming.length ? `<h2>Public · live &amp; upcoming <span class="h2note">members-only events stay private</span></h2><div class="drow">${
+  const upcoming = d.data.upcoming.length ? `<h2>Public events · live &amp; upcoming</h2><div class="drow">${
     d.data.upcoming.map(e => `<a class="ecard" href="/e/${e.id}"><div class="ecover"></div><div class="etitle">${esc(e.title)}</div><div class="esub">${esc(e.host)} · ${esc(e.date ?? 'soon')} · ${e.admission === 'paid' ? 'ticketed' : e.admission === 'apply' ? 'apply' : 'free'}</div></a>`).join('')
   }</div>` : '';
   const clubs = d.data.clubs.length ? `<h2>Clubs &amp; federations</h2><div class="dlist">${
     d.data.clubs.map(c => card(`/club/${c.id}`, c.name, [c.sport, c.region].filter(Boolean).join(' · ') || 'club', 'club', c.verified)).join('')
   }</div>` : '';
-  const results = d.data.results.length ? `<h2>Latest results</h2><ul class="rlist">${
-    d.data.results.map(r => `<li><span class="rmk">●</span><span class="rh">${esc(r.headline)}</span><span class="dt">${esc(r.date ?? '')}</span></li>`).join('')
-  }</ul>` : '';
+  // Results intentionally omitted: Horda is a superfan platform (drops, exclusive
+  // access, tiers, events) — not a scores/standings product. We lead with events.
   const empty = (!d.data.athletes.length && !d.data.clubs.length) ? `<p class="mut" style="margin-top:14px">Nothing here for that filter yet — try another sport or region.</p>` : '';
 
   const yours = d.guest
@@ -128,8 +158,12 @@ export function renderDiscover(d: {
   .chip:hover{border-color:var(--bone);color:var(--bone)}
   .chip.on{background:var(--bone);color:var(--ink);border-color:var(--bone)}
   .locform{display:inline-flex}
-  .locin{background:transparent;border:1px solid var(--b);border-radius:999px;color:var(--bone);padding:7px 15px;font:inherit;font-size:12.5px;min-width:200px}
+  .locwrap{position:relative;display:inline-flex;align-items:center}
+  .locin{background:transparent;border:1px solid var(--b);border-radius:999px;color:var(--bone);padding:7px 38px 7px 15px;font:inherit;font-size:12.5px;min-width:200px}
   .locin:focus{outline:none;border-color:var(--bone)}.locin::placeholder{color:var(--mut)}
+  .locbtn{position:absolute;right:4px;top:50%;transform:translateY(-50%);width:27px;height:27px;border:0;background:transparent;color:var(--mut);border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer;padding:0}
+  .locbtn:hover{color:var(--bone);background:var(--s)}
+  .locbtn.busy{opacity:.5;pointer-events:none}
   h2{font-size:11.5px;letter-spacing:1.6px;text-transform:uppercase;font-weight:600;color:var(--bone);margin:32px 0 13px;display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
   .h2note{font-size:11px;letter-spacing:.2px;text-transform:none;font-weight:400;color:var(--mut)}
   .rail{display:flex;gap:16px;overflow-x:auto;padding:10px 0 4px}
@@ -185,7 +219,6 @@ export function renderDiscover(d: {
     ${yours}
     ${upcoming}
     ${clubs}
-    ${results}
     ${empty}
   </div>
   <div class="prov">The home for sports superfans. One place to follow the teams, athletes &amp; leagues you back. Across every sport — and the culture around it.<br><a href="/create" style="border-bottom:1px solid var(--b)">For athletes &amp; clubs — set up your page →</a></div>
@@ -194,7 +227,7 @@ export function renderDiscover(d: {
 }
 
 // --- creator map (its own destination, like fyndafit's Creator Map) ----------
-export function renderMap(d: { guest: boolean; fanId: string | null; points: { name: string; region: string | null; href: string; kind: string }[] }): string {
+export function renderMap(d: { guest: boolean; fanId: string | null; points: { name: string; region: string | null; href: string; kind: string; avatar?: string | null }[] }): string {
   const pointsJson = JSON.stringify(d.points).replace(/</g, '\\u003c');
   return `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><link rel="icon" href="/favicon.svg"><title>Creator map — Horda</title>${THEME_BOOT}
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
@@ -213,9 +246,13 @@ export function renderMap(d: { guest: boolean; fanId: string | null; points: { n
   .mapwrap{padding:14px 16px 0;max-width:980px;margin:0 auto}
   .mtitle{font-size:11.5px;letter-spacing:1.6px;text-transform:uppercase;font-weight:600;color:var(--mut);margin:2px 2px 10px}
   #map{height:calc(100vh - 156px);min-height:380px;border-radius:18px;overflow:hidden;border:1px solid var(--b);background:var(--s)}
-  .hz-pin span{display:block;width:13px;height:13px;border-radius:50%;background:var(--bone);border:2px solid var(--ink);box-shadow:0 0 0 1px var(--b)}
-  .leaflet-popup-content-wrapper,.leaflet-popup-tip{background:var(--ink);color:var(--bone);border:1px solid var(--b)}
-  .leaflet-popup-content{font-family:inherit;font-size:13px}.leaflet-popup-content a{font-weight:600;border-bottom:1px solid var(--b)}
+  /* Instagram-style ring avatar markers — white halo (dark) / gradient (light), matching the landing */
+  .hz-av{background:transparent !important;border:0 !important}
+  .hz-av .mav{display:block;width:46px;height:46px;border-radius:50%;padding:2px;box-sizing:border-box;cursor:pointer;transition:transform .15s;background:var(--bone);box-shadow:0 0 10px rgba(237,233,223,.4)}
+  .hz-av .mav:hover{transform:scale(1.1)}
+  html[data-theme="light"] .hz-av .mav{background:conic-gradient(from 135deg,#feda75,#fa7e1e,#d62976,#962fbf,#4f5bd5,#feda75);box-shadow:0 1px 6px rgba(0,0,0,.25)}
+  .hz-av .mav img,.hz-av .mav .ini{width:100%;height:100%;border-radius:50%;object-fit:cover;display:block;border:2px solid var(--ink);box-sizing:border-box;background:var(--s)}
+  .hz-av .mav .ini{display:flex;align-items:center;justify-content:center;font-weight:700;font-size:15px;color:var(--bone)}
 </style></head><body>
   <header class="top"><a class="mark" href="/" aria-label="Horda">${ravenMarkCurrent(30)}</a>
     <div class="nav">${themeToggle()}${d.guest ? `<a class="btn ghost" href="/login">Log in</a><a class="btn" href="/signup">Join free</a>` : `<a class="btn" href="/fan/${d.fanId}">Your feed →</a>`}</div></header>
@@ -236,8 +273,17 @@ export function renderMap(d: { guest: boolean; fanId: string | null; points: { n
     var opt={subdomains:'abcd',maxZoom:19,attribution:'&copy; OpenStreetMap &copy; CARTO'};
     var layer=L.tileLayer(url(),opt).addTo(map);
     window.addEventListener('hz-theme',function(){map.removeLayer(layer);layer=L.tileLayer(url(),opt).addTo(map)});
-    var icon=L.divIcon({className:'hz-pin',html:'<span></span>',iconSize:[16,16],iconAnchor:[8,8],popupAnchor:[0,-8]});
-    pts.forEach(function(p){var c=C[p.region];if(!c){return}var j=function(){return (Math.random()-0.5)*0.09};L.marker([c[0]+j(),c[1]+j()],{icon:icon}).addTo(map).bindPopup('<b>'+p.name+'</b><br><a href="'+p.href+'">Open '+p.kind+'</a>')});
+    function esc(s){return String(s||'').replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]})}
+    function avatarIcon(p){
+      var inner=p.avatar?'<img src="'+esc(p.avatar)+'" alt="">':'<span class="ini">'+esc((p.name||'?').trim().charAt(0).toUpperCase())+'</span>';
+      return L.divIcon({className:'hz-av',html:'<span class="mav">'+inner+'</span>',iconSize:[50,50],iconAnchor:[25,25]});
+    }
+    pts.forEach(function(p){
+      var c=C[p.region];if(!c){return}
+      var j=function(){return (Math.random()-0.5)*0.06};
+      var mk=L.marker([c[0]+j(),c[1]+j()],{icon:avatarIcon(p),title:p.name,riseOnHover:true,keyboard:true}).addTo(map);
+      mk.on('click',function(){window.location.href=p.href});
+    });
   })();
   </script>
 </body></html>`;
@@ -258,6 +304,7 @@ export function renderAthletePage(d: {
   loyalty?: { score: number; threshold: number } | null;
   memberCount?: number;
   canEdit?: boolean;
+  activation?: string;
 }): string {
   const isMember = !!d.membership;
   const viewerTier = d.membership?.tierLevel ?? null;
@@ -279,7 +326,7 @@ export function renderAthletePage(d: {
   const profhead = `<section class="profhead">
       <div class="avatar">${av}</div>
       <div class="pid"><h1>${esc(p.name)}</h1><div class="hsub">${p.handle ? '@' + esc(p.handle) : ''}${nickname ? ` · “${esc(nickname)}”` : ''} · Welterweight${d.superfan ? ' · <span class="sfan">✦ Superfan</span>' : ''}</div></div>
-      <a class="btn join" href="${gate('#join')}">Join Now</a>
+      <a class="btn join" href="${gate('#join')}">Join the Horda</a>
     </section>
     ${socials ? `<div class="icons">${socials}</div>` : ''}
     ${p.tagline ? `<p class="tagline">${esc(p.tagline)}</p>` : ''}`;
@@ -305,10 +352,11 @@ export function renderAthletePage(d: {
     const annual = t.priceAnnualCents ?? t.priceCents * 10;
     const here = isMember && viewerTier === t.level;
     const label = t.level === 'clubhouse' ? 'Clubhouse · Superfan' : 'Supporter';
+    const saved = Math.max(0, Math.round((t.priceCents * 12 - annual) / Math.max(1, t.priceCents)));
     const cta = d.guest
       ? `<a class="btn" href="/signup">Join · from ${money(t.priceCents, t.currency)}/mo</a>`
       : here ? `<div class="dt" style="padding:8px 0">✓ You’re in</div>`
-        : `<form method="post" action="/join">${joinFields}<input type="hidden" name="level" value="${t.level}"><div class="trow"><button class="btn" name="billing" value="monthly">${money(t.priceCents, t.currency)}/mo</button><button class="btn dark" name="billing" value="annual">${money(annual, t.currency)}/yr</button></div></form>`;
+        : `<form method="post" action="/join">${joinFields}<input type="hidden" name="level" value="${t.level}"><div class="tcol"><button class="btn" name="billing" value="annual">${money(annual, t.currency)}/yr</button>${saved > 0 ? `<div class="annnote">Best value · ${saved} month${saved === 1 ? '' : 's'} free</div>` : ''}<button class="btn ghost" name="billing" value="monthly">or ${money(t.priceCents, t.currency)}/mo</button></div></form>`;
     return `<div class="tcard${t.level === 'clubhouse' ? ' prem' : ''}"><div class="th2">${esc(t.name)} <span class="tlvl">${label}</span></div>
       <ul class="perks">${t.perks.map(pk => `<li>${esc(pk)}</li>`).join('')}</ul>${cta}</div>`;
   };
@@ -318,21 +366,34 @@ export function renderAthletePage(d: {
   const loyaltyBar = (!d.guest && !d.superfan && d.loyalty)
     ? `<div class="loy"><div class="dt">${d.loyalty.score} / ${d.loyalty.threshold} to Superfan — attend, predict &amp; share to climb</div><div class="loybar"><span style="width:${Math.min(100, Math.round((d.loyalty.score / d.loyalty.threshold) * 100))}%"></span></div></div>`
     : '';
-  const tierCard = `<section id="join" class="card"><div class="ch"><h2>Membership</h2></div>${badge}
+  const upgradeNudge = (isMember && viewerTier === 'supporter')
+    ? `<div class="upsell"><span>You’re a Supporter. <strong>Go Clubhouse</strong> for the full inside access — and instant Superfan status.</span><a class="btn sm" href="#join">Upgrade</a></div>`
+    : '';
+  const tierCard = `<section id="join" class="card"><div class="ch"><h2>Membership</h2></div>${badge}${upgradeNudge}
       <div class="tierrow">${followCard}${(d.tiers ?? []).map(tcard).join('')}</div>${loyaltyBar}</section>`;
 
+  // Every post wears its access level so the feed never reads as a free commodity:
+  // Open (everyone) · ★ Supporters · ✦ Clubhouse. Exclusive posts a viewer can't
+  // see are shown as a blurred preview behind a lock — obvious, but understated.
+  const visMeta = (vis: string) => vis === 'clubhouse'
+    ? { mark: '✦', label: 'Clubhouse', req: 'Clubhouse' }
+    : (vis === 'supporter' || vis === 'members') ? { mark: '★', label: 'Supporters', req: 'Supporter' }
+      : { mark: '', label: 'Open', req: 'Supporter' };
   const postCard = (po: { body: string; date?: string; visibility?: string }) => {
     const vis = po.visibility || 'public';
     const allowed = canSee(vis);
-    const req = vis === 'clubhouse' ? 'Clubhouse' : 'Supporter';
-    const tagHtml = vis === 'public' ? '<span class="verified">✔</span>' : `<span class="memtag">★ ${req}</span>`;
-    const teaser = (po.body || '').slice(0, 140).trim();
-    return `<article class="post"><div class="pa"><span class="pav">${av}</span><div class="pmeta"><strong>${esc(p.name)}</strong> ${tagHtml}<div class="dt">${esc(po.date ?? '')}</div></div></div>${allowed
+    const m = visMeta(vis);
+    const chip = vis === 'public'
+      ? `<span class="vchip open">Open</span>`
+      : `<span class="vchip excl${allowed ? ' got' : ''}">${m.mark} ${m.label}${allowed ? ' · unlocked' : ''}</span>`;
+    const teaser = (po.body || '').slice(0, 130).trim();
+    const body = allowed
       ? `<p>${esc(po.body)}</p>`
-      : `<div class="teaser"><p>${esc(teaser)}…</p><div class="locked">🔒 ${req}-only — ${d.guest ? `<a href="/signup">join</a>` : `<a href="#join">unlock with ${req}</a>`} to read.</div></div>`}</article>`;
+      : `<div class="lockwrap"><p class="blur" aria-hidden="true">${esc(teaser)}…</p><div class="lockover"><span class="lockpill">${m.mark} ${m.req}-only</span><a class="btn sm" href="${d.guest ? '/signup' : '#join'}">${d.guest ? 'Join to unlock' : `Unlock with ${m.req}`}</a></div></div>`;
+    return `<article class="post"><div class="pa"><span class="pav">${av}</span><div class="pmeta"><strong>${esc(p.name)}</strong> ${chip}<div class="dt">${esc(po.date ?? '')}</div></div></div>${body}</article>`;
   };
   const postsBlock = p.posts.length
-    ? `<section class="card"><div class="ch"><h2>From ${esc(first)}</h2><a class="more inline" href="${gate('#posts')}">View more</a></div>${p.posts.map(postCard).join('')}</section>`
+    ? `<section class="card"><div class="ch"><h2>From ${esc(first)}</h2><a class="more inline" href="${gate('#posts')}">View more</a></div><p class="feednote">Open drops for everyone · <span class="hl">★ Supporters</span> and <span class="hl">✦ Clubhouse</span> unlock the inside ones.</p>${p.posts.map(postCard).join('')}</section>`
     : '';
 
   const mediaBlock = `<section class="card"><div class="ch"><h2>Media</h2><a class="more inline" href="${gate('#media')}">View more</a></div><div class="mediagrid">${Array.from({ length: 6 }, () => '<div class="mtile"></div>').join('')}</div></section>`;
@@ -422,11 +483,24 @@ export function renderAthletePage(d: {
   .memtag{font-size:10px;font-weight:800;letter-spacing:.5px;color:var(--ink);background:var(--bone);border-radius:999px;padding:2px 8px}
   .locked{border:1px dashed var(--b);border-radius:12px;padding:14px;color:var(--mut);font-size:14px;background:rgba(237,233,223,.03)}.locked a{color:var(--bone);border-bottom:1px solid var(--b)}
   .sfan{color:var(--bone);font-weight:800}
+  /* exclusivity signals — subtle but unmistakable */
+  .feednote{color:var(--mut);font-size:12px;margin:-2px 0 12px}.feednote .hl{color:var(--bone);font-weight:600}
+  .vchip{font-size:10px;font-weight:700;letter-spacing:.4px;border-radius:999px;padding:2px 8px;border:1px solid var(--b);color:var(--mut);white-space:nowrap;vertical-align:middle}
+  .vchip.excl{color:var(--bone);border-color:rgba(237,233,223,.42)}
+  .vchip.got{background:var(--bone);color:var(--ink);border-color:var(--bone)}
+  .lockwrap{position:relative;border:1px solid var(--b);border-radius:12px;overflow:hidden;min-height:78px;background:rgba(237,233,223,.03);margin-top:2px}
+  .blur{filter:blur(6px);opacity:.5;margin:0;padding:14px;color:var(--mut);font-size:14px;user-select:none;-webkit-mask-image:linear-gradient(180deg,#000,transparent);mask-image:linear-gradient(180deg,#000,transparent)}
+  .lockover{position:absolute;inset:0;display:flex;flex-direction:column;gap:9px;align-items:center;justify-content:center;text-align:center}
+  .lockpill{display:inline-flex;align-items:center;gap:5px;background:var(--bone);color:var(--ink);font-weight:800;font-size:11px;letter-spacing:.4px;border-radius:999px;padding:4px 12px}
+  .btn.sm{padding:6px 14px;font-size:12.5px}
   #join{display:none}#join:target{display:block}
   .tierrow{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin-top:6px}
   .tcard{border:1px solid var(--b);border-radius:14px;padding:14px}.tcard.prem{border-color:var(--bone)}
   .th2{font-weight:800;font-size:15px;margin-bottom:8px}.tlvl{font-size:10px;font-weight:800;letter-spacing:1px;text-transform:uppercase;color:var(--mut);border:1px solid var(--b);border-radius:999px;padding:2px 8px;margin-left:4px}
   .trow{display:flex;gap:8px;flex-wrap:wrap;margin-top:4px}.trow .btn{flex:1;text-align:center}
+  .tcol{display:flex;flex-direction:column;gap:6px;margin-top:4px}.tcol .btn{text-align:center}
+  .annnote{font-size:11px;font-weight:700;letter-spacing:.3px;color:var(--bone);text-align:center;opacity:.85}
+  .upsell{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;border:1px solid var(--b);border-radius:12px;padding:10px 13px;margin:10px 0 4px;font-size:13px;color:var(--mut)}.upsell strong{color:var(--bone)}
   .teaser p{color:var(--mut)}
   .loy{margin-top:14px}.loybar{height:7px;border-radius:999px;background:var(--s);border:1px solid var(--b);overflow:hidden;margin-top:6px}.loybar span{display:block;height:100%;background:var(--bone)}
   .stats{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:16px 0 4px}
@@ -461,6 +535,7 @@ export function renderAthletePage(d: {
   <div class="wrap">
     ${profhead}
     ${tabs}
+    ${d.activation ?? ''}
     ${d.canEdit ? editPanel(`/athlete/${p.athleteId}/branding`) : ''}
     ${membership}
     ${tierCard}
@@ -728,8 +803,19 @@ export function renderClaimQueue(d: { claims: { id: string; accountEmail: string
 }
 
 // --- fan home (closeness to who you follow) ------------------------------
-export function renderFanHome(d: { fanId: string; fanName: string; home: FanHome; follows: { type: string; id: string; name: string }[] }): string {
+export function renderFanHome(d: { fanId: string; fanName: string; home: FanHome; follows: { type: string; id: string; name: string }[]; activation?: string; pages?: { kind: string; id: string; name: string; events: { id: string; title: string; date?: string }[] }[] }): string {
   const { home } = d;
+  const ehref = (k: string, id: string) => k === 'athlete' ? `/athlete/${id}` : `/${k}/${id}`;
+  // "Your pages" = the creator side of this same account: a switcher between the
+  // fan feed and each page you run, plus where you manage that page's events.
+  const pagesBlock = (d.pages && d.pages.length)
+    ? `<h2>Your pages</h2><p class="mut" style="font-size:12.5px;margin:-4px 0 8px">One login — your fan feed plus the pages you run. Switch between them anytime.</p>${d.pages.map(pg => {
+        const evs = pg.events.length
+          ? `<ul style="list-style:none;margin:8px 0 0">${pg.events.slice(0, 5).map(e => `<li style="display:flex;align-items:center;gap:8px;padding:5px 0;border-top:1px solid var(--b)"><a class="hl" href="/e/${e.id}" style="flex:1">${esc(e.title)}</a><span class="dt">${esc(e.date ?? '')}</span><a class="tag mutd" href="/manage/${e.id}">Manage</a></li>`).join('')}</ul>`
+          : `<p class="mut" style="font-size:12.5px;margin:6px 0 0">No events yet.</p>`;
+        return `<div class="card"><div class="row" style="justify-content:space-between;margin:0"><a class="hl" href="${ehref(pg.kind, pg.id)}">${esc(pg.name)} <span class="tag mutd">${esc(pg.kind)}</span></a><a class="tag" href="/host/${pg.kind}/${pg.id}/new">＋ Event</a></div>${evs}</div>`;
+      }).join('')}<div class="row"><a class="tag mutd" href="/create">＋ Create another page</a></div>`
+    : `<h2>Run your own page</h2><p class="mut" style="font-size:12.5px;margin:-4px 0 8px">Becoming a creator is just an action on your account — your fan feed stays, and your new page appears here.</p><div class="row"><a class="tag mutd" href="/create">＋ Create an athlete or club page</a></div>`;
   const unread = home.notifications.filter(n => !n.read).length;
 
   const following = home.feed.length || d.follows.length
@@ -750,7 +836,8 @@ export function renderFanHome(d: { fanId: string; fanName: string; home: FanHome
   return layout(`${d.fanName}'s Horda`, `
     <h1>Your Horda</h1>
     <p class="mut">${esc(d.fanName)} · following ${d.follows.length}</p>
-    <div class="row"><a class="tag mutd" href="/create">＋ Run your own page</a></div>
+    ${d.activation ?? ''}
+    ${pagesBlock}
     ${drop}${following}${notifs}${preds}${feed}
     <div class="prov">Your feed is coverage of what you follow — not a stream of other fans.</div>`, { back: '/', nav: { active: 'you', guest: false, fanId: d.fanId } });
 }
