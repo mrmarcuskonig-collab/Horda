@@ -307,6 +307,7 @@ export function renderAthletePage(d: {
   canEdit?: boolean;
   activation?: string;
   sections?: { key: string; on: boolean }[];
+  ogTags?: string;
 }): string {
   const isMember = !!d.membership;
   const viewerTier = d.membership?.tierLevel ?? null;
@@ -328,7 +329,7 @@ export function renderAthletePage(d: {
   const profhead = `<section class="profhead">
       <div class="avatar">${av}</div>
       <div class="pid"><h1>${esc(p.name)}</h1><div class="hsub">${p.handle ? '@' + esc(p.handle) : ''}${nickname ? ` · “${esc(nickname)}”` : ''} · Welterweight${d.superfan ? ' · <span class="sfan">✦ Superfan</span>' : ''}</div></div>
-      <a class="btn join" href="${gate('#join')}">Join the Horda</a>
+      ${d.canEdit ? '' : (d.guest ? `<a class="btn join" href="/signup?follow=athlete:${p.athleteId}">Follow</a>` : `<a class="btn join" href="#join">Support</a>`)}
     </section>
     ${socials ? `<div class="icons">${socials}</div>` : ''}
     ${p.tagline ? `<p class="tagline">${esc(p.tagline)}</p>` : ''}`;
@@ -338,7 +339,8 @@ export function renderAthletePage(d: {
   const enabled = order.filter(s => s.on && SECTIONS[s.key]);
   const tabs = `<nav class="tabs">${enabled.map((s, i) => `<a class="tab${i === 0 ? ' on' : ''}" href="#sec-${s.key}">${esc(SECTIONS[s.key].short)}</a>`).join('')}</nav>`;
 
-  const membership = `<div class="joinb"><div><strong>Join the Horda</strong><div class="bsub">Get closer to ${esc(first)} — drops, fight alerts, members-only moments.</div></div><a class="btn dark" href="${gate('#join')}">Join Now</a></div>`;
+  // Support prompt — owner sees nothing; guest is nudged to follow; member/logged-in to Support.
+  const membership = d.canEdit ? '' : `<div class="joinb"><div><strong>Support ${esc(first)}</strong><div class="bsub">Follow for free — or back ${esc(first)} with a Supporter or Clubhouse membership.</div></div><a class="btn dark" href="${d.guest ? `/signup?follow=athlete:${p.athleteId}` : '#join'}">${d.guest ? 'Follow' : 'Support'}</a></div>`;
 
   const stats = `<div class="stats">
       <div class="stat"><div class="num">${p.record.wins}</div><div class="slab">Won</div></div>
@@ -449,7 +451,7 @@ export function renderAthletePage(d: {
     ? `<div class="gatebar"><span><strong>Only members can see the content in full.</strong> You're browsing as a guest.</span><a class="btn" href="/signup">Log in to continue ›</a></div>`
     : '';
 
-  return `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><link rel="icon" href="/favicon.svg"><title>${esc(p.name)} — Horda</title>${THEME_BOOT}
+  return `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><link rel="icon" href="/favicon.svg"><title>${esc(p.name)} — Horda</title>${d.ogTags ?? ''}${THEME_BOOT}
 <style>
   ${THEME_VARS}
   ${THM_CSS}
@@ -681,7 +683,7 @@ export function renderCreatorEntry(d: { guest: boolean }): string {
       <div class="ccard"><h2>I’m an athlete</h2><p>Describe yourself in a sentence and we build your page — headline, cover, the lot. You own it instantly.</p><a class="btn" href="${athleteHref}">Create my page →</a> <a href="/about#features" style="margin-left:8px;font-size:13px;border-bottom:1px solid var(--b)">what you get →</a></div>
       <div class="ccard"><h2>We’re a club or federation</h2><p>Find your page and verify you represent it (official email, a code on your site, or a quick review).</p><a class="btn" href="${claimHref}">Claim our page →</a> <a href="/about#features" style="margin-left:8px;font-size:13px;border-bottom:1px solid var(--b)">what you get →</a></div>
     </div>
-    <p class="mut" style="margin-top:16px;font-size:12.5px">Just here to follow? <a href="/signup" style="border-bottom:1px solid var(--b)">Create a fan account →</a></p>`, { back: '/' });
+    ${d.guest ? `<p class="mut" style="margin-top:16px;font-size:12.5px">Just here to follow? <a href="/signup" style="border-bottom:1px solid var(--b)">Create a fan account →</a></p>` : `<p class="mut" style="margin-top:16px;font-size:12.5px">No need for a separate account — your page lives on your existing login.</p>`}`, { back: '/' });
 }
 
 // --- onboarding: fan first-run (pick a sport, follow a few faces) ----------

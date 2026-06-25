@@ -30,6 +30,7 @@ export interface ProfileVM {
   merch?: boolean;
   backHref?: string;
   activation?: string;                // owner: "finish your setup" checklist (pre-rendered)
+  ogTags?: string;                    // Open Graph / Twitter card meta (pre-rendered)
 }
 
 // Owner-only edit panel: pick a crest/avatar + banner; the client reads the files
@@ -131,7 +132,7 @@ export function renderEntityProfile(vm: ProfileVM): string {
     ? `<div class="gatebar"><span><strong>Only members can see the content in full.</strong> You're browsing as a guest.</span><a class="btn" href="/signup">Log in to continue ›</a></div>`
     : '';
 
-  return `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${esc(vm.name)} — Horda</title>
+  return `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${esc(vm.name)} — Horda</title>${vm.ogTags ?? ''}
 <link rel="icon" href="/favicon.svg">${THEME_BOOT}<style>${DARK_CSS}</style></head><body>
   <header class="top"><div class="tl">${themeToggle()}</div><a class="mark" href="/" aria-label="Horda — home">${ravenMarkCurrent(30)}</a><div class="tr">${vm.guest ? `<a class="dt" href="/signup">log in</a>` : `<a class="backx" href="${esc(vm.backHref ?? '/')}" aria-label="Back" title="Back">‹</a>`}</div></header>
   ${hero}${tabs}

@@ -27,7 +27,7 @@ const athlete = await get(`/athlete/${rico}`);
 ok('record is labeled (Wins–Losses–Draws), not bare 2–0–0', athlete.includes('2–0–0') && athlete.includes('Wins–Losses–Draws'));
 ok('athlete-controlled tagline shows', athlete.includes('Southpaw out of Kreuzberg'));
 ok('socials render as icons (svg) linking OUT', athlete.includes('class="ic"') && athlete.includes('<svg') && athlete.includes('instagram.com/ricotheraven'));
-ok('Weverse-style tabs incl. Shop', athlete.includes('Highlight') && athlete.includes('Shop'));
+ok('tabs derive from the athlete\'s sections + scroll-anchor to them', athlete.includes('class="tabs"') && athlete.includes('href="#sec-') && athlete.includes('id="sec-'));
 ok('no vanity follower count (Follow is the free tier now, but no follower numbers)', !athlete.includes('follower'));
 ok('attendance options: not attending yet + Join free / tickets / stream', athlete.includes("You're not attending yet") && athlete.includes('Join for free') && athlete.includes('Buy tickets') && athlete.includes('Stream live'));
 ok('athlete-chosen affiliations (gym/league) shown', athlete.includes('Kreuzberg Boxing Club') && athlete.includes('WBO Welterweight'));
@@ -45,7 +45,7 @@ ok('feed carries followed club coverage', fan.includes('FC Beispiel'));
 ok('guardrail line present', fan.includes('not a stream of other fans'));
 
 const clubPage = await get(`/club/${club}`);
-ok('club page: branded (Club kindtag + crest) with league table', clubPage.includes('>Club<') && clubPage.includes('League table'));
+ok('club page: branded (Club kindtag), no league table (superfan-first)', clubPage.includes('>Club<') && !clubPage.includes('League table'));
 ok('club page lists its teams as members', clubPage.includes('Teams') && clubPage.includes('/team/'));
 ok('club page: matchday attendance options', clubPage.includes("You're not attending yet") && clubPage.includes('Join for free'));
 ok('club socials as icons linking out', clubPage.includes('class="ic"') && clubPage.includes('fcbeispiel.de'));
@@ -53,7 +53,7 @@ ok('club socials as icons linking out', clubPage.includes('class="ic"') && clubP
 const teamPage = await get(`/team/${team}`);
 ok('team page: roster as members (athlete links)', teamPage.includes('Squad') && teamPage.includes('/athlete/'));
 ok('team page: parent club link', teamPage.includes(`/club/${app.ids.clubs[0].id}`));
-ok('team page: league table present', teamPage.includes('League table'));
+ok('team page: parent + no league table', !teamPage.includes('League table'));
 
 const assocPage = await get(`/association/${assoc}`);
 ok('association page: member clubs + competitions', assocPage.includes('Member clubs') && assocPage.includes('Competitions'));

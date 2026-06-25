@@ -4,6 +4,27 @@ import { ravenMark, ravenMarkCurrent } from './brand.ts';
 import { THEME_BOOT, THEME_VARS, THM_CSS, themeToggle, bottomNav } from './theme.ts';
 export const esc = (s: string) => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]!));
 
+// Open Graph + Twitter card meta — so a shared link renders a rich preview
+// (image, title, CTA) instead of a bare URL. The acquisition loop runs on this.
+// `image` is only emitted when it's an absolute http(s) URL (scrapers ignore
+// data: URIs and SVG), so creators with an uploaded photo get the big card.
+export function ogMeta(o: { title: string; description: string; url?: string; image?: string | null; type?: string }): string {
+  const img = o.image && /^https?:\/\//i.test(o.image) ? o.image : '';
+  const t = esc(o.title), d = esc((o.description || '').slice(0, 200)), u = o.url ? esc(o.url) : '';
+  return [
+    `<meta property="og:site_name" content="Horda">`,
+    `<meta property="og:type" content="${esc(o.type || 'website')}">`,
+    `<meta property="og:title" content="${t}">`,
+    `<meta property="og:description" content="${d}">`,
+    u ? `<meta property="og:url" content="${u}">` : '',
+    img ? `<meta property="og:image" content="${esc(img)}">` : '',
+    `<meta name="twitter:card" content="${img ? 'summary_large_image' : 'summary'}">`,
+    `<meta name="twitter:title" content="${t}">`,
+    `<meta name="twitter:description" content="${d}">`,
+    img ? `<meta name="twitter:image" content="${esc(img)}">` : '',
+  ].filter(Boolean).join('\n');
+}
+
 export function layout(title: string, body: string, opts: { back?: string; nav?: { active?: string; guest: boolean; fanId: string | null } } = {}): string {
   return `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1"><link rel="icon" href="/favicon.svg"><title>${esc(title)} — Horda</title>${THEME_BOOT}

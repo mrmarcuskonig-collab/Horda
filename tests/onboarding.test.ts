@@ -57,11 +57,18 @@ const cookieC = (sc.headers.get('set-cookie') || '').split(';')[0];
 const cs = await (await fetch(base + '/onboarding/claim?q=Beispiel', { headers: { cookie: cookieC } })).text();
 ok('claim search finds the club + offers Claim', cs.includes('FC Beispiel') && cs.includes('/claim/club/'));
 
-console.log('\n[onboarding · creator benefit pages]');
-const ath = await (await fetch(base + '/athletes')).text();
-ok('/athletes pitch: outcome headline + what-you-get + CTA', ath.includes('superfans') && ath.includes('What you get') && (ath.includes('/onboarding/athlete') || ath.includes('/signup?next=/onboarding/athlete')));
-const clubs = await (await fetch(base + '/clubs')).text();
-ok('/clubs pitch: fixtures/matchday + claim CTA', clubs.includes('matchday') && clubs.includes('Claim') && (clubs.includes('/onboarding/claim') || clubs.includes('/signup?next=/onboarding/claim')));
+console.log('\n[onboarding · /about marketing site (4 pages + nav)]');
+const about = await (await fetch(base + '/about')).text();
+ok('/about main: nav links to the three pages', about.includes('href="/about/creators"') && about.includes('href="/about/features"') && about.includes('href="/about/pricing"'));
+ok('/about main: inspirational hero + pillars (no detail dump)', about.includes('Build the home') && about.includes('class="pillar"') && about.includes('superfans'));
+const cr = await (await fetch(base + '/about/creators')).text();
+ok('/about/creators: athletes + clubs + federations + CTAs', cr.includes('id="athletes"') && cr.includes('id="clubs"') && cr.includes('id="federations"') && cr.includes('/onboarding/athlete') && cr.includes('/onboarding/claim'));
+const ft = await (await fetch(base + '/about/features')).text();
+ok('/about/features: feature set + how it works', ft.includes('Everything you need') && ft.includes('Members') && ft.includes('How it works'));
+const pr = await (await fetch(base + '/about/pricing')).text();
+ok('/about/pricing: tiers + fair-by-design + earn-free', pr.includes('Clubhouse') && pr.includes('No surprise hikes') && pr.includes('earn Superfan status for free'));
+ok('nav active state highlights the current page', cr.includes('class="navitem on"'));
+ok('old /athletes + /clubs redirect into /about/creators', (await fetch(base + '/athletes', { redirect: 'manual' })).headers.get('location') === '/about/creators' && (await fetch(base + '/clubs', { redirect: 'manual' })).headers.get('location') === '/about/creators');
 
 await app.close();
 console.log(`\n──────────── ${pass} passed, ${fail} failed ────────────`);
