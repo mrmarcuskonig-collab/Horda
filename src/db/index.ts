@@ -119,6 +119,10 @@ export async function applySchema(db: Database, migrationsDir = 'db/migrations')
         '0022': () => enumHas('post_visibility', 'clubhouse'),
         '0023': () => colExists('athlete', 'layout'),
         '0024': () => relExists('public.feature_request'),
+        '0025': () => colExists('event', 'location_kind'),
+        '0026': () => colExists('event', 'room_enabled'),
+        '0027': () => colExists('athlete', 'sports'),
+        '0028': () => relExists('public.shop_item'),
       };
       for (const f of files) {
         const probe = present[f.slice(0, 4)];

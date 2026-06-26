@@ -11,6 +11,7 @@ export interface EventDetail {
   date?: string; time?: string; startsAt: string | null; location: string | null;
   admission: Admission; priceCents: number | null; currency: string; streams: Streams; ticketUrl: string | null;
   hostKind: string | null; hostId: string | null; hostName: string; capacity: number | null;
+  locationKind: string; recurrence: string;
   counts: Record<RsvpResponse, number> & { pending: number };
 }
 export const priceLabel = (d: { priceCents: number | null; currency: string }) =>
@@ -27,15 +28,19 @@ export async function createScheduledEvent(db: Database, o: {
   title: string; startsAt: string; location?: string; description?: string; coverUrl?: string;
   admission?: Admission; priceCents?: number; currency?: string; streams?: Streams;
   ticketUrl?: string; capacity?: number; sportId?: string;
+  locationKind?: string; recurrence?: string; recurrenceUntil?: string;
 }): Promise<string> {
   const admission: Admission = o.admission ?? (o.priceCents ? 'paid' : 'open');
+  const locKind = ['in_person', 'online', 'hybrid'].includes(o.locationKind ?? '') ? o.locationKind! : 'in_person';
+  const recur = ['none', 'weekly', 'monthly'].includes(o.recurrence ?? '') ? o.recurrence! : 'none';
   const r = await db.query<{ id: string }>(
     `INSERT INTO event (name, sport_id, starts_at, location, description, cover_url, host_kind, host_id, capacity,
-       admission, price_cents, currency, streams, spectator_access, ticket_url, source)
-     VALUES ($1,$2,$3::timestamptz,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13::jsonb,$14,$15,'native') RETURNING id`,
+       admission, price_cents, currency, streams, spectator_access, ticket_url, location_kind, recurrence, recurrence_until, source)
+     VALUES ($1,$2,$3::timestamptz,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13::jsonb,$14,$15,$16,$17,$18::timestamptz,'native') RETURNING id`,
     [o.title, o.sportId ?? null, o.startsAt, o.location ?? null, o.description ?? null, o.coverUrl ?? null,
      o.hostKind, o.hostId, o.capacity ?? null, admission, o.priceCents ?? null, o.currency ?? 'EUR',
-     JSON.stringify(o.streams ?? {}), admission === 'paid' ? 'paid_ticket' : 'free', o.ticketUrl ?? null]);
+     JSON.stringify(o.streams ?? {}), admission === 'paid' ? 'paid_ticket' : 'free', o.ticketUrl ?? null,
+     locKind, recur, o.recurrenceUntil ?? null]);
   return r.rows[0].id;
 }
 
@@ -98,7 +103,8 @@ export async function getEventDetail(db: Database, eventId: string): Promise<Eve
   const e = (await db.query<any>(
     `SELECT id, name title, description, cover_url, starts_at,
             to_char(starts_at,'Dy DD Mon YYYY') date, to_char(starts_at,'HH24:MI') time,
-            location, admission, price_cents, currency, streams, ticket_url, host_kind, host_id, capacity
+            location, admission, price_cents, currency, streams, ticket_url, host_kind, host_id, capacity,
+            location_kind, recurrence
      FROM event WHERE id=$1`, [eventId])).rows[0];
   if (!e) return null;
   const counts: any = { going: 0, not_going: 0, stream: 0, interested: 0, pending: 0 };
@@ -114,7 +120,8 @@ export async function getEventDetail(db: Database, eventId: string): Promise<Eve
     date: e.date ?? undefined, time: e.time ?? undefined, startsAt: e.starts_at ?? null, location: e.location,
     admission: e.admission, priceCents: e.price_cents ?? null, currency: e.currency ?? 'EUR',
     streams: e.streams ?? {}, ticketUrl: e.ticket_url,
-    hostKind: e.host_kind, hostId: e.host_id, hostName: host, capacity: e.capacity, counts,
+    hostKind: e.host_kind, hostId: e.host_id, hostName: host, capacity: e.capacity,
+    locationKind: e.location_kind ?? 'in_person', recurrence: e.recurrence ?? 'none', counts,
   };
 }
 

@@ -4,6 +4,12 @@ import { ravenMark, ravenMarkCurrent } from './brand.ts';
 import { THEME_BOOT, THEME_VARS, THM_CSS, themeToggle, bottomNav } from './theme.ts';
 export const esc = (s: string) => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]!));
 
+// Escape, then turn any pasted http(s) URL into a clickable link. Safe because we
+// escape first (the URL text can't contain raw <, >, or quotes after escaping).
+export const linkify = (s: string): string =>
+  esc(s).replace(/(https?:\/\/[^\s<]+[^\s<.,;:!?)])/g, u =>
+    `<a href="${u}" target="_blank" rel="noopener nofollow" style="border-bottom:1px solid var(--b)">${u.replace(/^https?:\/\//, '')}</a>`);
+
 // Open Graph + Twitter card meta — so a shared link renders a rich preview
 // (image, title, CTA) instead of a bare URL. The acquisition loop runs on this.
 // `image` is only emitted when it's an absolute http(s) URL (scrapers ignore
@@ -25,7 +31,7 @@ export function ogMeta(o: { title: string; description: string; url?: string; im
   ].filter(Boolean).join('\n');
 }
 
-export function layout(title: string, body: string, opts: { back?: string; nav?: { active?: string; guest: boolean; fanId: string | null } } = {}): string {
+export function layout(title: string, body: string, opts: { back?: string; nav?: { active?: string; guest: boolean; fanId: string | null; createHref?: string } } = {}): string {
   return `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1"><link rel="icon" href="/favicon.svg"><title>${esc(title)} — Horda</title>${THEME_BOOT}
 <style>

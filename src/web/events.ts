@@ -18,6 +18,7 @@ export function renderEventPage(d: EventDetail, ctx: {
   isHost?: boolean; myEntities?: { kind: string; id: string; name: string }[];
   myTicket?: { id: string; status: string; listPriceCents: number | null } | null;
   listings?: { id: string; priceCents: number; seller: string }[];
+  extraTop?: string;
 }): string {
   const my = ctx.myRsvp;
   const cover = d.coverUrl
@@ -153,10 +154,11 @@ export function renderEventPage(d: EventDetail, ctx: {
 
     <main class="evmain">
       <h1 class="evtitle">${esc(d.title)}</h1>
+      ${ctx.extraTop ?? ''}
 
       <div class="ww"><div class="wi cal">${dt ? `<span class="m">${mon}</span><span class="d">${day}</span>` : ICON.cal}</div>
-        <div><div class="wt">${esc(d.date || 'Date TBA')}</div><div class="ws">${esc(d.time ? d.time + (dt ? '' : '') : 'Time TBA')}${d.capacity ? ` · capacity ${d.capacity}` : ''}</div></div></div>
-      ${d.location ? `<div class="ww"><div class="wi">${ICON.pin}</div><div><div class="wt">${esc(d.location)}</div><div class="ws">${mapsHref ? `<a href="${mapsHref}" target="_blank" rel="noopener">Open in Maps ↗</a>` : ''}</div></div></div>` : ''}
+        <div><div class="wt">${esc(d.date || 'Date TBA')}</div><div class="ws">${esc(d.time ? d.time + (dt ? '' : '') : 'Time TBA')}${d.capacity ? ` · capacity ${d.capacity}` : ''}${d.recurrence && d.recurrence !== 'none' ? ` · repeats ${esc(d.recurrence)}` : ''}</div></div></div>
+      ${d.location ? `<div class="ww"><div class="wi">${ICON.pin}</div><div><div class="wt">${d.locationKind === 'online' ? 'Online event' : esc(d.location)}</div><div class="ws">${d.locationKind === 'online' ? `<a href="${esc(d.location)}" target="_blank" rel="noopener">Join link ↗</a>` : d.locationKind === 'hybrid' ? `In person + streamed${mapsHref ? ` · <a href="${mapsHref}" target="_blank" rel="noopener">Maps ↗</a>` : ''}` : (mapsHref ? `<a href="${mapsHref}" target="_blank" rel="noopener">Open in Maps ↗</a>` : '')}</div></div></div>` : (d.locationKind === 'online' ? `<div class="ww"><div class="wi">${ICON.pin}</div><div><div class="wt">Online event</div></div></div>` : '')}
 
       <div class="regcard">
         <div class="rt">Registration</div>
@@ -207,7 +209,19 @@ export function renderCreateEvent(hostKind: string, hostId: string, hostName: st
     <input type="hidden" name="host_kind" value="${esc(hostKind)}"><input type="hidden" name="host_id" value="${esc(hostId)}">
     <label style="${fld}">Title<input style="${inp}" name="title" required placeholder="Open sparring night"></label>
     <label style="${fld}">Date &amp; time<input style="${inp}" type="datetime-local" name="starts_at" required></label>
-    <label style="${fld}">Location<input style="${inp}" name="location" placeholder="Kreuzberg Boxing Club, Berlin"></label>
+    <label style="${fld}">Type
+      <select name="location_kind" style="${inp}">
+        <option value="in_person">In person</option>
+        <option value="online">Online</option>
+        <option value="hybrid">Hybrid — in person + streamed</option>
+      </select></label>
+    <label style="${fld}">Location / link<input style="${inp}" name="location" placeholder="Kreuzberg Boxing Club, Berlin — or a stream URL"></label>
+    <label style="${fld}">Repeats
+      <select name="recurrence" style="${inp}">
+        <option value="none">One-off</option>
+        <option value="weekly">Weekly</option>
+        <option value="monthly">Monthly</option>
+      </select></label>
     <label style="${fld}">Description<textarea style="${inp};min-height:90px" name="description" placeholder="What's happening, who's invited…"></textarea></label>
     <label style="${fld}">Cover image<input type="file" accept="image/*" data-target="cover" style="margin-top:6px;color:inherit"></label>
     <input type="hidden" name="cover">
@@ -225,6 +239,16 @@ export function renderCreateEvent(hostKind: string, hostId: string, hostName: st
     <label style="${fld}">TikTok Live link<input style="${inp}" name="tiktok" placeholder="https://tiktok.com/@…/live"></label>
     <label style="${fld}">Discord link<input style="${inp}" name="discord" placeholder="https://discord.gg/…"></label>
     <label style="${fld}">Capacity (optional)<input style="${inp}" type="number" name="capacity" min="1"></label>
+    <div style="border-top:1px solid var(--b);margin-top:14px;padding-top:12px">
+      <label style="${fld};margin-top:0"><input type="checkbox" name="room_enabled" value="1" checked style="vertical-align:-2px;margin-right:6px">Open an Event Room (countdown → live → recap)</label>
+      <label style="${fld}">Room name<input style="${inp}" name="room_label" placeholder="Matchday / Fight Night / Race Day"></label>
+      <label style="${fld}">Who gets the live room?
+        <select name="room_tier" style="${inp}">
+          <option value="supporter">★ Supporters &amp; up</option>
+          <option value="clubhouse">✦ Clubhouse only</option>
+          <option value="public">Everyone</option>
+        </select></label>
+    </div>
     <div class="row"><button type="submit">Publish event</button></div>
   </form>${UPLOAD_SCRIPT}`;
   return layout('Schedule an event', body, { back: hostHref(hostKind, hostId) });

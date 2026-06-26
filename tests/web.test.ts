@@ -36,7 +36,11 @@ ok('athlete-chosen affiliations (gym/league) shown', athlete.includes('Kreuzberg
 const guest = await get(`/athlete/${rico}?guest=1`);
 ok('guest sees the sign-up gate bar', guest.includes('Log in to continue'));
 ok('guest action links route to /signup, not out', guest.includes('href="/signup"') && !guest.includes('instagram.com/ricotheraven'));
-ok('guest still sees Shop (exempt)', guest.includes('#shop'));
+// Shop is data-driven (merch / gift-membership / discount / link) and exempt from
+// the members gate — a guest can see shop items without logging in.
+await app.db.query(`INSERT INTO shop_item (owner_kind, owner_id, kind, title, url) VALUES ('athlete',$1,'merch','Raven tee','https://shop.test')`, [rico]);
+const guestShop = await get(`/athlete/${rico}?guest=1`);
+ok('guest still sees Shop (exempt)', guestShop.includes('>Shop<') && guestShop.includes('Raven tee'));
 
 const fan = await get(`/fan/${app.ids.fanId}`);
 ok('fan home renders', fan.includes('Your Horda'));
@@ -80,7 +84,10 @@ ok('uploaded athlete avatar + banner render as <img>', (athleteImg.match(/data:i
 await fetch(base + `/entity/club/${club}/branding`, form({ avatar: png }));
 const clubImg = await get(`/club/${club}`);
 ok('uploaded club crest renders and tagline is preserved', clubImg.includes('data:image/png') && clubImg.includes('Kreuzberg'));
-ok('owner sees an upload panel; guest does not', athleteImg.includes('Edit profile (owner)') && !guest.includes('Edit profile (owner)'));
+// Photo upload moved into the single "Edit page" (Edit profile is no longer a
+// separate inline panel on the public profile) — owner-only, not on the public page.
+const athEdit = await get(`/athlete/${rico}/customize`);
+ok('owner edits photos in Edit page; not on the public profile', athEdit.includes('Profile photo') && athEdit.includes('Banner photo') && !athleteImg.includes('Edit profile (owner)'));
 
 // --- public share pages (the acquisition loop) ---
 const shareFight = await get(`/share/fight/${upcoming.eventId}`);

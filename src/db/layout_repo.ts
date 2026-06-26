@@ -19,6 +19,21 @@ export async function setAthleteSport(db: Database, athleteId: string, sport: st
   await db.query(`UPDATE athlete SET sport=$2 WHERE id=$1${onlyIfEmpty ? ' AND sport IS NULL' : ''}`, [athleteId, sport]);
 }
 
+// Multi-sport: the full list of sports an athlete competes in. The first one is
+// the primary sport (kept in `sport`, drives the default page layout).
+export async function getAthleteSports(db: Database, athleteId: string): Promise<string[]> {
+  const row = (await db.query<{ sports: string | null; sport: string | null }>(`SELECT sports, sport FROM athlete WHERE id=$1`, [athleteId])).rows[0];
+  if (row?.sports) return row.sports.split(',').map(s => s.trim()).filter(Boolean);
+  if (row?.sport) return [row.sport];
+  const derived = await getAthleteSport(db, athleteId);
+  return derived ? [derived] : [];
+}
+export async function setAthleteSports(db: Database, athleteId: string, sports: string[]): Promise<void> {
+  const clean = [...new Set(sports.map(s => s.trim().toLowerCase()).filter(Boolean))].slice(0, 12);
+  const csv = clean.join(',');
+  await db.query(`UPDATE athlete SET sports=$2, sport=$3 WHERE id=$1`, [athleteId, csv || null, clean[0] ?? null]);
+}
+
 export async function getAthleteLayout(db: Database, athleteId: string): Promise<SectionPick[] | null> {
   const raw = (await db.query<{ layout: any }>(`SELECT layout FROM athlete WHERE id=$1`, [athleteId])).rows[0]?.layout;
   const arr = Array.isArray(raw) ? raw : (raw && Array.isArray(raw.sections) ? raw.sections : null);

@@ -23,7 +23,16 @@ export const THM_CSS = `.thm{display:inline-flex;align-items:center;justify-cont
   .bnav a{flex:1;max-width:130px;display:flex;align-items:center;justify-content:center;color:var(--mut);padding:3px 0}
   .bnav a.on{color:var(--bone)}
   .bnav a:hover{color:var(--bone)}
-  .bnav svg{width:25px;height:25px;display:block}`;
+  .bnav svg{width:25px;height:25px;display:block}
+  /* Desktop: lift the bar into a vertical rail on the LEFT (Instagram pattern),
+     sitting in the left gutter so it never overlaps the centred 680px column. */
+  @media(min-width:1024px){
+    .bnav{top:0;right:auto;bottom:0;width:74px;border-top:0;border-right:1px solid var(--b);background:transparent;backdrop-filter:none}
+    .bninner{flex-direction:column;justify-content:flex-start;align-items:center;gap:8px;height:100%;max-width:none;padding:80px 0 0}
+    .bnav a{flex:0 0 auto;max-width:none;width:46px;height:46px;border-radius:13px}
+    .bnav a.on{background:var(--s)}
+    .bnav a:hover{background:var(--s)}
+  }`;
 
 // A small "verified / official page" seal — uses currentColor so it reads on any
 // surface. Shown on pages that have been claim-verified (real trust signal).
@@ -37,15 +46,21 @@ const NAV_ICON = {
   explore: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="m20 20-3.7-3.7"/></svg>`,
   heart: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20S3 14.6 3 8.9C3 6 5.1 4 7.7 4c1.8 0 3.3 1 4.3 2.4C13 5 14.5 4 16.3 4 18.9 4 21 6 21 8.9 21 14.6 12 20 12 20Z"/></svg>`,
   person: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="3.6"/><path d="M5.5 20c0-3.7 2.9-6.2 6.5-6.2S18.5 16.3 18.5 20"/></svg>`,
+  plus: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="5"/><path d="M12 8.5v7M8.5 12h7"/></svg>`,
 };
-export function bottomNav(o: { active?: string; guest: boolean; fanId: string | null }): string {
+// `createHref` is set only for creators (someone who owns a page) — that's the
+// "+" beside the heart. Plain fans never see a create/publish entry.
+export function bottomNav(o: { active?: string; guest: boolean; fanId: string | null; createHref?: string }): string {
+  // Heart = Following / My Hordas (who you follow); Person = You / your profile.
   const you = o.guest ? '/signup' : `/fan/${o.fanId ?? ''}`;
+  const following = o.guest ? '/signup' : `/fan/${o.fanId ?? ''}#hordas`;
   const tab = (key: string, href: string, label: string, icon: string) =>
     `<a href="${href}" class="${o.active === key ? 'on' : ''}" aria-label="${label}" title="${label}"${o.active === key ? ' aria-current="page"' : ''}>${icon}</a>`;
   return `<nav class="bnav" aria-label="Primary"><div class="bninner">
     ${tab('home', '/', 'Home', NAV_ICON.home)}
     ${tab('explore', '/map', 'Explore', NAV_ICON.explore)}
-    ${tab('activity', you, 'Activity', NAV_ICON.heart)}
+    ${o.createHref ? tab('create', o.createHref, 'Create', NAV_ICON.plus) : ''}
+    ${tab('following', following, 'Following — your Hordas', NAV_ICON.heart)}
     ${tab('you', you, 'You', NAV_ICON.person)}
   </div></nav>`;
 }

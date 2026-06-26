@@ -25,12 +25,16 @@ import { signup, verifyLogin, createSession, sessionAccount, deleteSession, fanF
 import { getDiscover, REGIONS } from '../db/discover_repo.ts';
 import { renderEventPage, renderCreateEvent, renderManage, renderCheckout } from './events.ts';
 import { seedDemo, type DemoIds } from './seed.ts';
-import { renderIndex, renderDiscover, renderMap, renderAthletePage, renderCustomize, renderCompose, renderFanHome, renderSignup, renderLogin, renderForgot, renderReset, renderSharePage, renderMemberWelcome, renderClaimPending, renderClaimQueue, renderOnboardFan, renderAiPrompt, renderProfilePreview, renderOnboardClaim, renderCreatorEntry } from './pages.ts';
+import { renderIndex, renderDiscover, renderMap, renderAthletePage, renderCustomize, renderCompose, renderFanHome, renderSignup, renderLogin, renderForgot, renderReset, renderSharePage, renderMemberWelcome, renderClaimPending, renderClaimQueue, renderOnboardFan, renderAiPrompt, renderProfilePreview, renderOnboardClaim, renderCreatorEntry, renderClaimHandle, sportsLabel, renderSettings } from './pages.ts';
 import { getEmailer, resetEmail } from './email.ts';
 import { ogMeta } from './layout.ts';
 import { storeImage } from './storage.ts';
 import { fanChecklist, athleteChecklist, entityChecklist, renderChecklist } from './activation.ts';
-import { getAthleteSport, setAthleteSport, getAthleteLayout, setAthleteLayout, createFeatureRequest } from '../db/layout_repo.ts';
+import { getAthleteSport, setAthleteSport, getAthleteSports, setAthleteSports, getAthleteLayout, setAthleteLayout, createFeatureRequest } from '../db/layout_repo.ts';
+import { listMedia, addMedia, deleteMedia, listSponsors, addSponsor, deleteSponsor, subscribeNewsletter, reserveHandle, getBannerStyle, setBannerStyle, listShopItems, addShopItem, deleteShopItem } from '../db/extras_repo.ts';
+import { track, conversionRate, metricCounts, defaultRoomLabel, roomState, setRoomConfig, setResult, getRoomConfig, listRoomMessages, postRoomMessage, canSeeLiveRoom, createGoal, listGoals, activeGoalProgress, getGoal, maybeGoalSignup, trackConversion, roomPresence } from '../db/hook_repo.ts';
+import { renderEventRoom, renderMediaStudio, renderInsights, goalBar } from './hook_web.ts';
+import { generateEventAssets, eventGraphic, supporterCard } from './mediagen.ts';
 import { resolveLayout } from './sections.ts';
 import { generateProfile, getModel, coverDataUri } from './profilegen.ts';
 import { requestClaim, verifyByChannelCode, listClaimsForReviewer, decideClaim, officialDomain, isAdmin as accountIsAdmin, type ClaimKind } from '../db/claim_repo.ts';
@@ -48,10 +52,27 @@ const FOOTBALL_TABLE: StandingDef = { name: 'League table', unit: 'team', engine
 const html = (res: any, body: string, code = 200) => { res.writeHead(code, { 'content-type': 'text/html; charset=utf-8' }); res.end(body); };
 const redirect = (res: any, to: string) => { res.writeHead(303, { location: to }); res.end(); };
 
+// Env-gated Slack/Discord notifier. Sends both `text` (Slack) and `content`
+// (Discord) so one URL works for either; a no-op when FEATURE_WEBHOOK_URL is unset.
+// Fire-and-forget: never blocks or fails the request.
+async function notifyWebhook(message: string): Promise<void> {
+  const url = process.env.FEATURE_WEBHOOK_URL;
+  if (!url) return;
+  try {
+    await fetch(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ text: message, content: message }) });
+  } catch { /* best-effort; a down webhook must never break the app */ }
+}
+
 async function parseForm(req: any): Promise<Record<string, string>> {
   const chunks: Buffer[] = [];
   for await (const c of req) chunks.push(c as Buffer);
   return Object.fromEntries(new URLSearchParams(Buffer.concat(chunks).toString()));
+}
+// Fold the optional creative-direction picks into the AI description. They steer
+// tone/design only — generateProfile is instructed to keep them out of the facts.
+function directedDescription(f: Record<string, string>): string {
+  const dir = [f.mood, f.energy, f.voice].filter(Boolean).join(', ');
+  return dir ? `${f.description || ''}\n\nCreative direction (tone & design only, never facts): ${dir}.` : (f.description || '');
 }
 // Raw body — needed for Stripe webhook signature verification (must be the exact bytes).
 async function readRaw(req: any): Promise<string> {
@@ -70,6 +91,11 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
       const account = (await sessionAccount(db, cookies.hz_session)) ?? (DEMO_FALLBACK ? { id: ids.demoAccountId, email: 'demo@horda.app', displayName: 'You' } : null);
       const viewer = (account ? await fanForAccount(db, account.id) : null) ?? ids.fanId;
       const viewerGuest = !account || url.searchParams.get('guest') === '1';
+      // Creators (people who own a page) get the "+" create entry in the nav;
+      // plain fans never see a create/publish option anywhere.
+      const ownedForNav = (!viewerGuest && account) ? await ownedEntities(db, account.id) : [];
+      const ownedAthleteForNav = ownedForNav.find(e => e.kind === 'athlete');
+      const viewerCreateHref = ownedAthleteForNav ? `/athlete/${ownedAthleteForNav.id}/compose` : undefined;
       const canEdit = (kind: string, id: string) => viewerGuest ? Promise.resolve(false) : owns(db, account?.id ?? null, kind, id);
       const adminFlag = !!account && (account.id === ids.demoAccountId ? true : await accountIsAdmin(db, account.id));
       const fwdProto = (req.headers['x-forwarded-proto'] as string | undefined)?.split(',')[0];
@@ -130,7 +156,7 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
       if (req.method === 'POST' && path === '/onboarding/athlete/generate') {
         if (!account) return redirect(res, '/signup');
         const f = await parseForm(req);
-        const gen = await generateProfile({ kind: 'athlete', description: f.description || '' }, getModel());
+        const gen = await generateProfile({ kind: 'athlete', description: directedDescription(f) }, getModel());
         return html(res, renderProfilePreview({ kind: 'athlete', gen: { ...gen, cover: coverDataUri(gen.cover) }, description: f.description || '', createAction: '/onboarding/athlete', generateAction: '/onboarding/athlete/generate' }));
       }
       if (req.method === 'POST' && path === '/onboarding/athlete') {
@@ -156,7 +182,7 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
         if (!(await owns(db, account.id, kind, id))) return redirect(res, `/${kind}/${id}`);
         if (req.method === 'POST' && brM[3]) {
           const f = await parseForm(req);
-          const gen = await generateProfile({ kind: 'club', description: f.description || '' }, getModel());
+          const gen = await generateProfile({ kind: 'club', description: directedDescription(f) }, getModel());
           return html(res, renderProfilePreview({ kind: 'club', gen: { ...gen, cover: coverDataUri(gen.cover) }, description: f.description || '', createAction: `/onboarding/brand/${kind}/${id}`, generateAction: `/onboarding/brand/${kind}/${id}/generate`, showHandle: false }));
         }
         if (req.method === 'POST') {
@@ -300,6 +326,7 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
         const f = await parseForm(req);
         await followEntity(db, viewer, f.target_type as any, f.target_id);
         await recordLoyalty(db, viewer, f.target_type, f.target_id, 'follow');
+        await maybeGoalSignup(db, f.target_type, f.target_id, viewer, 'follow');
         return redirect(res, req.headers.referer ?? `/athlete/${f.target_id}`);
       }
       if (req.method === 'POST' && path === '/predict') {
@@ -332,8 +359,15 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
           coverUrl: (await storeImage(f.cover, 'events')) || undefined, admission: (f.admission as any) || 'open',
           priceCents: f.price ? Math.round(Number(f.price) * 100) : undefined, streams,
           capacity: f.capacity ? Number(f.capacity) : undefined,
+          locationKind: f.location_kind, recurrence: f.recurrence,
         });
-        return redirect(res, `/e/${id}`);
+        // Event Room config (Build Order #3) — extends the event, no parallel system.
+        if (f.room_enabled === '1') {
+          const sport = f.host_kind === 'athlete' ? await getAthleteSport(db, f.host_id) : null;
+          await setRoomConfig(db, id, { enabled: true, label: (f.room_label || '').trim() || defaultRoomLabel(sport), tier: f.room_tier || 'supporter' });
+          await track(db, 'event_room_open', { ownerKind: f.host_kind, ownerId: f.host_id, eventId: id, props: { tier: f.room_tier || 'supporter' } });
+        }
+        return redirect(res, f.room_enabled === '1' ? `/e/${id}/room` : `/e/${id}`);
       }
       if (req.method === 'POST' && path === '/join') {
         const f = await parseForm(req);
@@ -355,6 +389,7 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
           return redirect(res, url);
         }
         await joinMembership(db, viewer, f.owner_kind, f.owner_id, level, payments.enabled ? billing : (amount > 0 ? billing : 'free'));
+        await trackConversion(db, f.owner_kind, f.owner_id, viewer);
         return redirect(res, `/member/${f.owner_kind}/${f.owner_id}`);
       }
       if (req.method === 'POST' && path === '/ticket/gift') {
@@ -416,7 +451,7 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
             const m = (s.metadata ?? {}) as Record<string, string>;
             const subId = typeof s.subscription === 'string' ? s.subscription : (s.subscription?.id ?? null);
             if (m.kind === 'ticket' && m.event_id && m.fan_id) { await markPaid(db, m.event_id, m.fan_id); await loyaltyForEvent(m.fan_id, m.event_id, 'attend'); }
-            else if (m.kind === 'membership' && m.fan_id) { await joinMembership(db, m.fan_id, m.owner_kind, m.owner_id, (m.tier_level as TierLevel) || 'supporter', m.billing || 'monthly', subId); }
+            else if (m.kind === 'membership' && m.fan_id) { await joinMembership(db, m.fan_id, m.owner_kind, m.owner_id, (m.tier_level as TierLevel) || 'supporter', m.billing || 'monthly', subId); await trackConversion(db, m.owner_kind, m.owner_id, m.fan_id); }
           } else if (event.type === 'customer.subscription.deleted') {
             const sub = event.data?.object ?? {};
             if (sub.id) await cancelMembershipBySub(db, sub.id);
@@ -432,7 +467,7 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
         if (sess?.paid) {
           const m = sess.metadata;
           if (m.kind === 'ticket' && m.event_id && m.fan_id) { await markPaid(db, m.event_id, m.fan_id); await loyaltyForEvent(m.fan_id, m.event_id, 'attend'); return redirect(res, `/e/${m.event_id}`); }
-          if (m.kind === 'membership' && m.fan_id) { await joinMembership(db, m.fan_id, m.owner_kind, m.owner_id, (m.tier_level as TierLevel) || 'supporter', m.billing || 'monthly', sess.subscriptionId); return redirect(res, `/member/${m.owner_kind}/${m.owner_id}`); }
+          if (m.kind === 'membership' && m.fan_id) { await joinMembership(db, m.fan_id, m.owner_kind, m.owner_id, (m.tier_level as TierLevel) || 'supporter', m.billing || 'monthly', sess.subscriptionId); await trackConversion(db, m.owner_kind, m.owner_id, m.fan_id); return redirect(res, `/member/${m.owner_kind}/${m.owner_id}`); }
         }
         return redirect(res, '/');
       }
@@ -456,6 +491,84 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
         res.writeHead(200, { 'content-type': 'text/calendar; charset=utf-8', 'content-disposition': 'attachment; filename="horda-event.ics"' });
         res.end(icsFor(d)); return;
       }
+      // --- Build Order #3: Event Room ---------------------------------------
+      // Build an EventBrief for the AI media + room graphic from the event + host.
+      const eventBrief = async (ev: any) => {
+        let name = ev.hostName || 'Host', nickname = '', sport: string | null = null;
+        if (ev.hostKind === 'athlete') {
+          const ap = await getAthleteProfile(db, ev.hostId);
+          name = ap.name; nickname = (ap.name.match(/[‘'"]([^’'"]+)[’'"]/) ?? [])[1] ?? '';
+          sport = await getAthleteSport(db, ev.hostId);
+        }
+        const label = (await getRoomConfig(db, ev.id))?.label || defaultRoomLabel(sport);
+        return { athleteName: name, nickname, sport, label, title: ev.title, opponent: null, date: ev.date ?? null, location: ev.location ?? null, result: ev.result ?? null };
+      };
+      if ((em = path.match(/^\/e\/([^/]+)\/room$/))) {
+        const d = await getEventDetail(db, em[1]);
+        const rc = await getRoomConfig(db, em[1]);
+        if (!d || !rc || !rc.enabled) return redirect(res, `/e/${em[1]}`);
+        const isOwner = await canEdit(d.hostKind ?? '', d.hostId ?? '');
+        const state = roomState(rc);
+        const canLive = await canSeeLiveRoom(db, viewerGuest ? null : viewer, d.hostKind ?? '', d.hostId ?? '', rc.tier, isOwner);
+        if (state === 'live' && !viewerGuest && !isOwner && canLive) {
+          await track(db, 'room_live_view', { ownerKind: d.hostKind ?? undefined, ownerId: d.hostId ?? undefined, fanId: viewer, eventId: em[1] });
+          // next-event return: this fan was in a prior room of the same host
+          const prior = (await db.query(`SELECT 1 FROM room_message rm JOIN event e ON e.id=rm.event_id WHERE rm.fan_id=$1 AND e.host_kind=$2 AND e.host_id=$3 AND rm.event_id<>$4 LIMIT 1`, [viewer, d.hostKind, d.hostId, em[1]])).rows[0];
+          if (prior) await track(db, 'next_event_return', { ownerKind: d.hostKind ?? undefined, ownerId: d.hostId ?? undefined, fanId: viewer, eventId: em[1] });
+        }
+        const brief = await eventBrief(d);
+        const goals = d.hostKind ? await activeGoalProgress(db, d.hostKind, d.hostId!) : [];
+        const athleteHref = d.hostKind === 'athlete' ? `/athlete/${d.hostId}` : `/${d.hostKind}/${d.hostId}`;
+        return html(res, renderEventRoom({
+          eventId: em[1], title: d.title, ownerKind: d.hostKind ?? '', ownerId: d.hostId ?? '',
+          label: rc.label || brief.label, state, result: rc.result, startsAt: rc.startsAt, tier: rc.tier,
+          graphic: state === 'recap' && rc.result ? eventGraphic({ ...brief, result: rc.result }) : eventGraphic(brief),
+          messages: await listRoomMessages(db, em[1]), canSeeLive: canLive, isOwner, guest: viewerGuest, fanId: viewerGuest ? null : viewer,
+          athleteHref, goals, presence: await roomPresence(db, em[1]),
+        }));
+      }
+      if (req.method === 'POST' && (em = path.match(/^\/e\/([^/]+)\/room\/(post|react|bts|result)$/))) {
+        const d = await getEventDetail(db, em[1]);
+        if (!d) return redirect(res, '/');
+        const isOwner = await canEdit(d.hostKind ?? '', d.hostId ?? '');
+        const act = em[2];
+        const f = await parseForm(req);
+        if (act === 'bts' || act === 'result') {
+          if (!isOwner) return redirect(res, `/e/${em[1]}/room`);
+          if (act === 'bts') await postRoomMessage(db, em[1], { authorKind: 'athlete', fanId: null, kind: 'bts', body: f.body || '' });
+          else { await setResult(db, em[1], (f.result || '').slice(0, 200)); await setRoomConfig(db, em[1], { stateOverride: 'recap' }); }
+          return redirect(res, `/e/${em[1]}/room`);
+        }
+        // fan chat / react — server-resolved identity, tier-gated to the live room
+        if (viewerGuest) return redirect(res, '/signup');
+        const rc = await getRoomConfig(db, em[1]);
+        const canLive = await canSeeLiveRoom(db, viewer, d.hostKind ?? '', d.hostId ?? '', rc?.tier ?? 'supporter', isOwner);
+        if (!canLive) return redirect(res, `${d.hostKind === 'athlete' ? `/athlete/${d.hostId}` : `/${d.hostKind}/${d.hostId}`}#join`);
+        await postRoomMessage(db, em[1], { authorKind: 'fan', fanId: viewer, kind: act === 'react' ? 'reaction' : 'chat', body: act === 'react' ? (f.emoji || '🔥') : (f.body || '') });
+        return redirect(res, `/e/${em[1]}/room`);
+      }
+      // AI media studio (owner) — draft assets; nothing posts without approval.
+      if ((em = path.match(/^\/e\/([^/]+)\/media$/)) && req.method !== 'POST') {
+        const d = await getEventDetail(db, em[1]);
+        if (!d) return redirect(res, '/');
+        if (!await canEdit(d.hostKind ?? '', d.hostId ?? '')) return redirect(res, `/e/${em[1]}`);
+        const rc = await getRoomConfig(db, em[1]);
+        const brief = await eventBrief(d);
+        const assets = await generateEventAssets({ ...brief, result: rc?.result ?? null }, getModel());
+        return html(res, renderMediaStudio({ eventId: em[1], athleteId: d.hostId ?? '', title: d.title, label: rc?.label || brief.label, hasResult: !!rc?.result, assets }));
+      }
+      if (req.method === 'POST' && (em = path.match(/^\/e\/([^/]+)\/media\/post$/))) {
+        const d = await getEventDetail(db, em[1]);
+        if (!d || !d.hostKind) return redirect(res, '/');
+        if (!await canEdit(d.hostKind, d.hostId!)) return redirect(res, `/e/${em[1]}`);
+        const f = await parseForm(req);
+        const vis = ['supporter', 'clubhouse', 'public'].includes(f.visibility) ? f.visibility : 'public';
+        if ((f.body || '').trim() && (d.hostKind === 'athlete' || d.hostKind === 'club' || d.hostKind === 'team')) {
+          await createPost(db, d.hostKind as any, d.hostId!, f.body.trim(), em[1], vis as any);
+        }
+        await track(db, 'ai_asset_posted', { ownerKind: d.hostKind, ownerId: d.hostId!, eventId: em[1], props: { kind: f.post_kind || 'post' } });
+        return redirect(res, `/e/${em[1]}/room`);
+      }
       if ((em = path.match(/^\/e\/([^/]+)$/))) {
         const guest = viewerGuest;
         const d = await getEventDetail(db, em[1]);
@@ -465,7 +578,9 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
         const myTicket = guest ? null : await getTicketFor(db, em[1], viewer);
         const listings = await getListings(db, em[1]);
         const isHost = await canEdit(d.hostKind ?? '', d.hostId ?? '');
-        return html(res, renderEventPage(d, { guest, fanId: guest ? null : viewer, myRsvp, isHost, myEntities, myTicket, listings }));
+        const rc = await getRoomConfig(db, em[1]);
+        const roomCta = rc?.enabled ? `<div class="card" style="border-color:var(--bone)"><strong>${esc(rc.label || 'Event Room')}</strong> — countdown, live reactions and the host's behind-the-scenes.<div class="row" style="margin-top:8px"><a class="btn" href="/e/${em[1]}/room">Enter the ${esc(rc.label || 'room')} →</a></div></div>` : '';
+        return html(res, renderEventPage(d, { guest, fanId: guest ? null : viewer, myRsvp, isHost, myEntities, myTicket, listings, extraTop: roomCta }));
       }
       if ((em = path.match(/^\/manage\/([^/]+)$/))) {
         const d = await getEventDetail(db, em[1]);
@@ -491,6 +606,12 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
       if (path === '/clubs') return redirect(res, '/about/creators');
       if (path === '/create') {
         return html(res, renderCreatorEntry({ guest: viewerGuest }));
+      }
+      if (path === '/settings') {
+        if (viewerGuest) return redirect(res, '/login');
+        const editHref = ownedAthleteForNav ? `/athlete/${ownedAthleteForNav.id}/customize` : undefined;
+        const insHref = ownedAthleteForNav ? `/athlete/${ownedAthleteForNav.id}/insights` : undefined;
+        return html(res, renderSettings({ fanId: viewer, fanName: account?.displayName || 'You', email: account?.email, editPageHref: editHref, insightsHref: insHref, createHref: viewerCreateHref }));
       }
       if (path === '/signup') {
         return html(res, renderSignup(url.searchParams.get('next') ?? '/', url.searchParams.get('follow') ?? ''));
@@ -537,31 +658,115 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
         const sections = resolveLayout(sport, await getAthleteLayout(db, m[1]));
         const prof = await getAthleteProfile(db, m[1]);
         const cTiers = await getTiers(db, 'athlete', m[1]);
-        return html(res, renderCustomize({ athleteId: m[1], fanId: viewer, sport, sections, links: prof.links, tiers: cTiers }));
+        const cBanner = await getBannerStyle(db, m[1]);
+        const cMedia = await listMedia(db, 'athlete', m[1]);
+        const cSponsors = await listSponsors(db, 'athlete', m[1]);
+        const cSports = await getAthleteSports(db, m[1]);
+        const cShop = await listShopItems(db, 'athlete', m[1]);
+        return html(res, renderCustomize({ athleteId: m[1], fanId: viewer, sport, sports: cSports, sections, links: prof.links, tiers: cTiers, bannerUrl: prof.bannerUrl, banner: cBanner, media: cMedia, sponsors: cSponsors, shop: cShop }));
+      }
+      // banner reposition / zoom / video — owner only
+      if (req.method === 'POST' && (m = path.match(/^\/athlete\/([^/]+)\/banner$/))) {
+        if (!await canEdit('athlete', m[1])) return redirect(res, `/athlete/${m[1]}`);
+        const f = await parseForm(req);
+        await setBannerStyle(db, m[1], { pos: { x: Number(f.x), y: Number(f.y), zoom: Number(f.zoom) }, videoUrl: f.video_url || null });
+        return redirect(res, `/athlete/${m[1]}/customize`);
+      }
+      // media grid add / delete — owner only
+      if (req.method === 'POST' && (m = path.match(/^\/athlete\/([^/]+)\/media$/))) {
+        if (!await canEdit('athlete', m[1])) return redirect(res, `/athlete/${m[1]}`);
+        const f = await parseForm(req);
+        const url = f.kind === 'image' ? ((await storeImage(f.url, 'media')) || f.url) : f.url;
+        if (url) await addMedia(db, 'athlete', m[1], f.kind || 'image', url, f.caption || undefined);
+        return redirect(res, `/athlete/${m[1]}/customize`);
+      }
+      if (req.method === 'POST' && (m = path.match(/^\/athlete\/([^/]+)\/media\/([^/]+)\/delete$/))) {
+        if (!await canEdit('athlete', m[1])) return redirect(res, `/athlete/${m[1]}`);
+        await deleteMedia(db, 'athlete', m[1], m[2]);
+        return redirect(res, `/athlete/${m[1]}/customize`);
+      }
+      // sponsors add / delete — owner only
+      if (req.method === 'POST' && (m = path.match(/^\/athlete\/([^/]+)\/sponsor$/))) {
+        if (!await canEdit('athlete', m[1])) return redirect(res, `/athlete/${m[1]}`);
+        const f = await parseForm(req);
+        const logo = (await storeImage(f.logo_url, 'sponsors')) || f.logo_url || undefined;
+        if ((f.name || '').trim()) await addSponsor(db, 'athlete', m[1], f.name.trim(), f.url || undefined, logo);
+        return redirect(res, `/athlete/${m[1]}/customize`);
+      }
+      if (req.method === 'POST' && (m = path.match(/^\/athlete\/([^/]+)\/sponsor\/([^/]+)\/delete$/))) {
+        if (!await canEdit('athlete', m[1])) return redirect(res, `/athlete/${m[1]}`);
+        await deleteSponsor(db, 'athlete', m[1], m[2]);
+        return redirect(res, `/athlete/${m[1]}/customize`);
+      }
+      // shop items add / delete — owner only
+      if (req.method === 'POST' && (m = path.match(/^\/athlete\/([^/]+)\/shop$/))) {
+        if (!await canEdit('athlete', m[1])) return redirect(res, `/athlete/${m[1]}`);
+        const f = await parseForm(req);
+        const cents = f.price ? Math.round(Number(String(f.price).replace(',', '.').replace(/[^0-9.]/g, '')) * 100) : null;
+        if ((f.title || '').trim()) await addShopItem(db, 'athlete', m[1], { kind: f.kind || 'merch', title: f.title.trim(), subtitle: f.subtitle, url: f.url, priceCents: cents });
+        return redirect(res, `/athlete/${m[1]}/customize`);
+      }
+      if (req.method === 'POST' && (m = path.match(/^\/athlete\/([^/]+)\/shop\/([^/]+)\/delete$/))) {
+        if (!await canEdit('athlete', m[1])) return redirect(res, `/athlete/${m[1]}`);
+        await deleteShopItem(db, 'athlete', m[1], m[2]);
+        return redirect(res, `/athlete/${m[1]}/customize`);
+      }
+      // Build Order #3: collective / rivalry goal — owner sets a metric + reward.
+      if (req.method === 'POST' && (m = path.match(/^\/athlete\/([^/]+)\/goal$/))) {
+        if (!await canEdit('athlete', m[1])) return redirect(res, `/athlete/${m[1]}`);
+        const f = await parseForm(req);
+        const threshold = f.metric === 'support' ? Math.round(Number(f.threshold) * 100) : Math.round(Number(f.threshold));
+        await createGoal(db, { ownerKind: 'athlete', ownerId: m[1], metric: f.metric || 'superfans', threshold: threshold || 1, reward: f.reward || 'a reward', rivalKind: f.rival_id ? 'athlete' : undefined, rivalId: f.rival_id || undefined });
+        return redirect(res, `/athlete/${m[1]}/customize`);
+      }
+      // creator insights dashboard (owner)
+      if ((m = path.match(/^\/athlete\/([^/]+)\/insights$/))) {
+        if (!await canEdit('athlete', m[1])) return redirect(res, `/athlete/${m[1]}`);
+        const conv = await conversionRate(db, 'athlete', m[1]);
+        const mc = await metricCounts(db, ['next_event_return', 'goal_signup', 'artifact_share', 'ai_asset_posted', 'event_room_open'], 'athlete', m[1]);
+        const prof = await getAthleteProfile(db, m[1]);
+        return html(res, renderInsights({ name: prof.name, athleteId: m[1], conversion: conv, returnRate: conv.opens ? Math.round((mc.next_event_return / conv.opens) * 100) : 0, goalSignups: mc.goal_signup, artifactShares: mc.artifact_share, aiAdoption: mc.ai_asset_posted, events: mc.event_room_open }));
+      }
+      // shareable supporter card (the viral surface) — free + OG-tagged
+      if ((sm = path.match(/^\/share\/supporter\/(athlete|club|team|association)\/([^/]+)$/))) {
+        const nm = await hostName(db, sm[1], sm[2]);
+        let sport: string | null = null;
+        if (sm[1] === 'athlete') sport = await getAthleteSport(db, sm[2]);
+        const card = supporterCard({ athleteName: nm, sport, label: defaultRoomLabel(sport), title: nm, opponent: null }, { backing: true });
+        await track(db, 'artifact_share', { ownerKind: sm[1], ownerId: sm[2], props: { kind: 'supporter_card' } });
+        const ogImg = `${origin}/share/supporter/${sm[1]}/${sm[2]}.svg`;
+        return html(res, renderSharePage({ title: `Backing ${nm}`, card, body: `I'm backing ${nm} on Horda. Get closer to the athletes you love.`, shareText: `I'm backing ${nm} on Horda — joinhorda.com` }, sm[1] === 'athlete' ? `/athlete/${sm[2]}` : `/${sm[1]}/${sm[2]}`));
       }
       // save a membership tier (Supporter/Clubhouse) — owner only; wired to Stripe
       if (req.method === 'POST' && (m = path.match(/^\/athlete\/([^/]+)\/tiers$/))) {
         if (!await canEdit('athlete', m[1])) return redirect(res, `/athlete/${m[1]}`);
         const f = await parseForm(req);
         const level: TierLevel = f.level === 'clubhouse' ? 'clubhouse' : 'supporter';
-        const toCents = (v: string) => { const n = Math.round(Number(v) * 100); return Number.isFinite(n) && n >= 0 ? n : 0; };
+        // Accept comma OR dot decimals (e.g. "4,99" or "4.99") and any € amount.
+        const toCents = (v: string) => { const n = Math.round(Number(String(v).replace(',', '.').replace(/[^0-9.]/g, '')) * 100); return Number.isFinite(n) && n >= 0 ? n : 0; };
         const perks = (f.perks || '').split('\n').map(s => s.trim()).filter(Boolean).slice(0, 8);
+        const monthly = toCents(f.price || '0');
+        let annual = f.annual ? toCents(f.annual) : null;
+        // Guardrail: annual must be a real discount — never more than 12× monthly.
+        if (annual !== null && monthly > 0 && annual > monthly * 12) annual = monthly * 12;
         await setTier(db, 'athlete', m[1], {
           level, name: (f.name || (level === 'clubhouse' ? 'Clubhouse' : 'Supporter')).slice(0, 60),
-          priceCents: toCents(f.price || '0'), priceAnnualCents: f.annual ? toCents(f.annual) : null,
+          priceCents: monthly, priceAnnualCents: annual,
           currency: 'EUR', perks,
         });
         return redirect(res, `/athlete/${m[1]}/customize`);
       }
-      // save profile details (sport + social links) — owner only
+      // save profile details (sports + social links) — owner only
       if (req.method === 'POST' && (m = path.match(/^\/athlete\/([^/]+)\/profile$/))) {
         if (!await canEdit('athlete', m[1])) return redirect(res, `/athlete/${m[1]}`);
-        const f = await parseForm(req);
-        await setAthleteSport(db, m[1], f.sport || null, false);   // allow change
+        const params = new URLSearchParams(await readRaw(req));
+        const sports = params.getAll('sports').map(s => s.trim()).filter(Boolean);
+        if (sports.length) await setAthleteSports(db, m[1], sports);
+        else if (params.get('sport')) await setAthleteSport(db, m[1], params.get('sport'), false);
         const links: Record<string, string> = {};
-        for (const k of ['instagram', 'x', 'tiktok', 'youtube', 'website']) if (f[k]) links[k] = f[k];
+        for (const k of ['instagram', 'x', 'tiktok', 'youtube', 'website']) { const v = params.get(k); if (v) links[k] = v; }
         await setAthleteProfile(db, m[1], { links });
-        return redirect(res, `/athlete/${m[1]}`);
+        return redirect(res, `/athlete/${m[1]}/customize`);
       }
       if (req.method === 'POST' && (m = path.match(/^\/athlete\/([^/]+)\/layout$/))) {
         if (!await canEdit('athlete', m[1])) return redirect(res, `/athlete/${m[1]}`);
@@ -589,7 +794,26 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
       if (req.method === 'POST' && path === '/feature-request') {
         const f = await parseForm(req);
         await createFeatureRequest(db, account?.id ?? null, f.sport || null, f.context || null, f.body || '');
+        await notifyWebhook(`💡 Feature request${f.sport ? ` [${f.sport}]` : ''}: ${(f.body || '').slice(0, 400)}`);
         return redirect(res, req.headers.referer ?? '/');
+      }
+      // newsletter opt-in (public). Owner_kind 'horda' = platform-wide list.
+      if (req.method === 'POST' && path === '/newsletter') {
+        const f = await parseForm(req);
+        const added = await subscribeNewsletter(db, f.owner_kind || 'horda', f.owner_id || 'horda', f.email || '');
+        if (added) await notifyWebhook(`📰 New newsletter subscriber for ${f.owner_kind || 'horda'}:${f.owner_id || 'horda'}`);
+        const back = f.owner_kind === 'athlete' && f.owner_id ? `/athlete/${f.owner_id}` : (req.headers.referer ?? '/');
+        return redirect(res, back + (back.includes('?') ? '&' : '?') + 'subscribed=1');
+      }
+      // handle-claim vitality campaign — reserve your @handle before you build.
+      if (path === '/claim-handle' && req.method !== 'POST') {
+        return html(res, renderClaimHandle({ guest: viewerGuest, fanId: viewer }));
+      }
+      if (req.method === 'POST' && path === '/claim-handle') {
+        const f = await parseForm(req);
+        const r = await reserveHandle(db, f.handle || '', f.email || '', f.kind || undefined);
+        if (r.ok) await notifyWebhook(`🏷️ Handle reserved: @${(f.handle || '').toLowerCase().replace(/^@/, '')} (${f.email})`);
+        return html(res, renderClaimHandle({ guest: viewerGuest, fanId: viewer, result: r, handle: f.handle }));
       }
       if (req.method === 'POST' && (m = path.match(/^\/entity\/(club|team|association)\/([^/]+)\/branding$/))) {
         const f = await parseForm(req);
@@ -606,7 +830,7 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
         const ownPages = (account && m[1] === viewer)
           ? await Promise.all((await ownedEntities(db, account.id)).map(async e => ({ ...e, events: await listProfileEvents(db, e.kind, e.id) })))
           : [];
-        return html(res, renderFanHome({ fanId: m[1], fanName: 'You', home, follows, activation: fanAct, pages: ownPages }));
+        return html(res, renderFanHome({ fanId: m[1], fanName: 'You', home, follows, activation: fanAct, pages: ownPages, createHref: viewerCreateHref }));
       }
       if ((m = path.match(/^\/athlete\/([^/]+)$/))) {
         const guest = viewerGuest;
@@ -630,7 +854,14 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
         const athAct = athOwner ? renderChecklist(await athleteChecklist(db, m[1])) : '';
         const athSections = resolveLayout(await getAthleteSport(db, m[1]), await getAthleteLayout(db, m[1]));
         const athOg = ogMeta({ title: `${profile.name} on Horda`, description: profile.tagline || `Follow ${profile.name} on Horda — drops, events and superfan access.`, url: `${origin}/athlete/${m[1]}`, image: profile.bannerUrl || profile.avatarUrl, type: 'profile' });
-        return html(res, renderAthletePage({ guest, fanId, profile, upcoming, attendance, affiliations, events, scheduleHref: `/host/athlete/${m[1]}/new`, tiers, membership, superfan, loyalty: fanId ? { score: lscore, threshold: 200 } : null, memberCount: members, canEdit: athOwner, activation: athAct, sections: athSections, ogTags: athOg, previewAsFan: realOwner && asFan }));
+        const athMedia = await listMedia(db, 'athlete', m[1]);
+        const athSponsors = await listSponsors(db, 'athlete', m[1]);
+        const athBanner = await getBannerStyle(db, m[1]);
+        const athGoals = await activeGoalProgress(db, 'athlete', m[1]);
+        const goalsHtml = athGoals.map(g => goalBar(g)).join('');
+        const athShop = await listShopItems(db, 'athlete', m[1]);
+        const athSportsLabel = sportsLabel(await getAthleteSports(db, m[1]));
+        return html(res, renderAthletePage({ guest, fanId, profile, upcoming, attendance, affiliations, events, scheduleHref: `/host/athlete/${m[1]}/new`, tiers, membership, superfan, loyalty: fanId ? { score: lscore, threshold: 200 } : null, memberCount: members, canEdit: athOwner, activation: athAct, sections: athSections, ogTags: athOg, previewAsFan: realOwner && asFan, media: athMedia, sponsors: athSponsors, banner: athBanner, goalsHtml, sportsLabel: athSportsLabel, createHref: viewerCreateHref, shop: athShop }));
       }
       if ((m = path.match(/^\/club\/([^/]+)$/))) {
         const guest = viewerGuest;

@@ -7,7 +7,8 @@ export interface SectionDef { key: string; label: string; short: string; desc: s
 export interface SectionPick { key: string; on: boolean }
 
 export const SECTIONS: Record<string, SectionDef> = {
-  record: { key: 'record', label: 'Win / Loss / Draw', short: 'Record', desc: 'Your fight or match record' },
+  record: { key: 'record', label: 'Win / Loss / Draw', short: 'Overview', desc: 'Your fight or match record' },
+  sponsors: { key: 'sponsors', label: 'Sponsors', short: 'Sponsors', desc: 'Partners & backers you want to credit' },
   nextup: { key: 'nextup', label: 'Next up', short: 'Next up', desc: 'Your next fight or event' },
   drops: { key: 'drops', label: 'Drops', short: 'Drops', desc: 'Your posts & members-only updates' },
   events: { key: 'events', label: 'Events', short: 'Events', desc: 'Upcoming events you host' },
@@ -34,6 +35,7 @@ export function defaultLayout(sport: string | null): SectionPick[] {
     { key: 'events', on: true },
     { key: 'media', on: true },
     { key: 'merch', on: true },
+    { key: 'sponsors', on: false },               // off by default; creators opt in
     { key: 'connected', on: true },
   ];
 }
