@@ -123,6 +123,8 @@ export async function applySchema(db: Database, migrationsDir = 'db/migrations')
         '0026': () => colExists('event', 'room_enabled'),
         '0027': () => colExists('athlete', 'sports'),
         '0028': () => relExists('public.shop_item'),
+        '0029': () => colExists('athlete', 'theme'),
+        '0030': () => colExists('account', 'creator_layer'),
       };
       for (const f of files) {
         const probe = present[f.slice(0, 4)];

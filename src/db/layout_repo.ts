@@ -34,6 +34,14 @@ export async function setAthleteSports(db: Database, athleteId: string, sports: 
   await db.query(`UPDATE athlete SET sports=$2, sport=$3 WHERE id=$1`, [athleteId, csv || null, clean[0] ?? null]);
 }
 
+// §4a theme tokens (JSON string) — null means "use the sport default".
+export async function getAthleteTheme(db: Database, athleteId: string): Promise<string | null> {
+  return (await db.query<{ theme: string | null }>(`SELECT theme FROM athlete WHERE id=$1`, [athleteId])).rows[0]?.theme ?? null;
+}
+export async function setAthleteTheme(db: Database, athleteId: string, theme: string): Promise<void> {
+  await db.query(`UPDATE athlete SET theme=$2 WHERE id=$1`, [athleteId, theme]);
+}
+
 export async function getAthleteLayout(db: Database, athleteId: string): Promise<SectionPick[] | null> {
   const raw = (await db.query<{ layout: any }>(`SELECT layout FROM athlete WHERE id=$1`, [athleteId])).rows[0]?.layout;
   const arr = Array.isArray(raw) ? raw : (raw && Array.isArray(raw.sections) ? raw.sections : null);

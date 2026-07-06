@@ -21,10 +21,15 @@ export async function getDiscover(db: Database, filter: { sport?: string; region
             (a.account_id IS NOT NULL OR EXISTS (SELECT 1 FROM ownership o WHERE o.owner_kind='athlete' AND o.owner_id=a.id)) verified,
             (SELECT s.key FROM event e JOIN event_participant ep ON ep.event_id=e.id JOIN sport s ON s.id=e.sport_id WHERE ep.participant_id=a.id LIMIT 1) sport
      FROM athlete a
-     WHERE EXISTS (SELECT 1 FROM post p WHERE p.author_type='athlete' AND p.author_id=a.id)
-        OR EXISTS (SELECT 1 FROM result r WHERE r.participant_id=a.id)
-        OR EXISTS (SELECT 1 FROM event_participant ep WHERE ep.participant_id=a.id)
-        OR EXISTS (SELECT 1 FROM membership_tier mt WHERE mt.owner_kind='athlete' AND mt.owner_id=a.id)
+     WHERE
+        -- §1b: self-serve creators pending light verification aren't in Featured yet
+        NOT EXISTS (SELECT 1 FROM account ac WHERE ac.id=a.account_id AND ac.creator_verified=false)
+        AND (
+          EXISTS (SELECT 1 FROM post p WHERE p.author_type='athlete' AND p.author_id=a.id)
+          OR EXISTS (SELECT 1 FROM result r WHERE r.participant_id=a.id)
+          OR EXISTS (SELECT 1 FROM event_participant ep WHERE ep.participant_id=a.id)
+          OR EXISTS (SELECT 1 FROM membership_tier mt WHERE mt.owner_kind='athlete' AND mt.owner_id=a.id)
+        )
      ORDER BY a.display_name`)).rows;
 
   const clubRows = (await db.query<any>(

@@ -41,7 +41,7 @@ const authed = (p: string, init: any = {}) => fetch(base + p, { ...init, headers
 ok('prompt box shown first', (await (await authed('/onboarding/athlete')).text()).includes('Generate my page'));
 const prev = await (await authed('/onboarding/athlete/generate', { method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded' }, body: enc({ description: 'Southpaw boxer "The Hawk" from Berlin, all action.' }) })).text();
 ok('preview renders generated cover + publish', prev.includes('data:image/svg+xml') && prev.includes('Publish my page'));
-const cre = await authed('/onboarding/athlete', { method: 'POST', redirect: 'manual', headers: { 'content-type': 'application/x-www-form-urlencoded' }, body: enc({ name: 'The Hawk', handle: 'thehawk', tagline: 'Berlin southpaw', bio: 'In my own words.', cover: 'data:image/svg+xml;utf8,GEN', avatar: 'data:image/png;base64,AVATARPNG', banner: 'data:image/png;base64,BGPHOTO' }) });
+const cre = await authed('/onboarding/athlete', { method: 'POST', redirect: 'manual', headers: { 'content-type': 'application/x-www-form-urlencoded' }, body: enc({ name: 'The Hawk', handle: 'thehawk', tagline: 'Berlin southpaw', bio: 'In my own words.', birth_year: '1996', cover: 'data:image/svg+xml;utf8,GEN', avatar: 'data:image/png;base64,AVATARPNG', banner: 'data:image/png;base64,BGPHOTO' }) });
 ok('publish creates the page + redirects to it', cre.status === 303 && (cre.headers.get('location') || '').startsWith('/athlete/'));
 const aid = (cre.headers.get('location') || '').split('/').pop()!;
 const acc = (await app.db.query<{ id: string }>(`SELECT id FROM account WHERE email='a@x.com'`)).rows[0].id;

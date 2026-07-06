@@ -4,6 +4,7 @@ import { socialIcon, kindIcon } from './icons.ts';
 import { editPanel, UPLOAD_SCRIPT } from './shell.ts';
 import { ravenMark, ravenMarkCurrent } from './brand.ts';
 import { THEME_BOOT, THEME_VARS, THM_CSS, themeToggle, bottomNav, verifiedBadge } from './theme.ts';
+import { bannerSvg, defaultThemeForSport, svgDataUri } from './theme_engine.ts';
 import { oauthProviders } from './oauth.ts';
 import { SECTIONS } from './sections.ts';
 
@@ -108,7 +109,9 @@ export function renderDiscover(d: {
   // featured — big, photo-forward athlete cards, each with a consistent identity chip
   const featured = d.data.athletes.length ? `<div class="feat">${d.data.athletes.map(a => {
     const photo = a.banner || a.avatar;
-    const big = photo ? `<img class="fimg" src="${esc(photo)}" alt="">` : `<div class="fph">${avatarSvg(a.name)}</div>`;
+    // No empty cards: a themed, individual backdrop (§4a) when there's no photo —
+    // this is what makes the landing a wall of cool, distinct athlete cards.
+    const big = photo ? `<img class="fimg" src="${esc(photo)}" alt="">` : `<img class="fimg" src="${esc(svgDataUri(bannerSvg({ name: a.name, sport: a.sport }, defaultThemeForSport(a.sport), { backdrop: true })))}" alt="">`;
     const sub = [a.sport, a.region].filter(Boolean).join(' · ') || 'athlete';
     return `<a class="fcard" href="/athlete/${a.id}">${big}<div class="fscrim"></div>` +
       `<div class="fid"><span class="fav">${ringImg(a.avatar || a.banner, a.name)}</span><span class="fnm">${esc(a.name)}${a.verified ? verifiedBadge() : ''}</span></div>` +
@@ -316,6 +319,7 @@ export function renderAthletePage(d: {
   sportsLabel?: string;
   createHref?: string;
   shop?: { id: string; kind: string; title: string; subtitle: string | null; url: string | null; priceCents: number | null }[];
+  themedBanner?: string;
 }): string {
   const isMember = !!d.membership;
   const viewerTier = d.membership?.tierLevel ?? null;
@@ -334,9 +338,11 @@ export function renderAthletePage(d: {
   const av = p.avatarUrl ? `<img src="${esc(p.avatarUrl)}">` : avatarSvg(p.name);
   const bpos = d.banner?.pos;
   const bstyle = bpos ? ` style="object-position:${bpos.x}% ${bpos.y}%;transform:scale(${bpos.zoom})"` : '';
+  // No empty banners ever: an uploaded photo/video wins; otherwise the themed,
+  // auto-generated banner (§4a) carries the wow — individual per athlete.
   const coverInner = d.banner?.videoUrl
     ? `<video class="bgvid" autoplay muted loop playsinline ${p.bannerUrl ? `poster="${esc(p.bannerUrl)}"` : ''}${bstyle}><source src="${esc(d.banner.videoUrl)}"></video>`
-    : p.bannerUrl ? `<img src="${esc(p.bannerUrl)}" alt=""${bstyle}>` : `<div class="ph"><span class="kick">${esc(nickname || p.name)}</span></div>`;
+    : p.bannerUrl ? `<img src="${esc(p.bannerUrl)}" alt=""${bstyle}>` : (d.themedBanner ? `<img src="${esc(d.themedBanner)}" alt="">` : `<div class="ph"><span class="kick">${esc(nickname || p.name)}</span></div>`);
   const cover = `<div class="cover">${coverInner}</div>`;
 
   const profhead = `<section class="profhead">
@@ -672,7 +678,7 @@ export function renderSportPicker(selected: string[]): string {
 }
 
 // --- customize page: reorder + show/hide sections (per sport) + suggest a feature
-export function renderCustomize(d: { athleteId: string; fanId: string | null; sport: string | null; sports?: string[]; sections: { key: string; on: boolean }[]; links?: Record<string, string>; tiers?: { level: string; name: string; priceCents: number; priceAnnualCents: number | null; currency: string; perks: string[] }[]; saved?: boolean; bannerUrl?: string | null; banner?: { pos: { x: number; y: number; zoom: number } | null; videoUrl: string | null }; media?: { id: string; kind: string; url: string; caption: string | null }[]; sponsors?: { id: string; name: string; url: string | null; logoUrl: string | null }[]; shop?: { id: string; kind: string; title: string; subtitle: string | null; url: string | null; priceCents: number | null }[] }): string {
+export function renderCustomize(d: { athleteId: string; fanId: string | null; sport: string | null; sports?: string[]; sections: { key: string; on: boolean }[]; links?: Record<string, string>; tiers?: { level: string; name: string; priceCents: number; priceAnnualCents: number | null; currency: string; perks: string[] }[]; saved?: boolean; bannerUrl?: string | null; banner?: { pos: { x: number; y: number; zoom: number } | null; videoUrl: string | null }; media?: { id: string; kind: string; url: string; caption: string | null }[]; sponsors?: { id: string; name: string; url: string | null; logoUrl: string | null }[]; shop?: { id: string; kind: string; title: string; subtitle: string | null; url: string | null; priceCents: number | null }[]; themeStudioHtml?: string }): string {
   const ta = 'display:block;width:100%;margin-top:8px;background:var(--s);border:1px solid var(--b);border-radius:12px;color:var(--bone);padding:12px;font:inherit;min-height:90px';
   const inp = 'display:block;width:100%;margin-top:6px;background:var(--s);border:1px solid var(--b);border-radius:10px;color:var(--bone);padding:10px;font:inherit';
   const L = d.links ?? {};
@@ -751,8 +757,14 @@ export function renderCustomize(d: { athleteId: string; fanId: string | null; sp
       <div id="seclist">${rows}</div>
       <div class="row"><button type="submit">Save layout</button><a class="btn ghost" href="/athlete/${esc(d.athleteId)}">Cancel</a></div>
     </form>
-    <div class="card" style="margin-top:26px">
-      <h2 style="font-size:13px;letter-spacing:1px;text-transform:uppercase;margin-bottom:6px">Banner — reposition, zoom &amp; video</h2>
+    ${d.themeStudioHtml ? `<div class="card" style="margin-top:16px">
+      <h2 style="font-size:13px;letter-spacing:1px;text-transform:uppercase;margin-bottom:6px">Banner &amp; theme — your corner of Horda</h2>
+      <p class="mut" style="font-size:12.5px">Your page starts with an auto-generated banner. Pick a look, set your accent, or pull colors from a photo — it also skins your OG share cards.</p>
+      ${d.themeStudioHtml}
+    </div>` : ''}
+
+    <div class="card" style="margin-top:16px">
+      <h2 style="font-size:13px;letter-spacing:1px;text-transform:uppercase;margin-bottom:6px">Banner — upload photo/video, reposition &amp; zoom</h2>
       <p class="mut" style="font-size:12.5px">Drag the focus, zoom in, or add a looping video banner. Changes preview live.</p>
       <div style="position:relative;height:150px;border-radius:14px;overflow:hidden;border:1px solid var(--b);margin:10px 0;background:var(--s)">
         ${d.bannerUrl ? `<img id="bnprev" src="${esc(d.bannerUrl)}" style="width:100%;height:100%;object-fit:cover;object-position:${d.banner?.pos?.x ?? 50}% ${d.banner?.pos?.y ?? 50}%;transform:scale(${d.banner?.pos?.zoom ?? 1})">` : `<div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--mut);font-size:12px">Upload a banner photo first (on your page).</div>`}
@@ -851,14 +863,42 @@ export function renderCustomize(d: { athleteId: string; fanId: string | null; sp
   `, { back: `/athlete/${d.athleteId}`, nav: { active: 'you', guest: false, fanId: d.fanId } });
 }
 
+// --- /pros — the athlete acquisition door (§1b, §10). Sells the back office. --
+export function renderPros(d: { guest: boolean; fanId: string | null }): string {
+  const cta = d.guest ? '/signup?next=/onboarding/athlete&intent=pro' : '/onboarding/athlete';
+  return layout('Horda for athletes', `
+    <style>
+      .prohero{padding:26px 0 8px}
+      .prohero h1{font-size:34px;line-height:1.05;margin:8px 0}
+      .beat{border:1px solid var(--b);border-radius:16px;padding:18px;margin:14px 0;background:var(--s)}
+      .beat h2{font-size:16px;margin:0 0 6px;border:0;padding:0;text-transform:none;letter-spacing:0}
+      .steps{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0}
+      .steps span{font-size:12px;border:1px solid var(--b);border-radius:999px;padding:5px 11px;color:var(--mut)}
+    </style>
+    <div class="prohero">
+      <div class="mut" style="font-size:12px;letter-spacing:2px;text-transform:uppercase;font-weight:800">Horda for athletes</div>
+      <h1>Your fights, your fans, your revenue.</h1>
+      <p class="mut" style="max-width:52ch">Post a result in one line — Horda writes the recap, makes the share cards, and updates your page. Then earn from subscriber tiers that run themselves. Built for boxers and footballers who train more than they post.</p>
+      <div class="row"><a class="btn" href="${cta}">Create your page →</a><a class="btn ghost" href="${cta}">Publish your first event</a></div>
+      <div class="steps"><span>1 · Sign up</span><span>2 · Photo + sport</span><span>3 · Connect socials</span><span>4 · Set your tiers</span><span>5 · First event</span></div>
+      <p class="mut" style="font-size:12px">Under 5 minutes to your first event page. You keep your audience — export anytime.</p>
+    </div>
+    <div class="beat"><h2>Result in → content out, in 60 seconds</h2><p class="mut" style="font-size:13.5px;margin:0">A win, a time, a scoreline — one line in. Out comes a recap, a matchday/result graphic in your colours, and a subscriber‑first drop. No design skills, no content treadmill.</p></div>
+    <div class="beat"><h2>Your fans, your revenue — tiers that run themselves</h2><p class="mut" style="font-size:13.5px;margin:0">Subscribers get results first, early ticket access, and richer recaps — all generated from what you already do. You set the price and confirm. That's it.</p></div>
+    <div class="beat"><h2>One page for everything you host</h2><p class="mut" style="font-size:13.5px;margin:0">Fight nights, open sparring, matchdays — with RSVP, tickets and attendee lists. Your scene, on your radar.</p></div>
+    <div class="row"><a class="btn" href="${cta}">Create your page →</a></div>
+    <p class="mut" style="font-size:12px;margin-top:12px">Athlete pages are for people 18+. Youth teams live under their club, without player names.</p>
+  `, { back: '/', nav: { active: 'home', guest: d.guest, fanId: d.fanId } });
+}
+
 // --- settings (Instagram-style grouped list) -------------------------------
 export function renderSettings(d: { fanId: string; fanName: string; email?: string; editPageHref?: string; insightsHref?: string; createHref?: string }): string {
   const chev = '<span style="color:var(--mut)">›</span>';
   const row = (label: string, href: string, sub = '') => `<a class="setrow" href="${esc(href)}"><span>${esc(label)}${sub ? `<span class="setsub">${esc(sub)}</span>` : ''}</span>${chev}</a>`;
   const group = (title: string, rows: string) => `<div class="setgroup"><div class="seth">${esc(title)}</div>${rows}</div>`;
   const creatorRows = d.editPageHref
-    ? group('Creator', row('Edit your page', d.editPageHref, 'Photos, sports, tiers, sections, goals') + (d.insightsHref ? row('Insights', d.insightsHref, 'Event-day conversion & more') : '') + (d.createHref ? row('Create a post or event', d.createHref) : ''))
-    : group('Creator', row('Become a creator', '/create', 'Start your own athlete or club page'));
+    ? group('Creathor', row('Edit your page', d.editPageHref, 'Photos, sports, tiers, sections, goals') + (d.insightsHref ? row('Insights', d.insightsHref, 'Event-day conversion & more') : '') + (d.createHref ? row('Create a post or event', d.createHref) : ''))
+    : group('Creathor', row('Become a Creathor', '/pros', 'Get your athlete page + revenue') + row('Claim your club', '/create', 'Manage a club or league page'));
   return layout('Settings', `
     <style>
       .setgroup{margin:18px 0}
@@ -1090,6 +1130,7 @@ export function renderProfilePreview(d: { kind: string; gen: { displayName: stri
       ${d.showHandle !== false ? `<label class="mut" style="display:block;margin:12px 0 0">Handle<input style="${inp}" name="handle" value="${esc(g.handle)}" required></label>` : ''}
       <label class="mut" style="display:block;margin:12px 0 0">Tagline<input style="${inp}" name="tagline" value="${esc(g.tagline)}"></label>
       <label class="mut" style="display:block;margin:12px 0 0">Bio / intro<textarea style="${inp};min-height:90px" name="bio">${esc(g.bio)}</textarea></label>
+      ${d.kind === 'athlete' ? `<label class="mut" style="display:block;margin:12px 0 0">Your birth year <span style="font-size:12px">— athlete pages are 18+</span><input style="${inp}" name="birth_year" type="number" min="1900" max="${new Date().getFullYear()}" placeholder="e.g. 1998" required></label>` : ''}
       <div class="row" style="margin-top:14px"><button type="submit">Publish my page →</button></div>
     </form>
     <form method="post" action="${esc(d.generateAction)}" style="margin-top:8px">${d.hidden ?? ''}<input type="hidden" name="description" value="${esc(d.description)}"><div class="row"><button class="ghost" type="submit">↻ Regenerate</button></div></form>
@@ -1232,7 +1273,7 @@ export function renderFanHome(d: { fanId: string; fanName: string; home: FanHome
           : `<p class="mut" style="font-size:12.5px;margin:6px 0 0">No events yet.</p>`;
         return `<div class="card"><div class="row" style="justify-content:space-between;margin:0"><a class="hl" href="${ehref(pg.kind, pg.id)}">${esc(pg.name)} <span class="tag mutd">${esc(pg.kind)}</span></a><a class="tag" href="/host/${pg.kind}/${pg.id}/new">＋ Event</a></div>${nextUp}${evs}</div>`;
       }).join('')}<div class="row"><a class="tag mutd" href="/create">＋ Create another page</a></div>`
-    : `<h2>Run your own page</h2><p class="mut" style="font-size:12.5px;margin:-4px 0 8px">Becoming a creator is just an action on your account — your fan feed stays, and your new page appears here.</p><div class="row"><a class="tag mutd" href="/create">＋ Create an athlete or club page</a></div>`;
+    : `<div class="card" style="border-color:var(--bone)"><strong>Competing? Become a Creathor.</strong><p class="mut" style="font-size:12.5px;margin:6px 0 10px">It's just an upgrade on this account — your fan feed stays exactly as it is. Get an athlete page, run events, and earn from tiers that run themselves.</p><div class="row"><a class="btn sm" href="/pros">Get your athlete page →</a><a class="tag mutd" href="/create">Claim a club</a></div></div>`;
   const unread = home.notifications.filter(n => !n.read).length;
 
   const following = d.follows.length

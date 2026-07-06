@@ -46,6 +46,26 @@ export async function setOnboarded(db: Database, accountId: string): Promise<voi
   await db.query(`UPDATE account SET onboarded=true WHERE id=$1`, [accountId]);
 }
 
+// §1a layered roles. The creator layer ("Creathor") is an optional flag on the
+// SAME account — not a separate persona. `verified` reflects light verification.
+export async function activateCreatorLayer(db: Database, accountId: string, verified = true): Promise<void> {
+  await db.query(`UPDATE account SET creator_layer=true, creator_verified=$2 WHERE id=$1`, [accountId, verified]);
+}
+export async function setBirthYear(db: Database, accountId: string, year: number): Promise<void> {
+  if (!Number.isFinite(year) || year < 1900 || year > new Date().getFullYear()) return;
+  await db.query(`UPDATE account SET birth_year=$2 WHERE id=$1`, [accountId, year]);
+}
+export interface AccountFlags { creatorLayer: boolean; birthYear: number | null; creatorVerified: boolean }
+export async function accountFlags(db: Database, accountId: string): Promise<AccountFlags> {
+  const r = (await db.query<{ creator_layer: boolean; birth_year: number | null; creator_verified: boolean }>(
+    `SELECT creator_layer, birth_year, creator_verified FROM account WHERE id=$1`, [accountId])).rows[0];
+  return { creatorLayer: !!r?.creator_layer, birthYear: r?.birth_year ?? null, creatorVerified: r?.creator_verified ?? true };
+}
+// 18+ gate for the creator layer and admin roles (base accounts are exempt).
+export function isAdultYear(year: number | null | undefined): boolean {
+  return !!year && (new Date().getFullYear() - year) >= 18;
+}
+
 export async function verifyLogin(db: Database, email: string, pw: string): Promise<string | null> {
   const a = (await db.query<{ id: string; password_hash: string }>(`SELECT id, password_hash FROM account WHERE email=$1`, [email])).rows[0];
   return a && verifyPw(pw, a.password_hash) ? a.id : null;

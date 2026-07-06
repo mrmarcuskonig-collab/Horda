@@ -21,16 +21,17 @@ import { FAVICON_SVG } from './brand.ts';
 import { buildResultShare, buildFightShare, buildWeekDrop } from '../content/index.ts';
 import { createScheduledEvent, rsvp, getRsvp, getEventDetail, getGuestList, listUpcomingByHost, listProfileEvents, hostName, icsFor, approveRegistration, markPaid, featureEvent, getTicketFor, giftTicket, listTicket, getListings, buyListing } from '../db/events_repo.ts';
 import { getTier, getTiers, setTier, joinMembership, cancelMembershipBySub, getMembership, memberCount, recordLoyalty, loyaltyScore, isSuperfan, topSuperfans, type TierLevel } from '../db/membership_repo.ts';
-import { signup, verifyLogin, createSession, sessionAccount, deleteSession, fanForAccount, owns, ownedEntities, grantOwnership, accountRole, setOnboarded, upsertOauthAccount, createPasswordReset, resetPassword } from '../db/auth_repo.ts';
+import { signup, verifyLogin, createSession, sessionAccount, deleteSession, fanForAccount, owns, ownedEntities, grantOwnership, accountRole, setOnboarded, upsertOauthAccount, createPasswordReset, resetPassword, activateCreatorLayer, setBirthYear, accountFlags, isAdultYear } from '../db/auth_repo.ts';
 import { getDiscover, REGIONS } from '../db/discover_repo.ts';
 import { renderEventPage, renderCreateEvent, renderManage, renderCheckout } from './events.ts';
 import { seedDemo, type DemoIds } from './seed.ts';
-import { renderIndex, renderDiscover, renderMap, renderAthletePage, renderCustomize, renderCompose, renderFanHome, renderSignup, renderLogin, renderForgot, renderReset, renderSharePage, renderMemberWelcome, renderClaimPending, renderClaimQueue, renderOnboardFan, renderAiPrompt, renderProfilePreview, renderOnboardClaim, renderCreatorEntry, renderClaimHandle, sportsLabel, renderSettings } from './pages.ts';
+import { renderIndex, renderDiscover, renderMap, renderAthletePage, renderCustomize, renderCompose, renderFanHome, renderSignup, renderLogin, renderForgot, renderReset, renderSharePage, renderMemberWelcome, renderClaimPending, renderClaimQueue, renderOnboardFan, renderAiPrompt, renderProfilePreview, renderOnboardClaim, renderCreatorEntry, renderClaimHandle, sportsLabel, renderSettings, renderPros } from './pages.ts';
 import { getEmailer, resetEmail } from './email.ts';
 import { ogMeta } from './layout.ts';
 import { storeImage } from './storage.ts';
 import { fanChecklist, athleteChecklist, entityChecklist, renderChecklist } from './activation.ts';
-import { getAthleteSport, setAthleteSport, getAthleteSports, setAthleteSports, getAthleteLayout, setAthleteLayout, createFeatureRequest } from '../db/layout_repo.ts';
+import { getAthleteSport, setAthleteSport, getAthleteSports, setAthleteSports, getAthleteLayout, setAthleteLayout, createFeatureRequest, getAthleteTheme, setAthleteTheme } from '../db/layout_repo.ts';
+import { parseTheme, serializeTheme, autoContrast, bannerSvg, svgDataUri, THEME_PRESETS, defaultThemeForSport, renderThemeStudio, type ThemeSpec } from './theme_engine.ts';
 import { listMedia, addMedia, deleteMedia, listSponsors, addSponsor, deleteSponsor, subscribeNewsletter, reserveHandle, getBannerStyle, setBannerStyle, listShopItems, addShopItem, deleteShopItem } from '../db/extras_repo.ts';
 import { track, conversionRate, metricCounts, defaultRoomLabel, roomState, setRoomConfig, setResult, getRoomConfig, listRoomMessages, postRoomMessage, canSeeLiveRoom, createGoal, listGoals, activeGoalProgress, getGoal, maybeGoalSignup, trackConversion, roomPresence } from '../db/hook_repo.ts';
 import { renderEventRoom, renderMediaStudio, renderInsights, goalBar } from './hook_web.ts';
@@ -111,6 +112,10 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
         const role = next.includes('/onboarding/athlete') ? 'athlete' : next.includes('/onboarding/claim') ? 'club' : 'fan';
         const r = await signup(db, (f.email || '').toLowerCase().trim(), f.name || 'Fan', f.password || '', role);
         if (!r) return redirect(res, '/login');
+        // §1b: /pros (athlete-intent) auto-activates the creator layer, unverified
+        // until light verification (Featured is gated on verified). Club-invite path
+        // pre-verifies (the club vouches). Plain fans get a base account only.
+        if (f.intent === 'pro' || next.includes('/onboarding/athlete')) await activateCreatorLayer(db, r.accountId, f.invited === '1');
         const token = await createSession(db, r.accountId);
         let dest = (next && next !== '/') ? next : '/onboarding/fan';
         // carry a "follow this creator" intent (from a Follow CTA) into the follow picker
@@ -162,16 +167,26 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
       if (req.method === 'POST' && path === '/onboarding/athlete') {
         if (!account) return redirect(res, '/signup');
         const f = await parseForm(req);
+        // §1a 18+ gate: a person-level Creathor page requires 18+ (base accounts are exempt).
+        const by = Number(f.birth_year);
+        if (Number.isFinite(by)) await setBirthYear(db, account.id, by);
+        const flags = await accountFlags(db, account.id);
+        if (!isAdultYear(Number.isFinite(by) ? by : flags.birthYear)) {
+          return html(res, renderAiPrompt({ title: 'Create my page', lead: 'Athlete pages on Horda are for people 18 or older. Youth athletes appear only under their club, without names. Enter your birth year to continue.', placeholder: 'Describe yourself in a sentence…', generateAction: '/onboarding/athlete/generate', hidden: '', back: '/', altLink: '' }));
+        }
         const aId = await createAthlete(db, f.name || 'Athlete', (f.handle || '').replace(/^@/, '') || undefined);
         await db.query(`UPDATE athlete SET account_id=$1 WHERE id=$2`, [account.id, aId]);
         await grantOwnership(db, account.id, 'athlete', aId);
         let aLinks: Record<string, string> = {}; try { aLinks = JSON.parse(f.links || '{}'); } catch { /* ignore */ }
         const aAvatar = await storeImage(f.avatar, 'avatars');
-        const aBanner = await storeImage(f.banner || f.cover, 'banners');
+        // Only store an actually-uploaded banner photo; otherwise leave it empty
+        // so the §4a themed auto-banner is the default (wow, and customizable).
+        const aBanner = await storeImage(f.banner, 'banners');
         await setAthleteProfile(db, aId, { tagline: f.tagline || undefined, avatarUrl: aAvatar || undefined, bannerUrl: aBanner || undefined, links: Object.keys(aLinks).length ? aLinks : undefined });
         if (f.sport) await setAthleteSport(db, aId, f.sport);   // drives sport-appropriate default sections
         if (f.bio) await createPost(db, 'athlete', aId, f.bio);
         await setOnboarded(db, account.id);
+        await activateCreatorLayer(db, account.id, flags.creatorVerified);   // publishing = you're a Creathor
         return redirect(res, `/athlete/${aId}`);
       }
       // AI-first branding for a claimed club/federation (owner only)
@@ -604,6 +619,9 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
       if (path === '/about/pricing') return html(res, renderAboutPricing(viewerGuest));
       if (path === '/athletes') return redirect(res, '/about/creators');
       if (path === '/clubs') return redirect(res, '/about/creators');
+      if (path === '/pros' || path === '/about/creators/pros') {
+        return html(res, renderPros({ guest: viewerGuest, fanId: viewer }));
+      }
       if (path === '/create') {
         return html(res, renderCreatorEntry({ guest: viewerGuest }));
       }
@@ -663,7 +681,23 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
         const cSponsors = await listSponsors(db, 'athlete', m[1]);
         const cSports = await getAthleteSports(db, m[1]);
         const cShop = await listShopItems(db, 'athlete', m[1]);
-        return html(res, renderCustomize({ athleteId: m[1], fanId: viewer, sport, sports: cSports, sections, links: prof.links, tiers: cTiers, bannerUrl: prof.bannerUrl, banner: cBanner, media: cMedia, sponsors: cSponsors, shop: cShop }));
+        const cTheme = autoContrast(parseTheme(await getAthleteTheme(db, m[1]), cSports[0] ?? sport));
+        const cThemeStudio = renderThemeStudio(m[1], prof.name, cTheme);
+        return html(res, renderCustomize({ athleteId: m[1], fanId: viewer, sport, sports: cSports, sections, links: prof.links, tiers: cTiers, bannerUrl: prof.bannerUrl, banner: cBanner, media: cMedia, sponsors: cSponsors, shop: cShop, themeStudioHtml: cThemeStudio }));
+      }
+      // §4a theme save — preset base + accent/type/overlay/bg overrides (tokens only).
+      if (req.method === 'POST' && (m = path.match(/^\/athlete\/([^/]+)\/theme$/))) {
+        if (!await canEdit('athlete', m[1])) return redirect(res, `/athlete/${m[1]}`);
+        const f = await parseForm(req);
+        const base = THEME_PRESETS.find(p => p.id === f.preset)?.spec ?? defaultThemeForSport((await getAthleteSports(db, m[1]))[0] ?? null);
+        const hex = (v: string, d: string) => /^#[0-9a-fA-F]{6}$/.test(v || '') ? v : d;
+        const spec: ThemeSpec = autoContrast({
+          bg: hex(f.bg, base.bg), fg: base.fg, accent: hex(f.accent, base.accent),
+          type: (['bold', 'condensed', 'wide', 'serif', 'mono'].includes(f.type) ? f.type : base.type) as ThemeSpec['type'],
+          overlay: (['none', 'gradient', 'grain', 'stripes', 'spotlight'].includes(f.overlay) ? f.overlay : base.overlay) as ThemeSpec['overlay'],
+        });
+        await setAthleteTheme(db, m[1], serializeTheme(spec));
+        return redirect(res, `/athlete/${m[1]}/customize`);
       }
       // banner reposition / zoom / video — owner only
       if (req.method === 'POST' && (m = path.match(/^\/athlete\/([^/]+)\/banner$/))) {
@@ -732,7 +766,10 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
         const nm = await hostName(db, sm[1], sm[2]);
         let sport: string | null = null;
         if (sm[1] === 'athlete') sport = await getAthleteSport(db, sm[2]);
-        const card = supporterCard({ athleteName: nm, sport, label: defaultRoomLabel(sport), title: nm, opponent: null }, { backing: true });
+        // §4a propagation: the athlete's own theme skins the share card.
+        const card = sm[1] === 'athlete'
+          ? bannerSvg({ name: nm, sport }, autoContrast(parseTheme(await getAthleteTheme(db, sm[2]), sport)), { og: true })
+          : supporterCard({ athleteName: nm, sport, label: defaultRoomLabel(sport), title: nm, opponent: null }, { backing: true });
         await track(db, 'artifact_share', { ownerKind: sm[1], ownerId: sm[2], props: { kind: 'supporter_card' } });
         const ogImg = `${origin}/share/supporter/${sm[1]}/${sm[2]}.svg`;
         return html(res, renderSharePage({ title: `Backing ${nm}`, card, body: `I'm backing ${nm} on Horda. Get closer to the athletes you love.`, shareText: `I'm backing ${nm} on Horda — joinhorda.com` }, sm[1] === 'athlete' ? `/athlete/${sm[2]}` : `/${sm[1]}/${sm[2]}`));
@@ -822,6 +859,10 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
         return redirect(res, `/${m[1]}/${m[2]}`);
       }
       if ((m = path.match(/^\/fan\/([^/]+)$/))) {
+        // §1a: fan activity (follows, RSVPs, subs) is PRIVATE for all users — a
+        // fan home is only ever visible to its owner, never to other accounts.
+        if (viewerGuest) return redirect(res, '/login');
+        if (m[1] !== viewer) return html(res, '<p>This feed is private. <a href="/">Home</a></p>', 403);
         const home = await getFanHome(db, m[1]);
         const follows = await getFollows(db, m[1]);
         const fanAct = renderChecklist(await fanChecklist(db, m[1]));
@@ -831,6 +872,17 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
           ? await Promise.all((await ownedEntities(db, account.id)).map(async e => ({ ...e, events: await listProfileEvents(db, e.kind, e.id) })))
           : [];
         return html(res, renderFanHome({ fanId: m[1], fanName: 'You', home, follows, activation: fanAct, pages: ownPages, createHref: viewerCreateHref }));
+      }
+      // §4a/§6: hosted themed OG image for an athlete (rich share cards). SVG for
+      // now; PNG rasterization is a follow-up once an image lib is added.
+      if ((m = path.match(/^\/og\/athlete\/([^/]+)\.svg$/))) {
+        const prof = /^[0-9a-fA-F-]{36}$/.test(m[1]) ? await getAthleteProfile(db, m[1]).catch(() => null) : null;
+        if (!prof) { res.writeHead(404); res.end('not found'); return; }
+        const sportsArr = await getAthleteSports(db, m[1]);
+        const spec = autoContrast(parseTheme(await getAthleteTheme(db, m[1]), sportsArr[0] ?? null));
+        const svg = bannerSvg({ name: prof.name, sport: sportsArr[0] ?? null, city: (prof as any).region ?? null }, spec, { og: true });
+        res.writeHead(200, { 'content-type': 'image/svg+xml; charset=utf-8', 'cache-control': 'public, max-age=300' });
+        res.end(svg); return;
       }
       if ((m = path.match(/^\/athlete\/([^/]+)$/))) {
         const guest = viewerGuest;
@@ -853,7 +905,15 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
         const athOwner = realOwner && !asFan;
         const athAct = athOwner ? renderChecklist(await athleteChecklist(db, m[1])) : '';
         const athSections = resolveLayout(await getAthleteSport(db, m[1]), await getAthleteLayout(db, m[1]));
-        const athOg = ogMeta({ title: `${profile.name} on Horda`, description: profile.tagline || `Follow ${profile.name} on Horda — drops, events and superfan access.`, url: `${origin}/athlete/${m[1]}`, image: profile.bannerUrl || profile.avatarUrl, type: 'profile' });
+        // §4a themed banner + OG — auto-generated wow default when no photo, and
+        // the OG image is a hosted URL so shared links render a rich card either way.
+        const athSportsArr = await getAthleteSports(db, m[1]);
+        const athTheme = autoContrast(parseTheme(await getAthleteTheme(db, m[1]), athSportsArr[0] ?? null));
+        const athClub = affiliations.find(a => a.kind === 'club')?.label ?? null;
+        const athBanData = { name: profile.name, sport: athSportsArr[0] ?? null, club: athClub, city: (profile as any).region ?? null };
+        const athThemedBanner = (profile.bannerUrl) ? undefined : svgDataUri(bannerSvg(athBanData, athTheme));
+        const athRealPhoto = profile.bannerUrl && /^https?:\/\//.test(profile.bannerUrl) ? profile.bannerUrl : `${origin}/og/athlete/${m[1]}.svg`;
+        const athOg = ogMeta({ title: `${profile.name} on Horda`, description: profile.tagline || `Follow ${profile.name} on Horda — drops, events and superfan access.`, url: `${origin}/athlete/${m[1]}`, image: athRealPhoto, type: 'profile' });
         const athMedia = await listMedia(db, 'athlete', m[1]);
         const athSponsors = await listSponsors(db, 'athlete', m[1]);
         const athBanner = await getBannerStyle(db, m[1]);
@@ -861,7 +921,7 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
         const goalsHtml = athGoals.map(g => goalBar(g)).join('');
         const athShop = await listShopItems(db, 'athlete', m[1]);
         const athSportsLabel = sportsLabel(await getAthleteSports(db, m[1]));
-        return html(res, renderAthletePage({ guest, fanId, profile, upcoming, attendance, affiliations, events, scheduleHref: `/host/athlete/${m[1]}/new`, tiers, membership, superfan, loyalty: fanId ? { score: lscore, threshold: 200 } : null, memberCount: members, canEdit: athOwner, activation: athAct, sections: athSections, ogTags: athOg, previewAsFan: realOwner && asFan, media: athMedia, sponsors: athSponsors, banner: athBanner, goalsHtml, sportsLabel: athSportsLabel, createHref: viewerCreateHref, shop: athShop }));
+        return html(res, renderAthletePage({ guest, fanId, profile, upcoming, attendance, affiliations, events, scheduleHref: `/host/athlete/${m[1]}/new`, tiers, membership, superfan, loyalty: fanId ? { score: lscore, threshold: 200 } : null, memberCount: members, canEdit: athOwner, activation: athAct, sections: athSections, ogTags: athOg, previewAsFan: realOwner && asFan, media: athMedia, sponsors: athSponsors, banner: athBanner, goalsHtml, sportsLabel: athSportsLabel, createHref: viewerCreateHref, shop: athShop, themedBanner: athThemedBanner }));
       }
       if ((m = path.match(/^\/club\/([^/]+)$/))) {
         const guest = viewerGuest;
