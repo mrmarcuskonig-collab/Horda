@@ -918,7 +918,7 @@ export function renderSettings(d: { fanId: string; fanName: string; email?: stri
       <div class="setbar"><span>Theme</span>${themeToggle()}</div>
     </div>
     ${creatorRows}
-    ${group('Your Horda', row('Your profile & feed', `/fan/${esc(d.fanId)}`) + row('Following — My Hordas', `/fan/${esc(d.fanId)}#hordas`))}
+    ${group('Your Horda', row('Your Record', '/record', 'Where you actually showed up') + row('Your profile & feed', `/fan/${esc(d.fanId)}`) + row('Following — My Hordas', `/fan/${esc(d.fanId)}#hordas`))}
     ${group('Support', row('About Horda', '/about') + row('Reserve a handle', '/claim-handle'))}
     <div class="setgroup">
       <a class="setrow danger" href="/logout"><span>Log out</span></a>

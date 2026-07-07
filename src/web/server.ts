@@ -19,7 +19,7 @@ import {
 import { renderEntityProfile, tableDark } from './shell.ts';
 import { FAVICON_SVG } from './brand.ts';
 import { buildResultShare, buildFightShare, buildWeekDrop } from '../content/index.ts';
-import { createScheduledEvent, rsvp, getRsvp, getEventDetail, getGuestList, listUpcomingByHost, listProfileEvents, hostName, icsFor, approveRegistration, markPaid, featureEvent, getTicketFor, giftTicket, listTicket, getListings, buyListing } from '../db/events_repo.ts';
+import { createScheduledEvent, rsvp, getRsvp, getEventDetail, getGuestList, listUpcomingByHost, listProfileEvents, hostName, icsFor, approveRegistration, markPaid, featureEvent, getTicketFor, giftTicket, listTicket, getListings, buyListing, priceLabel } from '../db/events_repo.ts';
 import { getTier, getTiers, setTier, joinMembership, cancelMembershipBySub, getMembership, memberCount, recordLoyalty, loyaltyScore, isSuperfan, topSuperfans, type TierLevel } from '../db/membership_repo.ts';
 import { signup, verifyLogin, createSession, sessionAccount, deleteSession, fanForAccount, owns, ownedEntities, grantOwnership, accountRole, setOnboarded, upsertOauthAccount, createPasswordReset, resetPassword, activateCreatorLayer, setBirthYear, accountFlags, isAdultYear } from '../db/auth_repo.ts';
 import { getDiscover, REGIONS } from '../db/discover_repo.ts';
@@ -35,6 +35,8 @@ import { parseTheme, serializeTheme, autoContrast, bannerSvg, svgDataUri, THEME_
 import { listMedia, addMedia, deleteMedia, listSponsors, addSponsor, deleteSponsor, subscribeNewsletter, reserveHandle, getBannerStyle, setBannerStyle, listShopItems, addShopItem, deleteShopItem } from '../db/extras_repo.ts';
 import { track, conversionRate, metricCounts, defaultRoomLabel, roomState, setRoomConfig, setResult, getRoomConfig, listRoomMessages, postRoomMessage, canSeeLiveRoom, createGoal, listGoals, activeGoalProgress, getGoal, maybeGoalSignup, trackConversion, roomPresence } from '../db/hook_repo.ts';
 import { renderEventRoom, renderMediaStudio, renderInsights, goalBar } from './hook_web.ts';
+import { spotsInfo, getClaim, createClaim, getPass, verifyPass, fanRecord, recordCount, crowdStanding, grantConsent } from '../db/claim_rail_repo.ts';
+import { renderPass, renderRecord, renderCheckin, claimCta } from './claim_web.ts';
 import { generateEventAssets, eventGraphic, supporterCard } from './mediagen.ts';
 import { resolveLayout } from './sections.ts';
 import { generateProfile, getModel, coverDataUri } from './profilegen.ts';
@@ -342,6 +344,10 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
         await followEntity(db, viewer, f.target_type as any, f.target_id);
         await recordLoyalty(db, viewer, f.target_type, f.target_id, 'follow');
         await maybeGoalSignup(db, f.target_type, f.target_id, viewer, 'follow');
+        // Joining a crowd is the consent action (§5). Channels are granular; email
+        // by default here, the full per-channel opt-in lands with the comms rail.
+        const consentChannels = (f.consent || 'email').split(',').map(s => s.trim()).filter(Boolean);
+        if (consentChannels.length) await grantConsent(db, viewer, f.target_type, f.target_id, consentChannels, 'crowd_join');
         return redirect(res, req.headers.referer ?? `/athlete/${f.target_id}`);
       }
       if (req.method === 'POST' && path === '/predict') {
@@ -506,6 +512,53 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
         res.writeHead(200, { 'content-type': 'text/calendar; charset=utf-8', 'content-disposition': 'attachment; filename="horda-event.ics"' });
         res.end(icsFor(d)); return;
       }
+      // --- the claim rail (the pivot) ---------------------------------------
+      // Claim a spot. Account folds into the claim: a guest supplies name +
+      // contact and gets a passwordless base account (passkey lands with Wallet).
+      if (req.method === 'POST' && (em = path.match(/^\/claim\/([^/]+)$/))) {
+        const eid = em[1];
+        const d = await getEventDetail(db, eid);
+        if (!d) return redirect(res, '/');
+        let claimFan = viewer, claimAcct = account?.id ?? null;
+        if (viewerGuest) {
+          const f = await parseForm(req);
+          const contact = (f.contact || '').trim().toLowerCase();
+          if (!f.name || !contact) return redirect(res, `/e/${eid}`);
+          const email = contact.includes('@') ? contact : `${contact.replace(/[^0-9+]/g, '')}@phone.horda`;
+          const r = await upsertOauthAccount(db, email, f.name);   // passwordless base account
+          claimAcct = r.accountId; claimFan = r.fanId ?? (await fanForAccount(db, r.accountId)) ?? viewer;
+          const token = await createSession(db, r.accountId);
+          res.setHeader('set-cookie', `hz_session=${token}; Path=/; HttpOnly; SameSite=Lax`);
+        }
+        const evRow = (await db.query<any>(`SELECT capacity, registration_mode FROM event WHERE id=$1`, [eid])).rows[0];
+        const cl = await createClaim(db, { eventId: eid, fanId: claimFan, capacity: evRow?.capacity ?? null, mode: evRow?.registration_mode ?? 'open', priceCents: d.admission === 'paid' ? d.priceCents : null, sourceEdge: url.searchParams.get('via') || 'direct' });
+        await track(db, 'claim_created', { ownerKind: d.hostKind ?? undefined, ownerId: d.hostId ?? undefined, fanId: claimFan, eventId: eid, props: { status: cl.status } });
+        return redirect(res, `/pass/${cl.passToken}`);
+      }
+      if ((em = path.match(/^\/pass\/([^/]+)$/))) {
+        const p = await getPass(db, em[1]);
+        if (!p) return html(res, '<p>Pass not found. <a href="/">Home</a></p>', 404);
+        return html(res, renderPass({ pass: p, verifyUrl: `${origin}/pass/${em[1]}`, guest: viewerGuest, fanId: viewerGuest ? null : viewer }));
+      }
+      if ((em = path.match(/^\/e\/([^/]+)\/check-in$/))) {
+        const d = await getEventDetail(db, em[1]);
+        if (!d) return redirect(res, '/');
+        if (!await canEdit(d.hostKind ?? '', d.hostId ?? '')) return redirect(res, `/e/${em[1]}`);
+        let result;
+        if (req.method === 'POST') {
+          const f = await parseForm(req);
+          result = await verifyPass(db, (f.token || '').replace(/\s+/g, ''), account?.id ?? null, d.locationKind === 'online' ? 'online' : 'in_room');
+          if (result.ok && !result.already) await track(db, 'presence_verified', { ownerKind: d.hostKind ?? undefined, ownerId: d.hostId ?? undefined, eventId: em[1] });
+        }
+        const cap = (await db.query<{ capacity: number | null }>(`SELECT capacity FROM event WHERE id=$1`, [em[1]])).rows[0]?.capacity ?? null;
+        const spots = await spotsInfo(db, em[1], cap);
+        const vcount = (await db.query<{ n: number }>(`SELECT count(*)::int n FROM presence WHERE event_id=$1`, [em[1]])).rows[0].n;
+        return html(res, renderCheckin({ eventId: em[1], title: d.title, claimed: spots.claimed, capacity: cap, verifiedCount: vcount, result }));
+      }
+      if (path === '/record' || path === '/me/record') {
+        if (viewerGuest) return redirect(res, '/login');
+        return html(res, renderRecord({ fanId: viewer, name: account?.displayName || 'You', rows: await fanRecord(db, viewer), count: await recordCount(db, viewer) }));
+      }
       // --- Build Order #3: Event Room ---------------------------------------
       // Build an EventBrief for the AI media + room graphic from the event + host.
       const eventBrief = async (ev: any) => {
@@ -595,7 +648,17 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
         const isHost = await canEdit(d.hostKind ?? '', d.hostId ?? '');
         const rc = await getRoomConfig(db, em[1]);
         const roomCta = rc?.enabled ? `<div class="card" style="border-color:var(--bone)"><strong>${esc(rc.label || 'Event Room')}</strong> — countdown, live reactions and the host's behind-the-scenes.<div class="row" style="margin-top:8px"><a class="btn" href="/e/${em[1]}/room">Enter the ${esc(rc.label || 'room')} →</a></div></div>` : '';
-        return html(res, renderEventPage(d, { guest, fanId: guest ? null : viewer, myRsvp, isHost, myEntities, myTicket, listings, extraTop: roomCta }));
+        // The claim rail (the pivot): the primary CTA on every event is "Claim your spot".
+        const evRow = (await db.query<any>(`SELECT capacity, registration_mode, standing_threshold FROM event WHERE id=$1`, [em[1]])).rows[0];
+        const spots = await spotsInfo(db, em[1], evRow?.capacity ?? null);
+        const mineClaim = guest ? null : await getClaim(db, em[1], viewer);
+        let minePass: { status: string; token: string } | null = null;
+        if (mineClaim) { const pv = (await db.query<{ token: string }>(`SELECT token FROM pass WHERE claim_id=$1`, [mineClaim.id])).rows[0]; minePass = { status: mineClaim.status, token: pv?.token ?? '' }; }
+        const standHave = (!guest && d.hostKind) ? await crowdStanding(db, viewer, d.hostKind, d.hostId!) : 0;
+        const claimBlock = isHost
+          ? `<div class="card"><strong>You host this.</strong><div class="row" style="margin-top:8px"><a class="btn" href="/e/${em[1]}/check-in">Open check-in →</a></div></div>`
+          : claimCta({ eventId: em[1], remaining: spots.remaining, full: spots.full, mine: minePass, guest, priceLabel: d.admission === 'paid' ? priceLabel(d) : 'Free', mode: evRow?.registration_mode ?? 'open', standing: { have: standHave, need: evRow?.standing_threshold ?? 0 } });
+        return html(res, renderEventPage(d, { guest, fanId: guest ? null : viewer, myRsvp, isHost, myEntities, myTicket, listings, extraTop: claimBlock + roomCta }));
       }
       if ((em = path.match(/^\/manage\/([^/]+)$/))) {
         const d = await getEventDetail(db, em[1]);
