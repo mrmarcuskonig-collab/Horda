@@ -48,14 +48,17 @@ export async function createClaim(db: Database, o: {
 export interface PassView {
   token: string; claimId: string; fanId: string; status: string; eventId: string;
   eventTitle: string; startsAt: string | null; hostKind: string | null; hostId: string | null; verified: boolean;
+  formatKind: string | null; formatLabel: string | null; channelUrl: string | null;
 }
 export async function getPass(db: Database, token: string): Promise<PassView | null> {
   const r = (await db.query<any>(
     `SELECT pa.token, pa.claim_id, pa.fan_id, c.status, c.event_id, e.name event_title, e.starts_at, e.host_kind, e.host_id,
+            ef.kind fmt_kind, ef.label fmt_label, ef.channel_url,
             EXISTS (SELECT 1 FROM presence pr WHERE pr.claim_id=c.id) verified
-     FROM pass pa JOIN claim c ON c.id=pa.claim_id JOIN event e ON e.id=c.event_id WHERE pa.token=$1`, [token])).rows[0];
+     FROM pass pa JOIN claim c ON c.id=pa.claim_id JOIN event e ON e.id=c.event_id
+     LEFT JOIN event_format ef ON ef.id=c.format_id WHERE pa.token=$1`, [token])).rows[0];
   if (!r) return null;
-  return { token: r.token, claimId: r.claim_id, fanId: r.fan_id, status: r.status, eventId: r.event_id, eventTitle: r.event_title, startsAt: r.starts_at ?? null, hostKind: r.host_kind, hostId: r.host_id, verified: !!r.verified };
+  return { token: r.token, claimId: r.claim_id, fanId: r.fan_id, status: r.status, eventId: r.event_id, eventTitle: r.event_title, startsAt: r.starts_at ?? null, hostKind: r.host_kind, hostId: r.host_id, verified: !!r.verified, formatKind: r.fmt_kind ?? null, formatLabel: r.fmt_label ?? null, channelUrl: r.channel_url ?? null };
 }
 
 // Verify a pass at the gate → records presence (idempotent) + bumps standing.

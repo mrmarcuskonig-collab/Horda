@@ -36,8 +36,14 @@ import { listMedia, addMedia, deleteMedia, listSponsors, addSponsor, deleteSpons
 import { track, conversionRate, metricCounts, defaultRoomLabel, roomState, setRoomConfig, setResult, getRoomConfig, listRoomMessages, postRoomMessage, canSeeLiveRoom, createGoal, listGoals, activeGoalProgress, getGoal, maybeGoalSignup, trackConversion, roomPresence } from '../db/hook_repo.ts';
 import { renderEventRoom, renderMediaStudio, renderInsights, goalBar } from './hook_web.ts';
 import { spotsInfo, getClaim, createClaim, getPass, verifyPass, fanRecord, recordCount, crowdStanding, grantConsent, feedDoors, recentPresence } from '../db/claim_rail_repo.ts';
+import { listFormats, addFormat, formatCounts, setClaimFormat, getFormat } from '../db/event_format_repo.ts';
+import { notify, listNotifications, unreadCount, markAllRead } from '../db/notif_repo.ts';
+import { parseSeasonLines, shiftDate } from '../db/events_repo.ts';
+import { renderNotifications } from './pages.ts';
+import { formatPicker } from './claim_web.ts';
 import { renderPass, renderRecord, renderCheckin, claimCta } from './claim_web.ts';
 import { actionBar } from './theme.ts';
+import { normLang } from './i18n.ts';
 import { generateEventAssets, eventGraphic, supporterCard } from './mediagen.ts';
 import { resolveLayout } from './sections.ts';
 import { generateProfile, getModel, coverDataUri } from './profilegen.ts';
@@ -92,6 +98,7 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
       const path = url.pathname;
       // --- identity: resolve the session account (demo fallback keeps it usable without login) ---
       const cookies = parseCookies(req.headers.cookie);
+      const lang = normLang(cookies.hz_lang);
       const account = (await sessionAccount(db, cookies.hz_session)) ?? (DEMO_FALLBACK ? { id: ids.demoAccountId, email: 'demo@horda.app', displayName: 'You' } : null);
       const viewer = (account ? await fanForAccount(db, account.id) : null) ?? ids.fanId;
       const viewerGuest = !account || url.searchParams.get('guest') === '1';
@@ -375,19 +382,54 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
         if (f.instagram) streams.instagram = f.instagram;
         if (f.tiktok) streams.tiktok = f.tiktok;
         if (f.discord) streams.discord = f.discord;
-        const id = await createScheduledEvent(db, {
+        const coverUrl = (await storeImage(f.cover, 'events')) || undefined;
+        // reusable args so recurrence + season children are identical to the base
+        const baseArgs = {
           hostKind: f.host_kind as any, hostId: f.host_id, title: f.title || 'Untitled event',
           startsAt: f.starts_at || new Date().toISOString(), location: f.location, description: f.description,
-          coverUrl: (await storeImage(f.cover, 'events')) || undefined, admission: (f.admission as any) || 'open',
+          coverUrl, admission: (f.admission as any) || 'open',
           priceCents: f.price ? Math.round(Number(f.price) * 100) : undefined, streams,
           capacity: f.capacity ? Number(f.capacity) : undefined,
-          locationKind: f.location_kind, recurrence: f.recurrence,
-        });
+          locationKind: f.location_kind,
+        };
+        // Attendance formats (multi-format): in-person (ticketed on Horda) + up to
+        // two streams (e.g. TikTok Live, a media provider). Every format's
+        // attendance is confirmed on Horda → clean per-format organizer counts.
+        const toCents = (s?: string) => { const v = parseFloat((s || '').replace(',', '.')); return isFinite(v) && v > 0 ? Math.round(v * 100) : null; };
+        const specs: { kind: string; label: string; channelUrl: string | null; requiresTicket: boolean; priceCents: number | null; capacity: number | null }[] = [];
+        if (f.fmt_inperson === '1') { const p = toCents(f.fmt_inperson_price); specs.push({ kind: 'in_person', label: 'In person', channelUrl: null, requiresTicket: !!p, priceCents: p, capacity: f.fmt_inperson_cap ? Number(f.fmt_inperson_cap) : null }); }
+        for (const [lab, u] of [[f.fmt_stream1_label, f.fmt_stream1_url], [f.fmt_stream2_label, f.fmt_stream2_url]] as [string, string][]) {
+          if ((u || '').trim()) specs.push({ kind: 'stream', label: (lab || 'Live stream').trim(), channelUrl: u.trim(), requiresTicket: false, priceCents: null, capacity: null });
+        }
+        const applyFormats = async (evId: string) => { let i = 0; for (const s of specs) await addFormat(db, { eventId: evId, sort: i++, ...s }); };
+
+        const id = await createScheduledEvent(db, { ...baseArgs, recurrence: f.recurrence });
+        await applyFormats(id);
         // Event Room config (Build Order #3) — extends the event, no parallel system.
         if (f.room_enabled === '1') {
           const sport = f.host_kind === 'athlete' ? await getAthleteSport(db, f.host_id) : null;
           await setRoomConfig(db, id, { enabled: true, label: (f.room_label || '').trim() || defaultRoomLabel(sport), tier: f.room_tier || 'supporter' });
           await track(db, 'event_room_open', { ownerKind: f.host_kind, ownerId: f.host_id, eventId: id, props: { tier: f.room_tier || 'supporter' } });
+        }
+        // Recurrence: auto-create the repeat series (weekly/monthly × N), formats cloned.
+        const recur = f.recurrence === 'weekly' || f.recurrence === 'monthly' ? f.recurrence : null;
+        const count = Math.min(52, Math.max(1, Number(f.recurrence_count) || 1));
+        let made = 0;
+        if (recur && count > 1) {
+          for (let n = 1; n < count; n++) {
+            const sid = await createScheduledEvent(db, { ...baseArgs, startsAt: shiftDate(baseArgs.startsAt, recur, n), recurrence: 'none' });
+            await applyFormats(sid); made++;
+          }
+        }
+        // Season schedule: one event per pasted fixture line, formats cloned.
+        const season = parseSeasonLines(f.season_schedule || '', baseArgs.title);
+        for (const fx of season) {
+          const sid = await createScheduledEvent(db, { ...baseArgs, title: fx.title, startsAt: fx.startsAt, location: fx.location ?? baseArgs.location, recurrence: 'none' });
+          await applyFormats(sid); made++;
+        }
+        if (made > 0) {
+          const ownerFan = await fanForAccount(db, account!.id);
+          if (ownerFan) await notify(db, { fanId: ownerFan, kind: 'season_created', headline: `${made + 1} events created — your series is live.`, href: `/e/${id}`, eventId: id });
         }
         return redirect(res, f.room_enabled === '1' ? `/e/${id}/room` : `/e/${id}`);
       }
@@ -520,9 +562,10 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
         const eid = em[1];
         const d = await getEventDetail(db, eid);
         if (!d) return redirect(res, '/');
+        const f = await parseForm(req);   // parse once — carries format_id and guest fields
+        const formatId = f.format_id || null;
         let claimFan = viewer, claimAcct = account?.id ?? null;
         if (viewerGuest) {
-          const f = await parseForm(req);
           const contact = (f.contact || '').trim().toLowerCase();
           if (!f.name || !contact) return redirect(res, `/e/${eid}`);
           const email = contact.includes('@') ? contact : `${contact.replace(/[^0-9+]/g, '')}@phone.horda`;
@@ -531,9 +574,26 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
           const token = await createSession(db, r.accountId);
           res.setHeader('set-cookie', `hz_session=${token}; Path=/; HttpOnly; SameSite=Lax`);
         }
+        // price comes from the chosen format (in-person ticket) if any, else event-level.
+        let priceCents: number | null = d.admission === 'paid' ? d.priceCents : null;
+        let fmtLabel = '';
+        if (formatId) { const fmt = await getFormat(db, formatId); if (fmt) { priceCents = fmt.requiresTicket ? (fmt.priceCents ?? null) : null; fmtLabel = fmt.label; } }
         const evRow = (await db.query<any>(`SELECT capacity, registration_mode FROM event WHERE id=$1`, [eid])).rows[0];
-        const cl = await createClaim(db, { eventId: eid, fanId: claimFan, capacity: evRow?.capacity ?? null, mode: evRow?.registration_mode ?? 'open', priceCents: d.admission === 'paid' ? d.priceCents : null, sourceEdge: url.searchParams.get('via') || 'direct' });
-        await track(db, 'claim_created', { ownerKind: d.hostKind ?? undefined, ownerId: d.hostId ?? undefined, fanId: claimFan, eventId: eid, props: { status: cl.status } });
+        const cl = await createClaim(db, { eventId: eid, fanId: claimFan, capacity: evRow?.capacity ?? null, mode: evRow?.registration_mode ?? 'open', priceCents, sourceEdge: url.searchParams.get('via') || 'direct' });
+        if (formatId) await setClaimFormat(db, cl.id, formatId);
+        await track(db, 'claim_created', { ownerKind: d.hostKind ?? undefined, ownerId: d.hostId ?? undefined, fanId: claimFan, eventId: eid, props: { status: cl.status, format: fmtLabel } });
+        // Notify the organizer that someone confirmed (per-format), unless self-claim.
+        if (d.hostKind && d.hostId) {
+          const orgAcct = (await db.query<{ account_id: string }>(`SELECT account_id FROM ownership WHERE owner_kind=$1 AND owner_id=$2 LIMIT 1`, [d.hostKind, d.hostId])).rows[0]?.account_id
+            ?? (d.hostKind === 'athlete' ? (await db.query<{ account_id: string }>(`SELECT account_id FROM athlete WHERE id=$1`, [d.hostId])).rows[0]?.account_id : null);
+          const orgFan = orgAcct ? await fanForAccount(db, orgAcct) : null;
+          if (orgFan && orgFan !== claimFan) {
+            const who = (await db.query<{ n: string }>(`SELECT display_name n FROM fan WHERE id=$1`, [claimFan])).rows[0]?.n ?? 'Someone';
+            await notify(db, { fanId: orgFan, kind: 'claim_new', headline: `${who} confirmed for ${d.title}${fmtLabel ? ` — ${fmtLabel}` : ''}.`, href: `/manage/${eid}`, eventId: eid });
+          }
+        }
+        // Confirm back to the fan (unless waitlisted/approval-pending).
+        if (cl.status === 'claimed') await notify(db, { fanId: claimFan, kind: 'claim_confirmed', headline: `You're confirmed for ${d.title}${fmtLabel ? ` — ${fmtLabel}` : ''}.`, href: `/pass/${cl.passToken}`, eventId: eid });
         return redirect(res, `/pass/${cl.passToken}`);
       }
       if ((em = path.match(/^\/pass\/([^/]+)$/))) {
@@ -559,6 +619,12 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
       if (path === '/record' || path === '/me/record') {
         if (viewerGuest) return redirect(res, '/login');
         return html(res, renderRecord({ fanId: viewer, name: account?.displayName || 'You', rows: await fanRecord(db, viewer), count: await recordCount(db, viewer) }));
+      }
+      if (path === '/notifications') {
+        if (viewerGuest) return redirect(res, '/login');
+        const items = await listNotifications(db, viewer);
+        await markAllRead(db, viewer);   // opening the page clears the unread badge
+        return html(res, renderNotifications({ fanId: viewer, createHref: viewerCreateHref, items }));
       }
       // --- Build Order #3: Event Room ---------------------------------------
       // Build an EventBrief for the AI media + room graphic from the event + host.
@@ -656,9 +722,14 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
         let minePass: { status: string; token: string } | null = null;
         if (mineClaim) { const pv = (await db.query<{ token: string }>(`SELECT token FROM pass WHERE claim_id=$1`, [mineClaim.id])).rows[0]; minePass = { status: mineClaim.status, token: pv?.token ?? '' }; }
         const standHave = (!guest && d.hostKind) ? await crowdStanding(db, viewer, d.hostKind, d.hostId!) : 0;
+        // Multi-format: if the organizer offered formats, fans pick how they'll attend.
+        const evFormats = await formatCounts(db, em[1]);
+        const mineFormatId = mineClaim ? ((await db.query<{ format_id: string | null }>(`SELECT format_id FROM claim WHERE id=$1`, [mineClaim.id])).rows[0]?.format_id ?? null) : null;
         const claimBlock = isHost
-          ? `<div class="card"><strong>You host this.</strong><div class="row" style="margin-top:8px"><a class="btn" href="/e/${em[1]}/check-in">Open check-in →</a></div></div>`
-          : claimCta({ eventId: em[1], remaining: spots.remaining, full: spots.full, mine: minePass, guest, priceLabel: d.admission === 'paid' ? priceLabel(d) : 'Free', mode: evRow?.registration_mode ?? 'open', standing: { have: standHave, need: evRow?.standing_threshold ?? 0 } });
+          ? `<div class="card"><strong>You host this.</strong><div class="row" style="margin-top:8px"><a class="btn" href="/e/${em[1]}/check-in">Open check-in →</a><a class="btn ghost" href="/manage/${em[1]}">Manage &amp; attendance →</a></div></div>`
+          : evFormats.length
+            ? formatPicker({ eventId: em[1], guest, full: spots.full, formats: evFormats, mine: minePass ? { status: minePass.status, token: minePass.token, formatId: mineFormatId } : null })
+            : claimCta({ eventId: em[1], remaining: spots.remaining, full: spots.full, mine: minePass, guest, priceLabel: d.admission === 'paid' ? priceLabel(d) : 'Free', mode: evRow?.registration_mode ?? 'open', standing: { have: standHave, need: evRow?.standing_threshold ?? 0 } });
         // Persistent primary-action bar (the IG/TikTok pattern) — scarcity + one tap.
         const barSub = spots.remaining == null ? (d.admission === 'paid' ? priceLabel(d) : 'Free') : (spots.full ? 'Full — join the waitlist' : `${spots.remaining} spot${spots.remaining === 1 ? '' : 's'} left${d.admission === 'paid' ? ' · ' + priceLabel(d) : ''}`);
         const stickyCta = isHost
@@ -672,7 +743,7 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
         const d = await getEventDetail(db, em[1]);
         if (!d) return html(res, 'Not found', 404);
         if (!await canEdit(d.hostKind ?? '', d.hostId ?? '')) return redirect(res, `/e/${em[1]}`);  // guest list is owner-only
-        return html(res, renderManage(d, await getGuestList(db, em[1])));
+        return html(res, renderManage(d, await getGuestList(db, em[1]), await formatCounts(db, em[1])));
       }
       if ((em = path.match(/^\/host\/(athlete|club|team|association)\/([^/]+)\/new$/))) {
         return html(res, renderCreateEvent(em[1], em[2], await hostName(db, em[1], em[2])));
@@ -720,11 +791,19 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
         return html(res, renderSharePage(a));
       }
 
+      // language preference (EN/DE) — per-device cookie, then back to where you were
+      if (path === '/set-lang') {
+        const l = url.searchParams.get('l') === 'de' ? 'de' : 'en';
+        let next = url.searchParams.get('next') || '/';
+        if (!next.startsWith('/')) next = '/';   // only same-origin redirects
+        res.writeHead(303, { 'set-cookie': `hz_lang=${l}; Path=/; Max-Age=31536000; SameSite=Lax`, location: next }); res.end(); return;
+      }
       if (path === '/') {
         const sport = url.searchParams.get('sport') || undefined;
         const region = url.searchParams.get('region') || undefined;
         const data = await getDiscover(db, { sport, region });
-        return html(res, renderDiscover({ guest: viewerGuest, fanId: viewer, sport, region, data, regions: REGIONS }));
+        const unread = viewerGuest ? 0 : await unreadCount(db, viewer);
+        return html(res, renderDiscover({ guest: viewerGuest, fanId: viewer, sport, region, data, regions: REGIONS, lang, unread }));
       }
       if (path === '/map') {
         const data = await getDiscover(db, {});

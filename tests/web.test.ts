@@ -149,13 +149,50 @@ const mapPage = await get('/map');
 ok('creator map is its own page (Leaflet + CARTO), removed from landing', mapPage.includes('id="map"') && mapPage.includes('cartocdn.com') && !land.includes('id="map"'));
 ok('map markers are avatar rings that link to the profile (no name/popup label)', mapPage.includes("className:'hz-av'") && mapPage.includes('class="mav"') && mapPage.includes('window.location.href=p.href') && !mapPage.includes('bindPopup'));
 ok('landing footer carries the superfan tagline', land.includes('The home for sports superfans'));
-ok('theme toggle present + no-flash boot script', land.includes('class="thm"') && land.includes("localStorage.getItem('hz_theme')"));
+ok('no-flash theme boot script on landing (toggle now lives in Settings/profile)', land.includes("localStorage.getItem('hz_theme')") && !land.includes('class="thm"'));
 ok('light theme variables defined app-wide', land.includes('data-theme="light"') && (await get(`/athlete/${rico}`)).includes('data-theme="light"'));
 ok('map filters with taste too (Hamburg boxing excludes Rico everywhere)', !filtered.includes(`/athlete/${rico}`));
 // instagram-like usability: persistent bottom tab bar + verified trust badges
 ok('persistent bottom tab bar, icon-only (labels via aria-label, no text)', land.includes('class="bnav"') && land.includes('aria-label="Home"') && land.includes('aria-label="You"') && !land.includes('class="lbl"') && !land.includes('>Home<'));
 ok('bottom nav appears on inner pages too (athlete)', (await get(`/athlete/${rico}`)).includes('class="bnav"'));
 ok('verified badge on a claim-verified athlete (Rico is owned)', land.includes('class="vbadge"'));
+// TikTok-style desktop left rail + language toggle + event engagement chips
+ok('desktop left rail: labelled Explore/Following/Create/Profile nav', land.includes('class="drail"') && land.includes('>Explore<') && land.includes('>Following<') && land.includes('>Create event<') && land.includes('>Profile<'));
+ok('rail create link is generic /create (no leaked athlete id)', land.includes('href="/create"') && !land.includes(`/athlete/${rico}/compose`));
+ok('rail carries search + language toggle + dark-mode toggle', land.includes('class="dr-search"') && land.includes('class="lgtog"') && land.includes('/set-lang?l=de') && land.includes('/set-lang?l=en'));
+ok('event cards show engagement stats (going / followers / shares)', land.includes('class="estats"') && land.includes('class="est"'));
+const deLand = await (await fetch(base + '/', { headers: { cookie: 'hz_lang=de' } })).text();
+ok('German locale translates the rail (Erkunden/Gefolgt/Einstellungen)', deLand.includes('>Erkunden<') && deLand.includes('>Gefolgt<') && deLand.includes('lang="de"'));
+// rail: notifications item for logged-in, and dark toggle moved out of the rail
+const landIn = await get('/');
+ok('rail shows Notifications for logged-in users, not for guests', landIn.includes('href="/notifications"') && landIn.includes('Notifications') && !land.includes('href="/notifications"'));
+ok('dark-mode toggle removed from discover (moved to Settings)', !landIn.includes('class="thm"') && (await get('/settings')).includes('class="thm"'));
+
+// multi-format attendance: create an event with in-person ticket + a stream,
+// then a guest picks a format and the organizer sees the per-format breakdown.
+const mfForm = new URLSearchParams({
+  host_kind: 'athlete', host_id: rico, title: 'German Championship Final', starts_at: '2027-05-01T19:00',
+  location_kind: 'hybrid', location: 'Olympiastadion', admission: 'open',
+  fmt_inperson: '1', fmt_inperson_price: '25', fmt_stream1_label: 'TikTok Live', fmt_stream1_url: 'https://tiktok.com/@x/live',
+  fmt_stream2_label: 'Sportdeutschland.TV', fmt_stream2_url: 'https://sportdeutschland.tv/x',
+});
+const mfRes = await fetch(base + '/events', { method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded' }, body: mfForm.toString(), redirect: 'manual' });
+const mfLoc = mfRes.headers.get('location') || '';
+const mfId = (mfLoc.match(/\/e\/([^/?]+)/) || [])[1] || '';
+const mfPage = await get(`/e/${mfId}?guest=1`);
+ok('event with formats shows a format picker (in person + streams)', mfPage.includes('class="fmtwrap"') && mfPage.includes('In person') && mfPage.includes('TikTok Live') && mfPage.includes('Sportdeutschland.TV'));
+ok('in-person shows Get-ticket price; channel links hidden until claim', mfPage.includes('Get ticket · €25') && !mfPage.includes('Channel ↗') && !mfPage.includes('Watch on'));
+ok('guest enters name + email once; each format is a submit button', (mfPage.match(/name="name"/g) || []).length === 1 && (mfPage.match(/name="format_id"/g) || []).length >= 3 && mfPage.includes("I'll watch here"));
+const mfManage = await get(`/manage/${mfId}`);
+ok('organizer manage view shows attendance-by-format breakdown', mfManage.includes('Attendance by format') && mfManage.includes('watching'));
+
+// season schedule: paste fixtures → auto-creates one event per line
+const seasonForm = new URLSearchParams({ host_kind: 'athlete', host_id: rico, title: 'Season', starts_at: '2027-08-01T18:00', location_kind: 'in_person', admission: 'open', fmt_inperson: '1', season_schedule: 'Round 1 vs A | 2027-08-01 19:00 | Home\nRound 2 vs B | 2027-08-08 18:30 | Away' });
+const seasonRes = await fetch(base + '/events', { method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded' }, body: seasonForm.toString(), redirect: 'manual' });
+ok('season paste creates multiple events (redirects to one)', /\/e\//.test(seasonRes.headers.get('location') || ''));
+const afterSeason = await get('/?guest=1');
+ok('newly created season fixtures appear in discover', afterSeason.includes('Round 1 vs A') || afterSeason.includes('Round 2 vs B') || afterSeason.includes('German Championship Final'));
+
 const cg = await get(`/club/${club}?guest=1`);
 ok('guest gate now coexists with the bottom nav (in-flow banner)', cg.includes('Log in to continue') && cg.includes('class="bnav"') && cg.includes('border-radius:14px'));
 

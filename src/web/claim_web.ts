@@ -30,9 +30,11 @@ export function renderPass(d: { pass: PassView; verifyUrl: string; guest: boolea
       <div class="passhd"><div class="k">Horda pass</div><h1>${esc(p.eventTitle)}</h1><div class="mut" style="font-size:13px;margin-top:4px">${esc(p.startsAt ? new Date(p.startsAt).toLocaleString() : 'Time TBA')}</div></div>
       <div class="passbody">
         <div style="margin-bottom:12px">${statusTag}</div>
-        <div class="code">${esc(p.token.replace(/(.{4})/g, '$1 ').trim())}</div>
-        <p class="mut" style="font-size:12.5px;margin-top:12px">Identity‑bound, non‑transferable. Show this code (or its link) at the gate — the organizer scans or enters it to count you in.</p>
-        <div class="row" style="justify-content:center"><a class="tag mutd" href="${esc(d.verifyUrl)}">Verify link ↗</a><span class="tag mutd">＋ Add to Wallet — soon</span></div>
+        ${p.formatLabel ? `<div class="mut" style="font-size:13px;margin-bottom:10px">Attending via <b style="color:var(--bone)">${esc(p.formatLabel)}</b></div>` : ''}
+        ${p.formatKind === 'stream' && p.channelUrl
+          ? `<a class="rb p" style="display:block;margin:0 0 12px;padding:12px" href="${esc(p.channelUrl)}" target="_blank" rel="noopener">Watch on ${esc(p.formatLabel || 'the stream')} ↗</a><p class="mut" style="font-size:12px;margin:-4px 0 12px">Your watch link — saved here and sent again before it starts.</p>`
+          : `<div class="code">${esc(p.token.replace(/(.{4})/g, '$1 ').trim())}</div><p class="mut" style="font-size:12.5px;margin-top:12px">Identity‑bound, non‑transferable. Show this code (or its link) at the gate — the organizer scans or enters it to count you in.</p>`}
+        <div class="row" style="justify-content:center"><a class="tag mutd" href="/e/${p.eventId}">Change how you attend</a>${p.formatKind !== 'stream' ? `<a class="tag mutd" href="${esc(d.verifyUrl)}">Verify link ↗</a>` : ''}<span class="tag mutd">＋ Add to Wallet — soon</span></div>
       </div>
     </div>
     <div class="row"><a class="btn ghost" href="/e/${p.eventId}">Back to the event</a>${p.hostKind ? `<a class="btn ghost" href="${p.hostKind === 'athlete' ? `/athlete/${p.hostId}` : `/${p.hostKind}/${p.hostId}`}">The crowd</a>` : ''}</div>
@@ -71,6 +73,60 @@ export function renderCheckin(d: { eventId: string; title: string; claimed: numb
     </form>
     <p class="mut" style="font-size:12px">Phone-only, no hardware. QR scanning + offline mode land with the Wallet pass.</p>
   `, { back: `/e/${d.eventId}`, nav: { active: 'you', guest: false, fanId: null } });
+}
+
+// Multi-format attendance picker — one event, several ways to attend it, each
+// confirmed on Horda so the organizer gets clean per-format counts. The fan
+// commits to a single format (switching allowed). In-person can be ticketed;
+// streams carry a watch link. Shown in place of the plain claim CTA when the
+// organizer has defined formats.
+export function formatPicker(d: {
+  eventId: string; guest: boolean; full: boolean;
+  formats: { id: string; kind: string; label: string; channelUrl: string | null; requiresTicket: boolean; priceCents: number | null; going: number }[];
+  mine: { status: string; token: string; formatId: string | null } | null;
+}): string {
+  const money = (c: number) => `€${(c / 100).toFixed(2).replace(/\.00$/, '')}`;
+  const inp = 'display:block;width:100%;margin-top:6px;background:var(--ink);border:1px solid var(--b);border-radius:10px;color:var(--bone);padding:11px;font:inherit';
+  const icon = (k: string) => k === 'stream' ? '📺' : '📍';
+  // Name + email are collected ONCE (guests only); the option buttons share them.
+  const guestFields = d.guest
+    ? `<div class="fmt-guest"><label class="mut" style="display:block;font-size:13px">Name<input name="name" required style="${inp}"></label><label class="mut" style="display:block;margin:8px 0 0;font-size:13px">Email<input name="contact" type="email" required style="${inp}"></label></div>`
+    : '';
+  // Each option is a submit button carrying its own format_id (shared form fields).
+  // Channel links are NEVER shown before claiming — only after, for the format you chose.
+  const rowFor = (f: typeof d.formats[number]) => {
+    const mineHere = !!d.mine && d.mine.formatId === f.id;
+    const priceTag = f.requiresTicket && f.priceCents ? `<span class="fmt-price">${money(f.priceCents)}</span>` : `<span class="fmt-price free">Free</span>`;
+    const btnLabel = mineHere ? "✓ You're in" : f.kind === 'stream' ? "I'll watch here" : (f.requiresTicket && f.priceCents ? `Get ticket · ${money(f.priceCents)}` : "I'll be there");
+    const watch = mineHere && f.kind === 'stream' && f.channelUrl ? `<a class="fmt-watch" href="${esc(f.channelUrl)}" target="_blank" rel="noopener">Watch on ${esc(f.label)} ↗</a>` : '';
+    return `<div class="fmt${mineHere ? ' on' : ''}">
+      <div class="fmt-hd"><span class="fmt-ic">${icon(f.kind)}</span><span class="fmt-lb">${esc(f.label)}</span>${priceTag}</div>
+      <div class="fmt-meta"><b>${f.going}</b> ${f.kind === 'stream' ? 'watching' : 'attending'}</div>
+      <button class="rb${mineHere ? ' on' : ' p'}" type="submit" name="format_id" value="${f.id}"${mineHere ? ' disabled' : ''} style="margin-top:8px">${btnLabel}</button>
+      ${watch}
+    </div>`;
+  };
+  const passRow = d.mine ? `<div class="row" style="margin-top:8px"><a class="btn" href="/pass/${esc(d.mine.token)}">View your pass &amp; details →</a></div>` : '';
+  return `<style>
+    .fmtwrap{border:1px solid var(--bone);border-radius:16px;padding:14px;margin:2px 0}
+    .fmt-guest{margin:2px 0 12px}
+    .fmt{border:1px solid var(--b);border-radius:12px;padding:12px;margin:8px 0;background:var(--s)}
+    .fmt.on{border-color:var(--bone)}
+    .fmt-hd{display:flex;align-items:center;gap:9px}
+    .fmt-ic{font-size:17px}.fmt-lb{font-weight:700;font-size:15px;flex:1}
+    .fmt-price{font-size:13px;font-weight:700}.fmt-price.free{color:var(--mut);font-weight:500}
+    .fmt-meta{font-size:12.5px;color:var(--mut);margin-top:4px}
+    .fmt .rb{width:100%;text-align:center}
+    .fmt-watch{display:inline-block;margin-top:9px;font-weight:600;border-bottom:1px solid var(--b)}
+  </style>
+  <form class="fmtwrap" method="post" action="/claim/${d.eventId}">
+    <div class="h3" style="margin-top:0">${d.mine ? "You're in — attend another way?" : "Choose how you'll attend"}</div>
+    <p class="mut" style="font-size:12.5px;margin:0 0 4px">${d.guest ? 'Enter your details once, then pick how you’ll join. ' : ''}Every way counts on Horda, so the organizer knows exactly what to expect.</p>
+    ${guestFields}
+    ${d.formats.map(rowFor).join('')}
+    ${passRow}
+    <p class="mut" style="font-size:11px;margin-top:8px">Identity-bound, non-transferable. No passwords — your claim is your account. You’ll get the watch link after you claim.</p>
+  </form>`;
 }
 
 // The claim CTA block injected on the public event page — scarcity-forward.

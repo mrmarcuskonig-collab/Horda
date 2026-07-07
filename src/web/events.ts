@@ -247,6 +247,28 @@ export function renderCreateEvent(hostKind: string, hostId: string, hostName: st
     <label style="${fld}">TikTok Live link<input style="${inp}" name="tiktok" placeholder="https://tiktok.com/@…/live"></label>
     <label style="${fld}">Discord link<input style="${inp}" name="discord" placeholder="https://discord.gg/…"></label>
     <label style="${fld}">Capacity (optional)<input style="${inp}" type="number" name="capacity" min="1"></label>
+
+    <div style="border-top:1px solid var(--b);margin-top:14px;padding-top:12px">
+      <div style="font-weight:700;font-size:15px">Ways to attend</div>
+      <p class="mut" style="font-size:12.5px;margin:4px 0 6px">Offer this event in one or more formats. Horda confirms attendance for each — in-person tickets and stream viewers alike — so you see exactly what to expect and what to optimise for.</p>
+      <label style="${fld};margin-top:4px"><input type="checkbox" name="fmt_inperson" value="1" checked style="vertical-align:-2px;margin-right:6px">In person — attendance confirmed on Horda</label>
+      <label style="${fld}">In-person ticket price € <span class="mut">(blank = free entry)</span><input style="${inp}" name="fmt_inperson_price" inputmode="decimal" placeholder="25"></label>
+      <label style="${fld}">In-person capacity <span class="mut">(optional)</span><input style="${inp}" type="number" name="fmt_inperson_cap" min="1"></label>
+      <label style="${fld}">Stream 1 — label<input style="${inp}" name="fmt_stream1_label" placeholder="TikTok Live"></label>
+      <label style="${fld}">Stream 1 — watch link<input style="${inp}" name="fmt_stream1_url" placeholder="https://tiktok.com/@…/live"></label>
+      <label style="${fld}">Stream 2 — label<input style="${inp}" name="fmt_stream2_label" placeholder="Sportdeutschland.TV / media partner"></label>
+      <label style="${fld}">Stream 2 — watch link<input style="${inp}" name="fmt_stream2_url" placeholder="https://…"></label>
+    </div>
+
+    <div style="border-top:1px solid var(--b);margin-top:14px;padding-top:12px">
+      <div style="font-weight:700;font-size:15px">Repeat &amp; season schedule</div>
+      <p class="mut" style="font-size:12.5px;margin:4px 0 6px">Repeat this event automatically, or paste a whole season — Horda creates every event for you, each with the formats above.</p>
+      <label style="${fld};margin-top:4px">Repeat for how many times <span class="mut">(uses the “Repeats” setting above; blank/1 = one-off)</span><input style="${inp}" type="number" name="recurrence_count" min="1" max="52" placeholder="e.g. 10"></label>
+      <label style="${fld}">Or paste a season schedule — one per line: <span class="mut">Title | 2026-08-01 19:00 | Venue</span>
+        <textarea style="${inp};min-height:90px" name="season_schedule" placeholder="Round 1 · SC Berlin vs FC Köln | 2026-08-01 19:00 | Olympiastadion
+Round 2 · SC Berlin vs VfB | 2026-08-08 18:30 | Away"></textarea></label>
+    </div>
+
     <div style="border-top:1px solid var(--b);margin-top:14px;padding-top:12px">
       <label style="${fld};margin-top:0"><input type="checkbox" name="room_enabled" value="1" checked style="vertical-align:-2px;margin-right:6px">Open an Event Room (countdown → live → recap)</label>
       <label style="${fld}">Room name<input style="${inp}" name="room_label" placeholder="Matchday / Fight Night / Race Day"></label>
@@ -262,8 +284,21 @@ export function renderCreateEvent(hostKind: string, hostId: string, hostName: st
   return layout('Schedule an event', body, { back: hostHref(hostKind, hostId) });
 }
 
-// owner: manage — approvals + guest list
-export function renderManage(d: EventDetail, guests: { response: string; status: string; fanId: string; name: string; handle: string | null }[]): string {
+// owner: manage — approvals + guest list + per-format attendance breakdown
+export function renderManage(d: EventDetail, guests: { response: string; status: string; fanId: string; name: string; handle: string | null }[],
+  formats: { id: string; kind: string; label: string; channelUrl: string | null; requiresTicket: boolean; priceCents: number | null; going: number; revenueCents: number }[] = []): string {
+  const money2 = (c: number) => `€${(c / 100).toFixed(2).replace(/\.00$/, '')}`;
+  const totalGoing = formats.reduce((a, f) => a + f.going, 0);
+  const totalRev = formats.reduce((a, f) => a + (f.requiresTicket ? f.revenueCents : 0), 0);
+  const formatBreakdown = formats.length
+    ? `<h2>Attendance by format · ${totalGoing}</h2>
+       <div class="fmtgrid">${formats.map(f => `<div class="fmtcard"><div class="fk">${f.kind === 'stream' ? '📺 ' : '📍 '}${esc(f.label)}${f.requiresTicket && f.priceCents ? ` · ${money2(f.priceCents)}` : ' · free'}</div><div class="fn">${f.going}</div><div class="fl">${f.kind === 'stream' ? 'watching' : 'attending'}${f.requiresTicket ? ` · ${money2(f.revenueCents)} sold` : ''}</div>${f.channelUrl ? `<a class="fu" href="${esc(f.channelUrl)}" target="_blank" rel="noopener">Channel ↗</a>` : ''}</div>`).join('')}</div>
+       ${totalRev ? `<p class="mut" style="margin-top:6px">Tickets sold on Horda: <b>${money2(totalRev)}</b></p>` : ''}
+       <style>.fmtgrid{display:grid;gap:10px;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));margin:10px 0}.fmtcard{border:1px solid var(--b);border-radius:12px;padding:12px;background:var(--s)}.fk{font-size:12.5px;font-weight:600}.fn{font-size:30px;font-weight:800;font-variant-numeric:tabular-nums;margin-top:4px}.fl{font-size:11.5px;color:var(--mut);text-transform:uppercase;letter-spacing:.5px}.fu{font-size:12px;border-bottom:1px solid var(--b);display:inline-block;margin-top:6px}</style>`
+    : '';
+  return renderManageInner(d, guests, formatBreakdown);
+}
+function renderManageInner(d: EventDetail, guests: { response: string; status: string; fanId: string; name: string; handle: string | null }[], formatBreakdown: string): string {
   const pending = guests.filter(g => g.response === 'going' && g.status === 'pending');
   const approveList = pending.length
     ? `<h2>${d.admission === 'paid' ? 'Awaiting payment' : 'Applications'} · ${pending.length}</h2><ul>${pending.map(g =>
@@ -276,6 +311,7 @@ export function renderManage(d: EventDetail, guests: { response: string; status:
   <h1>${esc(d.title)}</h1>
   <p class="mut">Host view · ${esc([d.date, d.time].filter(Boolean).join(' · ') || 'TBA')} · ${ADMISSION_LABEL[d.admission]}${d.admission === 'paid' ? ' · ' + priceLabel(d) : ''}</p>
   <div class="card"><b>${d.counts.going}</b> going · <b>${d.counts.pending}</b> ${d.admission === 'paid' ? 'awaiting payment' : 'pending'} · <b>${d.counts.interested}</b> interested · <b>${d.counts.not_going}</b> can't go${d.capacity ? ` · capacity ${d.capacity}` : ''}</div>
+  ${formatBreakdown}
   ${approveList}
   ${group(g => g.response === 'going' && (g.status === 'confirmed' || g.status === 'paid'), 'Going')}
   ${group(g => g.response === 'interested', 'Interested')}

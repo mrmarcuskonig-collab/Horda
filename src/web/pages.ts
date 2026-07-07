@@ -3,7 +3,8 @@ import { layout, esc, linkify } from './layout.ts';
 import { socialIcon, kindIcon } from './icons.ts';
 import { editPanel, UPLOAD_SCRIPT } from './shell.ts';
 import { ravenMark, ravenMarkCurrent } from './brand.ts';
-import { THEME_BOOT, THEME_VARS, THM_CSS, themeToggle, bottomNav, verifiedBadge, actionBar } from './theme.ts';
+import { THEME_BOOT, THEME_VARS, THM_CSS, themeToggle, bottomNav, verifiedBadge, actionBar, langToggle } from './theme.ts';
+import { t, type Lang } from './i18n.ts';
 import { bannerSvg, defaultThemeForSport, svgDataUri } from './theme_engine.ts';
 import { oauthProviders } from './oauth.ts';
 import { SECTIONS } from './sections.ts';
@@ -73,14 +74,16 @@ if(b){b.addEventListener('click',function(){
 </script>`;
 
 export function renderDiscover(d: {
-  guest: boolean; fanId: string | null; sport?: string; region?: string; createHref?: string;
+  guest: boolean; fanId: string | null; sport?: string; region?: string; createHref?: string; lang?: Lang; unread?: number;
   data: { sports: { key: string; name: string }[]; regions?: string[];
     athletes: { id: string; name: string; region: string | null; sport: string | null; avatar: string | null; banner: string | null; verified?: boolean }[];
     clubs: { id: string; name: string; region: string | null; sport: string | null; avatar: string | null; verified?: boolean }[];
-    upcoming: { id: string; title: string; date?: string; host: string; admission: string }[];
+    upcoming: { id: string; title: string; date?: string; host: string; admission: string; going?: number; shares?: number; followers?: number }[];
     results: { headline: string; date?: string }[] };
   regions: string[];
 }): string {
+  const lang: Lang = d.lang ?? 'en';
+  const tr = (k: string) => t(lang, k);
   const qp = (sp?: string, rg?: string) => { const u = new URLSearchParams(); if (sp) u.set('sport', sp); if (rg) u.set('region', rg); const s = u.toString(); return s ? `/?${s}` : '/'; };
   const chip = (label: string, active: boolean, href: string) => `<a class="chip${active ? ' on' : ''}" href="${href}">${esc(label)}</a>`;
 
@@ -121,10 +124,21 @@ export function renderDiscover(d: {
   const card = (href: string, title: string, sub: string, badge: string, verified = false) =>
     `<a class="dcard" href="${href}"><div class="dav">${avatarSvg(title)}</div><div class="dmeta"><div class="dt-title">${esc(title)}${verified ? verifiedBadge() : ''}</div><div class="dt-sub">${esc(sub)}</div></div><span class="dbadge">${esc(badge)}</span></a>`;
 
-  const upcoming = d.data.upcoming.length ? `<h2>Public events · live &amp; upcoming</h2><div class="drow">${
-    d.data.upcoming.map(e => `<a class="ecard" href="/e/${e.id}"><div class="ecover"></div><div class="etitle">${esc(e.title)}</div><div class="esub">${esc(e.host)} · ${esc(e.date ?? 'soon')} · ${e.admission === 'paid' ? 'ticketed' : e.admission === 'apply' ? 'apply' : 'free'}</div></a>`).join('')
+  // Compact numbers (1.2K) for the engagement chips — the TikTok idiom.
+  const num = (n: number) => n >= 1000 ? (n / 1000).toFixed(n >= 10000 ? 0 : 1).replace(/\.0$/, '') + 'K' : String(n);
+  const ICN = {
+    going: `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.2"/><path d="M3.5 19c0-3 2.5-5 5.5-5s5.5 2 5.5 5"/><path d="M16 6.2a3 3 0 0 1 0 5.6M17.5 14c2.2.4 3.7 2 3.7 4.4"/></svg>`,
+    share: `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="12" r="2.4"/><circle cx="17.5" cy="6" r="2.4"/><circle cx="17.5" cy="18" r="2.4"/><path d="m8.2 10.9 7.1-3.8M8.2 13.1l7.1 3.8"/></svg>`,
+    heart: `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20S3 14.6 3 8.9C3 6 5.1 4 7.7 4c1.8 0 3.3 1 4.3 2.4C13 5 14.5 4 16.3 4 18.9 4 21 6 21 8.9 21 14.6 12 20 12 20Z"/></svg>`,
+  };
+  const estats = (e: { going?: number; shares?: number; followers?: number }) => `<div class="estats">` +
+    `<span class="est" title="${esc(tr('going'))}">${ICN.going}${num(e.going ?? 0)}</span>` +
+    `<span class="est" title="${esc(tr('followers'))}">${ICN.heart}${num(e.followers ?? 0)}</span>` +
+    `<span class="est" title="${esc(tr('shares'))}">${ICN.share}${num(e.shares ?? 0)}</span></div>`;
+  const upcoming = d.data.upcoming.length ? `<h2>${esc(tr('events_head'))}</h2><div class="drow">${
+    d.data.upcoming.map(e => `<a class="ecard${e.live ? ' islive' : ''}" href="/e/${e.id}"><div class="ecover">${e.live ? `<span class="livepill"><span class="live-dot"></span>${esc(tr('live_now'))}</span>` : ''}</div><div class="etitle">${esc(e.title)}</div><div class="esub">${esc(e.host)} · ${e.live ? '<b style="color:#e5484d">happening now</b>' : esc(e.date ?? 'soon')} · ${e.admission === 'paid' ? 'ticketed' : e.admission === 'apply' ? 'apply' : 'free'}</div>${estats(e)}</a>`).join('')
   }</div>` : '';
-  const clubs = d.data.clubs.length ? `<h2>Clubs &amp; federations</h2><div class="dlist">${
+  const clubs = d.data.clubs.length ? `<h2>${esc(tr('clubs_head'))}</h2><div class="dlist">${
     d.data.clubs.map(c => card(`/club/${c.id}`, c.name, [c.sport, c.region].filter(Boolean).join(' · ') || 'club', 'club', c.verified)).join('')
   }</div>` : '';
   // Results intentionally omitted: Horda is a superfan platform (drops, exclusive
@@ -135,7 +149,42 @@ export function renderDiscover(d: {
     ? `<div class="joinb"><div><strong>Your Horda</strong><div class="bsub">Pick a few you love and your feed already knows you. Free.</div></div><a class="btn dark" href="/signup">Get your feed</a></div>`
     : `<div class="joinb"><div><strong>Your Horda is ready</strong><div class="bsub">Your feed of everyone you follow.</div></div><a class="btn dark" href="/fan/${d.fanId}">Open feed →</a></div>`;
 
-  return `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><link rel="icon" href="/favicon.svg"><title>Horda</title>${THEME_BOOT}
+  // TikTok-style desktop left rail (labelled nav + search + settings). Desktop-only;
+  // the bottom tab bar covers mobile. Erkunden (this page) is the active item.
+  const RI = {
+    explore: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m15.2 8.8-2 4.4-4.4 2 2-4.4 4.4-2Z"/></svg>`,
+    following: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.4"/><path d="M3.5 20c0-3.4 2.7-5.6 5.5-5.6S14.5 16.6 14.5 20"/><path d="M17 8.5v5M14.5 11h5"/></svg>`,
+    create: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="3.5" width="17" height="17" rx="5"/><path d="M12 8v8M8 12h8"/></svg>`,
+    profile: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="3.6"/><path d="M5.5 20c0-3.7 2.9-6.2 6.5-6.2S18.5 16.3 18.5 20"/></svg>`,
+    bell: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9a6 6 0 0 1 12 0c0 4 1.2 5.4 1.8 6.2.3.4 0 .9-.5.9H4.7c-.5 0-.8-.5-.5-.9C4.8 14.4 6 13 6 9Z"/><path d="M10 20a2 2 0 0 0 4 0"/></svg>`,
+  };
+  const followHref = d.guest ? '/signup' : `/fan/${d.fanId ?? ''}#hordas`;
+  const unread = d.unread ?? 0;
+  // Always the generic creator entry — never the owned-athlete compose href, which
+  // would leak a private entity id onto the public landing (and break filters).
+  const createHref = '/create';
+  const ritem = (active: boolean, href: string, icon: string, label: string) =>
+    `<a class="dr-item${active ? ' on' : ''}" href="${href}"${active ? ' aria-current="page"' : ''}>${icon}<span>${esc(label)}</span></a>`;
+  const deskRail = `<aside class="drail">
+    <a class="dr-logo" href="/" aria-label="Horda">${ravenMarkCurrent(26)}<b>Horda</b></a>
+    <form class="dr-search" method="get" action="/">${d.sport ? `<input type="hidden" name="sport" value="${esc(d.sport)}">` : ''}<input name="region" value="${esc(d.region ?? '')}" placeholder="${esc(tr('search_ph'))}" autocomplete="off" aria-label="${esc(tr('search_ph'))}"></form>
+    <nav class="dr-nav" aria-label="Primary">
+      ${ritem(true, '/', RI.explore, tr('explore'))}
+      ${ritem(false, followHref, RI.following, tr('following'))}
+      ${d.guest ? '' : `<a class="dr-item" href="/notifications">${RI.bell}<span>${esc(tr('notifications'))}</span>${unread ? `<span class="dr-badge">${unread > 9 ? '9+' : unread}</span>` : ''}</a>`}
+      ${ritem(false, createHref, RI.create, tr('create_event'))}
+      ${ritem(false, '/settings', RI.profile, tr('profile'))}
+    </nav>
+    <div class="dr-sep"></div>
+    <div class="dr-set">
+      <div class="dr-srow"><span class="dr-slabel">${esc(tr('language'))}</span>${langToggle(lang, d.region ? '/?region=' + encodeURIComponent(d.region) : '/')}</div>
+    </div>
+    <div class="dr-foot">${d.guest
+      ? `<a class="btn ghost" href="/login">${esc(tr('login'))}</a><a class="btn" href="/signup">${esc(tr('join_free'))}</a>`
+      : `<a class="btn" href="/fan/${d.fanId}">${esc(tr('your_feed'))} →</a>`}</div>
+  </aside>`;
+
+  return `<!DOCTYPE html><html lang="${lang}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><link rel="icon" href="/favicon.svg"><title>Horda</title>${THEME_BOOT}
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
@@ -200,8 +249,15 @@ export function renderDiscover(d: {
   .drow{display:flex;gap:12px;overflow-x:auto;padding-bottom:4px}
   .ecard{flex:0 0 218px;background:var(--s);border:1px solid var(--b);border-radius:16px;overflow:hidden;transition:border-color .15s}
   .ecard:hover{border-color:var(--bone)}
-  .ecover{height:88px;background:radial-gradient(120% 120% at 70% 20%,var(--s),transparent 60%),var(--ink);border-bottom:1px solid var(--b)}
-  .etitle{font-weight:500;font-size:14px;padding:11px 13px 2px}.esub{color:var(--mut);font-size:12px;padding:0 13px 13px}
+  .ecover{position:relative;height:88px;background:radial-gradient(120% 120% at 70% 20%,var(--s),transparent 60%),var(--ink);border-bottom:1px solid var(--b)}
+  .ecard.islive{border-color:#e5484d}
+  .livepill{position:absolute;top:8px;left:8px;display:inline-flex;align-items:center;gap:5px;background:#e5484d;color:#fff;font-size:10px;font-weight:800;letter-spacing:1px;border-radius:999px;padding:3px 8px}
+  .livepill .live-dot{background:#fff;box-shadow:0 0 0 3px rgba(255,255,255,.3);width:6px;height:6px}
+  .etitle{font-weight:500;font-size:14px;padding:11px 13px 2px}.esub{color:var(--mut);font-size:12px;padding:0 13px 8px}
+  /* TikTok-style engagement chips on event cards */
+  .estats{display:flex;gap:13px;padding:0 13px 12px;color:var(--mut)}
+  .est{display:inline-flex;align-items:center;gap:4px;font-size:12px;font-weight:600;letter-spacing:.2px}
+  .est svg{opacity:.9}
   .dlist{display:grid;gap:9px;grid-template-columns:repeat(auto-fill,minmax(240px,1fr))}
   .dcard{display:flex;align-items:center;gap:12px;background:var(--s);border:1px solid var(--b);border-radius:14px;padding:10px 12px;transition:border-color .15s}
   .dcard:hover{border-color:var(--bone)}
@@ -213,9 +269,10 @@ export function renderDiscover(d: {
   .joinb strong{font-weight:600;font-size:15px}
   .joinb .bsub{font-size:12.5px;opacity:.66;margin-top:3px}
   .prov{max-width:900px;margin:24px auto 0;padding:0 20px;color:var(--mut);font-size:11.5px;line-height:1.6}
-</style></head><body>
+</style></head><body class="deskrail">
+  ${deskRail}
   <header class="top"><a class="mark" href="/" aria-label="Horda">${ravenMarkCurrent(30)}</a>
-    <div class="nav">${themeToggle()}${d.guest ? `<a class="btn ghost" href="/login">Log in</a><a class="btn" href="/signup">Join free</a>` : `<a class="btn" href="/fan/${d.fanId}">Your feed →</a>`}</div></header>
+    <div class="nav">${d.guest ? `<a class="btn ghost" href="/login">${esc(tr('login'))}</a><a class="btn" href="/signup">${esc(tr('join_free'))}</a>` : `<a class="btn" href="/fan/${d.fanId}">${esc(tr('your_feed'))} →</a>`}</div></header>
   <div class="wrap">
     ${rail}
     ${sportChips}${locRow}
@@ -861,6 +918,25 @@ export function renderSettings(d: { fanId: string; fanName: string; email?: stri
     </div>
     <div class="prov">Horda — the home for sports superfans.</div>
   `, { back: `/fan/${d.fanId}`, nav: { active: 'you', guest: false, fanId: d.fanId, createHref: d.createHref } });
+}
+
+// --- notifications (logged-in): organizer + fan activity --------------------
+export function renderNotifications(d: { fanId: string; createHref?: string; items: { kind: string; headline: string; href: string | null; createdAt: string; read: boolean }[] }): string {
+  const icon = (k: string) => k === 'claim_new' ? '🎟' : k === 'claim_confirmed' ? '✅' : k === 'event_live' ? '🔴' : k === 'season_created' ? '📅' : '🔔';
+  const row = (n: { kind: string; headline: string; href: string | null; createdAt: string; read: boolean }) =>
+    `<a class="ntf${n.read ? '' : ' un'}" href="${esc(n.href || '#')}"><span class="nic">${icon(n.kind)}</span><span class="ntx"><span class="nh">${esc(n.headline)}</span><span class="nd">${esc(n.createdAt)}</span></span></a>`;
+  return layout('Notifications', `
+    <style>
+      .ntf{display:flex;align-items:flex-start;gap:12px;padding:13px 14px;border:1px solid var(--b);border-bottom:0;background:var(--s);color:var(--bone)}
+      .ntf:first-of-type{border-radius:12px 12px 0 0}.ntf:last-of-type{border-radius:0 0 12px 12px;border-bottom:1px solid var(--b)}
+      .ntf.un{background:rgba(229,72,77,.06);border-left:3px solid #e5484d}
+      .nic{font-size:18px;flex:0 0 auto;line-height:1.3}
+      .ntx{display:flex;flex-direction:column;min-width:0}.nh{font-size:14.5px;line-height:1.35}.nd{font-size:12px;color:var(--mut);margin-top:2px}
+    </style>
+    <h1>Notifications</h1>
+    ${d.items.length ? d.items.map(row).join('') : '<p class="mut" style="margin-top:12px">Nothing yet. When someone confirms for one of your events — or an organizer confirms your spot — it shows up here.</p>'}
+    <div class="prov">Attendance confirmations, approvals and live-event alerts for the crowds and events you run or follow.</div>
+  `, { back: '/', nav: { active: 'you', guest: false, fanId: d.fanId, createHref: d.createHref } });
 }
 
 // --- handle-claim vitality campaign: reserve your @handle before you build --

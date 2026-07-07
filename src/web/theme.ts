@@ -53,7 +53,45 @@ export const THM_CSS = `.thm{display:inline-flex;align-items:center;justify-cont
   .actionbar .ablabel{flex:1;min-width:0;line-height:1.15}
   .actionbar .abt{font-size:14px;font-weight:800}.actionbar .abs{font-size:11.5px;color:var(--mut)}
   .actionbar .btn,.actionbar button{padding:12px 22px;font-size:15px;white-space:nowrap}
-  @media(min-width:1024px){.actionbar{left:74px;bottom:0}}`;
+  @media(min-width:1024px){.actionbar{left:74px;bottom:0}}
+  /* language pill toggle (settings) */
+  .lgtog{display:inline-flex;gap:2px;border:1px solid var(--b);border-radius:999px;padding:2px;background:transparent}
+  .lgp{font-size:11.5px;font-weight:700;letter-spacing:.3px;color:var(--mut);border-radius:999px;padding:4px 11px}
+  .lgp.on{background:var(--bone);color:var(--ink)}
+  .lgp:not(.on):hover{color:var(--bone)}
+  /* TikTok-style desktop left rail (labelled). Hidden on mobile; the bottom
+     tab bar takes over there. Shown from 1024px, sitting in the left gutter. */
+  .drail{display:none}
+  @media(min-width:1024px){
+    .drail{display:flex;flex-direction:column;position:fixed;left:0;top:0;bottom:0;width:236px;border-right:1px solid var(--b);background:var(--ink);padding:20px 14px 16px;z-index:50;overflow-y:auto}
+    body.deskrail{padding-left:236px}
+    body.deskrail .bnav{display:none}
+    body.deskrail .top{display:none}
+  }
+  .dr-logo{display:flex;align-items:center;gap:9px;padding:2px 8px 16px;color:var(--bone)}
+  .dr-logo b{font-size:19px;font-weight:800;letter-spacing:-.02em}
+  .dr-search{display:block;margin:0 4px 14px}
+  .dr-search input{width:100%;background:var(--s);border:1px solid var(--b);border-radius:999px;color:var(--bone);padding:9px 14px;font:inherit;font-size:13px}
+  .dr-search input:focus{outline:none;border-color:var(--bone)}.dr-search input::placeholder{color:var(--mut)}
+  .dr-nav{display:flex;flex-direction:column;gap:2px}
+  .dr-item{display:flex;align-items:center;gap:14px;padding:11px 12px;border-radius:12px;color:var(--bone);font-size:16px;font-weight:600}
+  .dr-item svg{width:26px;height:26px;flex:0 0 auto}
+  .dr-item:hover{background:var(--s)}
+  .dr-item.on{color:var(--bone)}.dr-item.on svg{color:#e5484d}
+  .dr-item .dr-badge{margin-left:auto;background:#e5484d;color:#fff;font-size:11px;font-weight:800;min-width:19px;height:19px;border-radius:999px;display:inline-flex;align-items:center;justify-content:center;padding:0 5px}
+  .dr-sep{height:1px;background:var(--b);margin:14px 8px}
+  .dr-set{display:flex;flex-direction:column;gap:10px;padding:0 8px}
+  .dr-srow{display:flex;align-items:center;justify-content:space-between;gap:10px}
+  .dr-slabel{font-size:13px;color:var(--mut);font-weight:500}
+  .dr-foot{margin-top:auto;padding:14px 8px 4px;display:flex;flex-direction:column;gap:8px}`;
+
+// Small DE/EN pill toggle. Each pill links to /set-lang, preserving the page via
+// ?next=. Persisted as a cookie server-side (no flash, works without JS).
+export function langToggle(lang: 'en' | 'de', next: string): string {
+  const pill = (l: 'en' | 'de', txt: string) =>
+    `<a class="lgp${lang === l ? ' on' : ''}" href="/set-lang?l=${l}&next=${encodeURIComponent(next)}" aria-label="${l === 'de' ? 'Deutsch' : 'English'}">${txt}</a>`;
+  return `<span class="lgtog" role="group" aria-label="Language">${pill('de', 'DE')}${pill('en', 'EN')}</span>`;
+}
 
 // A small "verified / official page" seal — uses currentColor so it reads on any
 // surface. Shown on pages that have been claim-verified (real trust signal).

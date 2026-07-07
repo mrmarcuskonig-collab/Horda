@@ -9,8 +9,21 @@ export interface Discover {
   sports: { key: string; name: string }[];
   athletes: { id: string; name: string; region: string | null; sport: string | null; avatar: string | null; banner: string | null; verified: boolean }[];
   clubs: { id: string; name: string; region: string | null; sport: string | null; avatar: string | null; verified: boolean }[];
-  upcoming: { id: string; title: string; date?: string; host: string; admission: string }[];
+  upcoming: { id: string; title: string; date?: string; host: string; admission: string; going: number; shares: number; followers: number; live: boolean }[];
   results: { headline: string; date?: string }[];
+}
+
+// TikTok-style engagement counts for a single event card: people attending
+// (claims), shares (share analytics), and the host's follower count. Cheap —
+// only the ≤8 discover events call this. All three are real, from live tables.
+async function eventStats(db: Database, e: { id: string; host_kind: string; host_id: string }): Promise<{ going: number; shares: number; followers: number }> {
+  const going = (await db.query<{ n: number }>(
+    `SELECT COALESCE(SUM(party_size),0)::int n FROM claim WHERE event_id=$1 AND status NOT IN ('refunded','no_show')`, [e.id])).rows[0]?.n ?? 0;
+  const shares = (await db.query<{ n: number }>(
+    `SELECT count(*)::int n FROM analytics_event WHERE event_id=$1 AND name ILIKE '%share%'`, [e.id])).rows[0]?.n ?? 0;
+  const followers = (e.host_kind && e.host_id) ? (await db.query<{ n: number }>(
+    `SELECT count(*)::int n FROM follow WHERE target_type::text=$1 AND target_id=$2`, [e.host_kind, e.host_id])).rows[0]?.n ?? 0 : 0;
+  return { going, shares, followers };
 }
 
 export async function getDiscover(db: Database, filter: { sport?: string; region?: string }): Promise<Discover> {
@@ -45,11 +58,20 @@ export async function getDiscover(db: Database, filter: { sport?: string; region
   const matches = (row: any) => (!filter.sport || row.sport === filter.sport)
     && (!reg || (row.region && row.region.toLowerCase().includes(reg)));
 
+  // "live" = happening right now (started, not yet ended) — for FOMO/urgency,
+  // not streaming. Ended-window defaults to +3h when no ends_at is set. Live
+  // events surface first.
   const evRows = (await db.query<any>(
-    `SELECT e.id, e.name title, to_char(e.starts_at,'DD Mon') date, e.host_kind, e.host_id, e.admission
-     FROM event e WHERE e.host_kind IS NOT NULL ORDER BY e.starts_at LIMIT 8`)).rows;
+    `SELECT e.id, e.name title, to_char(e.starts_at,'DD Mon') date, e.host_kind, e.host_id, e.admission,
+            (e.starts_at IS NOT NULL AND e.starts_at <= now() AND now() < COALESCE(e.ends_at, e.starts_at + interval '3 hours')) live
+     FROM event e WHERE e.host_kind IS NOT NULL
+     ORDER BY (e.starts_at IS NOT NULL AND e.starts_at <= now() AND now() < COALESCE(e.ends_at, e.starts_at + interval '3 hours')) DESC, e.starts_at
+     LIMIT 8`)).rows;
   const upcoming = [];
-  for (const e of evRows) upcoming.push({ id: e.id, title: e.title, date: e.date ?? undefined, host: await hostName(db, e.host_kind, e.host_id), admission: e.admission });
+  for (const e of evRows) {
+    const s = await eventStats(db, e);
+    upcoming.push({ id: e.id, title: e.title, date: e.date ?? undefined, host: await hostName(db, e.host_kind, e.host_id), admission: e.admission, live: !!e.live, ...s });
+  }
 
   const results = (await db.query<any>(
     `SELECT DISTINCT r.headline, to_char(e.starts_at,'DD Mon') date FROM result r JOIN event e ON e.id=r.event_id

@@ -44,6 +44,32 @@ export async function createScheduledEvent(db: Database, o: {
   return r.rows[0].id;
 }
 
+// Parse a pasted season schedule into fixtures. One event per non-empty line:
+//   "Title | 2026-08-01 19:00 | Venue"   (venue optional; date reasonably lenient)
+// Invalid lines are skipped rather than failing the whole import.
+export function parseSeasonLines(text: string, fallbackTitle = 'Event'): { title: string; startsAt: string; location?: string }[] {
+  const out: { title: string; startsAt: string; location?: string }[] = [];
+  for (const raw of (text || '').split(/\r?\n/)) {
+    const line = raw.trim();
+    if (!line) continue;
+    const parts = line.split('|').map(p => p.trim());
+    const title = parts[0] || fallbackTitle;
+    const whenStr = (parts[1] || '').replace(/\s+/, 'T');   // "2026-08-01 19:00" -> "2026-08-01T19:00"
+    const when = whenStr ? new Date(whenStr) : null;
+    if (!when || isNaN(when.getTime())) continue;           // no valid date → skip
+    out.push({ title: title.slice(0, 120), startsAt: when.toISOString(), location: parts[2] || undefined });
+  }
+  return out;
+}
+
+// Shift an ISO datetime by n weeks or months (for simple recurrence generation).
+export function shiftDate(iso: string, unit: 'weekly' | 'monthly', n: number): string {
+  const d = new Date(iso);
+  if (unit === 'weekly') d.setUTCDate(d.getUTCDate() + 7 * n);
+  else d.setUTCMonth(d.getUTCMonth() + n);
+  return d.toISOString();
+}
+
 // RSVP, admission-aware: apply -> pending (await approval); paid+going -> pending (await payment).
 export async function rsvp(db: Database, fanId: string, eventId: string, response: RsvpResponse): Promise<void> {
   const adm = (await db.query<any>(`SELECT admission FROM event WHERE id=$1`, [eventId])).rows[0]?.admission ?? 'open';
