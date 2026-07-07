@@ -15,9 +15,9 @@ ok('football athlete hides the record by default', defaultLayout('football').fin
 ok('every default key has catalog metadata', box.every(s => !!SECTIONS[s.key]));
 
 console.log('\n[sections · resolve saved layout]');
-const saved = [{ key: 'drops', on: true }, { key: 'record', on: false }, { key: 'bogus', on: true }];
+const saved = [{ key: 'events', on: true }, { key: 'record', on: false }, { key: 'bogus', on: true }];
 const r = resolveLayout('boxing', saved);
-ok('saved order is respected (drops first)', r[0].key === 'drops');
+ok('saved order is respected (events first)', r[0].key === 'events');
 ok('unknown keys are dropped', !r.find(s => s.key === 'bogus'));
 ok('a section turned off stays off', r.find(s => s.key === 'record')!.on === false);
 ok('newly-available sections are appended', r.length === defaultLayout('boxing').length);
@@ -30,9 +30,9 @@ const rico = ids.athletes[0].id;
 await setAthleteSport(db, rico, 'boxing');
 ok('athlete sport persists', (await getAthleteSport(db, rico)) === 'boxing');
 ok('layout starts null (uses default)', (await getAthleteLayout(db, rico)) === null);
-await setAthleteLayout(db, rico, [{ key: 'drops', on: true }, { key: 'record', on: false }]);
+await setAthleteLayout(db, rico, [{ key: 'events', on: true }, { key: 'record', on: false }]);
 const got = await getAthleteLayout(db, rico);
-ok('layout saved + reloads in order', !!got && got[0].key === 'drops' && got[1].on === false);
+ok('layout saved + reloads in order', !!got && got[0].key === 'events' && got[1].on === false);
 await createFeatureRequest(db, ids.demoAccountId, 'boxing', 'athlete-page', 'A sponsors section please');
 const fr = (await db.query<{ n: number }>(`SELECT count(*)::int n FROM feature_request WHERE body LIKE 'A sponsors%'`)).rows[0].n;
 ok('feature request is stored for the roadmap', fr === 1);

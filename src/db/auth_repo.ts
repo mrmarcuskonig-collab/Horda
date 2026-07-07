@@ -120,7 +120,7 @@ export async function grantOwnership(db: Database, accountId: string, kind: stri
   await db.query(`INSERT INTO ownership (account_id,owner_kind,owner_id,role) VALUES ($1,$2,$3,$4) ON CONFLICT (account_id,owner_kind,owner_id) DO NOTHING`, [accountId, kind, id, role]);
 }
 export async function owns(db: Database, accountId: string | null, kind: string, id: string): Promise<boolean> {
-  if (!accountId) return false;
+  if (!accountId || !kind || !id) return false;   // host-less events / empty kind → not owned (avoids enum error)
   // an athlete is owned by the account that self-created it, too
   const direct = (await db.query<{ n: number }>(`SELECT count(*)::int n FROM ownership WHERE account_id=$1 AND owner_kind=$2 AND owner_id=$3`, [accountId, kind, id])).rows[0].n;
   if (direct) return true;

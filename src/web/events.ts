@@ -19,6 +19,7 @@ export function renderEventPage(d: EventDetail, ctx: {
   myTicket?: { id: string; status: string; listPriceCents: number | null } | null;
   listings?: { id: string; priceCents: number; seller: string }[];
   extraTop?: string;
+  stickyCta?: string;
 }): string {
   const my = ctx.myRsvp;
   const cover = d.coverUrl
@@ -141,10 +142,17 @@ export function renderEventPage(d: EventDetail, ctx: {
     .myr{font-size:14px;margin:4px 0}.admtag{font-size:10px;font-weight:600;letter-spacing:1px;text-transform:uppercase;border:1px solid var(--b);color:var(--mut);border-radius:999px;padding:3px 10px}
     .tk{font-weight:600;margin:6px 0 10px}.tkin{background:var(--ink);border:1px solid var(--b);border-radius:999px;color:var(--bone);padding:8px 12px;font:inherit;width:120px;margin-right:6px}
   </style>
+  <div class="poster">
+    ${d.coverUrl ? `<img src="${esc(d.coverUrl)}" alt="">` : `<div style="width:100%;height:100%;background:radial-gradient(130% 130% at 70% 8%,rgba(237,233,223,.12),transparent 55%),var(--ink)"></div>`}
+    <div class="pcap">
+      <span class="pkick">${esc(ADMISSION_LABEL[d.admission])}</span>
+      <div class="ptitle">${esc(d.title)}</div>
+      <div class="pmeta">${d.date ? `<span>${esc(d.date)}${d.time ? ` · ${esc(d.time)}` : ''}</span>` : ''}${(d.location && d.locationKind !== 'online') ? `<span>${esc(d.location)}</span>` : (d.locationKind === 'online' ? '<span>Online</span>' : '')}</div>
+    </div>
+  </div>
   <div class="evgrid">
     <aside class="evside">
-      ${cover}
-      <div class="hostrow"><div><div class="hk">Hosted by</div><div class="hn"><a href="${hostHref(d.hostKind, d.hostId)}">${esc(d.hostName)}</a></div></div>${followBtn}</div>
+      <div class="hostrow" style="border-top:0;padding-top:0;margin-top:2px"><div><div class="hk">Hosted by</div><div class="hn"><a href="${hostHref(d.hostKind, d.hostId)}">${esc(d.hostName)}</a></div></div>${followBtn}</div>
       <div class="sidelinks">
         <a href="${hostHref(d.hostKind, d.hostId)}">Contact the host →</a>
         <a href="/e/${d.id}/ics">＋ Add to calendar</a>
@@ -153,8 +161,7 @@ export function renderEventPage(d: EventDetail, ctx: {
     </aside>
 
     <main class="evmain">
-      <h1 class="evtitle">${esc(d.title)}</h1>
-      ${ctx.extraTop ?? ''}
+      <div id="claim">${ctx.extraTop ?? ''}</div>
 
       <div class="ww"><div class="wi cal">${dt ? `<span class="m">${mon}</span><span class="d">${day}</span>` : ICON.cal}</div>
         <div><div class="wt">${esc(d.date || 'Date TBA')}</div><div class="ws">${esc(d.time ? d.time + (dt ? '' : '') : 'Time TBA')}${d.capacity ? ` · capacity ${d.capacity}` : ''}${d.recurrence && d.recurrence !== 'none' ? ` · repeats ${esc(d.recurrence)}` : ''}</div></div></div>
@@ -180,7 +187,8 @@ export function renderEventPage(d: EventDetail, ctx: {
       ${feature}
       <div class="prov">Public event · viewing is open; attending needs a free account. Calendar export &amp; watch links are open to members.</div>
     </main>
-  </div>`;
+  </div>
+  ${ctx.stickyCta ? `<div style="height:76px"></div>${ctx.stickyCta}` : ''}`;
   return layout(d.title, body, { back: hostHref(d.hostKind, d.hostId) });
 }
 

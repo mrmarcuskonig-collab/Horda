@@ -90,6 +90,16 @@ export async function recordCount(db: Database, fanId: string): Promise<{ total:
   return { total: r?.total ?? 0, inRoom: r?.in_room ?? 0 };
 }
 
+// Morning-after: the most recent verified presence in the last 48h (the primary
+// retention surface — arrives a few times a month, top-five open-rate metric).
+export async function recentPresence(db: Database, fanId: string): Promise<{ title: string; date: string; hostKind: string | null; hostId: string | null } | null> {
+  const r = (await db.query<any>(
+    `SELECT e.name title, to_char(pr.verified_at,'DD Mon') date, e.host_kind, e.host_id
+     FROM presence pr JOIN event e ON e.id=pr.event_id
+     WHERE pr.fan_id=$1 AND pr.verified_at > now() - interval '48 hours' ORDER BY pr.verified_at DESC LIMIT 1`, [fanId])).rows[0];
+  return r ? { title: r.title, date: r.date, hostKind: r.host_kind, hostId: r.host_id } : null;
+}
+
 export async function crowdStanding(db: Database, fanId: string | null, ownerKind: string, ownerId: string): Promise<number> {
   if (!fanId) return 0;
   return (await db.query<{ p: number }>(`SELECT COALESCE(presences,0) p FROM standing WHERE fan_id=$1 AND owner_kind=$2 AND owner_id=$3`, [fanId, ownerKind, ownerId])).rows[0]?.p ?? 0;
@@ -106,6 +116,26 @@ export async function grantConsent(db: Database, fanId: string, ownerKind: strin
       [fanId, ownerKind, ownerId, ch, provenance]);
   }
 }
+// The feed-of-doors: upcoming CLAIMABLE events from the crowds a fan follows.
+// Every row terminates in a claim — never content. Finite by nature (a fan has a
+// bounded set of followed crowds with upcoming events).
+export interface Door { eventId: string; title: string; date: string | null; hostKind: string | null; hostId: string | null; hostName: string; remaining: number | null; tier: string; mine: boolean }
+export async function feedDoors(db: Database, fanId: string, limit = 40): Promise<Door[]> {
+  const rows = (await db.query<any>(
+    `SELECT e.id, e.name title, to_char(e.starts_at,'Dy DD Mon · HH24:MI') date, e.host_kind, e.host_id, e.capacity, e.tier,
+            EXISTS (SELECT 1 FROM claim c WHERE c.event_id=e.id AND c.fan_id=$1) mine
+     FROM event e
+     WHERE e.starts_at > now()
+       AND EXISTS (SELECT 1 FROM follow f WHERE f.fan_id=$1 AND f.target_type::text=e.host_kind::text AND f.target_id=e.host_id)
+     ORDER BY e.starts_at ASC LIMIT $2`, [fanId, limit])).rows;
+  const out: Door[] = [];
+  for (const r of rows) {
+    const info = await spotsInfo(db, r.id, r.capacity ?? null);
+    out.push({ eventId: r.id, title: r.title, date: r.date ?? null, hostKind: r.host_kind, hostId: r.host_id, hostName: '', remaining: info.remaining, tier: r.tier ?? 'gathering', mine: !!r.mine });
+  }
+  return out;
+}
+
 export async function consentedReach(db: Database, ownerKind: string, ownerId: string): Promise<number> {
   return (await db.query<{ n: number }>(
     `SELECT count(DISTINCT fan_id)::int n FROM consent WHERE owner_kind=$1 AND owner_id=$2 AND class='marketing' AND granted_at IS NOT NULL AND revoked_at IS NULL`,

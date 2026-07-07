@@ -31,7 +31,7 @@ const authed = (p: string) => fetch(base + p, { headers: { cookie } }).then(r =>
 console.log('\n[auth · a fan owns nothing → no owner tools, but can engage]');
 const athletePage = await authed(`/athlete/${rico}`);
 ok('logged-in fan does NOT see the owner edit panel', !athletePage.includes('Edit profile (owner)'));
-ok('logged-in fan CAN act (join form posts to /join, not gated to signup)', athletePage.includes('action="/join"') && athletePage.includes("Raven's Corner"));
+ok('logged-in fan CAN act (follow form posts to /follow, not gated to signup)', athletePage.includes('action="/follow"') && athletePage.includes('crowd'));
 
 console.log('\n[auth · claim is a verified request, not instant ownership]');
 const before = await authed(`/club/${club}`);

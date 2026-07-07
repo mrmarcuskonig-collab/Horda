@@ -32,7 +32,28 @@ export const THM_CSS = `.thm{display:inline-flex;align-items:center;justify-cont
     .bnav a{flex:0 0 auto;max-width:none;width:46px;height:46px;border-radius:13px}
     .bnav a.on{background:var(--s)}
     .bnav a:hover{background:var(--s)}
-  }`;
+  }
+  /* --- polish layer (mobile-first, IG/TikTok idiom) --- */
+  .btn,button{transition:transform .12s ease,opacity .12s ease,background .15s ease,border-color .15s ease}
+  .btn:active,button:active{transform:scale(.97)}
+  .btn:hover,button:hover{opacity:.92}
+  .card{transition:border-color .15s ease}
+  /* Poster hero: full-bleed media with a legibility scrim + overlaid title */
+  .poster{position:relative;margin:0 -18px;height:min(78vw,420px);overflow:hidden}
+  .poster>img,.poster>video{width:100%;height:100%;object-fit:cover;display:block}
+  .poster::after{content:"";position:absolute;inset:0;background:linear-gradient(to top,var(--ink) 2%,rgba(11,11,12,.35) 42%,transparent 72%)}
+  .poster .pcap{position:absolute;left:18px;right:18px;bottom:16px;z-index:2}
+  .poster .pkick{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:800;letter-spacing:1.5px;text-transform:uppercase;background:var(--bone);color:var(--ink);border-radius:999px;padding:4px 11px;margin-bottom:10px}
+  .poster .ptitle{font-size:clamp(26px,8vw,42px);font-weight:800;line-height:1.02;letter-spacing:-.01em;text-shadow:0 2px 24px rgba(0,0,0,.5)}
+  .poster .pmeta{margin-top:8px;font-size:13px;color:rgba(237,233,223,.85);display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+  .live-dot{width:8px;height:8px;border-radius:50%;background:#e5484d;box-shadow:0 0 0 4px rgba(229,72,77,.25);display:inline-block}
+  /* Sticky action bar — the persistent primary CTA (event/crowd pages) */
+  .actionbar{position:fixed;left:0;right:0;bottom:calc(54px + env(safe-area-inset-bottom));z-index:45;background:var(--scrim);backdrop-filter:blur(16px);border-top:1px solid var(--b);border-bottom:1px solid var(--b);padding:10px 16px}
+  .actionbar .abin{max-width:680px;margin:0 auto;display:flex;align-items:center;gap:12px}
+  .actionbar .ablabel{flex:1;min-width:0;line-height:1.15}
+  .actionbar .abt{font-size:14px;font-weight:800}.actionbar .abs{font-size:11.5px;color:var(--mut)}
+  .actionbar .btn,.actionbar button{padding:12px 22px;font-size:15px;white-space:nowrap}
+  @media(min-width:1024px){.actionbar{left:74px;bottom:0}}`;
 
 // A small "verified / official page" seal — uses currentColor so it reads on any
 // surface. Shown on pages that have been claim-verified (real trust signal).
@@ -63,6 +84,12 @@ export function bottomNav(o: { active?: string; guest: boolean; fanId: string | 
     ${tab('following', following, 'Following — your Hordas', NAV_ICON.heart)}
     ${tab('you', you, 'You', NAV_ICON.person)}
   </div></nav>`;
+}
+
+// The persistent primary-action bar (IG/TikTok pattern). `cta` is a button/link
+// or a small form. Add class="hasbar" to the page body/wrapper so content clears it.
+export function actionBar(o: { title: string; sub?: string; cta: string }): string {
+  return `<div class="actionbar"><div class="abin"><div class="ablabel"><div class="abt">${o.title}</div>${o.sub ? `<div class="abs">${o.sub}</div>` : ''}</div>${o.cta}</div></div>`;
 }
 
 // A round contrast-disc toggle. Flips the <html data-theme> and persists it.

@@ -37,16 +37,14 @@ const guest = await get(`/athlete/${rico}?guest=1`);
 ok('guest sees the sign-up gate bar', guest.includes('Log in to continue'));
 ok('guest action links route to /signup, not out', guest.includes('href="/signup"') && !guest.includes('instagram.com/ricotheraven'));
 // Shop is data-driven (merch / gift-membership / discount / link) and exempt from
-// the members gate — a guest can see shop items without logging in.
-await app.db.query(`INSERT INTO shop_item (owner_kind, owner_id, kind, title, url) VALUES ('athlete',$1,'merch','Raven tee','https://shop.test')`, [rico]);
-const guestShop = await get(`/athlete/${rico}?guest=1`);
-ok('guest still sees Shop (exempt)', guestShop.includes('>Shop<') && guestShop.includes('Raven tee'));
+// Post-pivot: no shop/content. The public event page leads with the claim.
+const guestEv = await get(`/e/${(await app.db.query<{ id: string }>(`SELECT id FROM event LIMIT 1`)).rows[0].id}?guest=1`);
+ok('public event page leads with the claim (no content/shop)', guestEv.includes('Claim your spot') || guestEv.includes('waitlist'));
 
 const fan = await get(`/fan/${app.ids.fanId}`);
-ok('fan home renders', fan.includes('Your Horda'));
-ok('feed carries the idol’s callout', fan.includes('take the belt'));
-ok('feed carries followed club coverage', fan.includes('FC Beispiel'));
-ok('guardrail line present', fan.includes('not a stream of other fans'));
+ok('fan home renders (feed-of-doors)', fan.includes('Your Horda') && fan.includes('Your doors'));
+ok('feed is finite — ends visibly OR empty state', fan.includes("You're up to date") || fan.includes('Find your scene'));
+ok('doctrine guardrail line present', fan.includes('a ranked set of doors'));
 
 const clubPage = await get(`/club/${club}`);
 ok('club page: branded (Club kindtag), no league table (superfan-first)', clubPage.includes('>Club<') && !clubPage.includes('League table'));
@@ -126,15 +124,10 @@ ok('apply event shows Apply to attend', (await get(`/e/${applyId}`)).includes('A
 ok('ticket holder can gift + sell', paidAfter.includes('You hold a ticket') && paidAfter.includes('>Gift</button>') && paidAfter.includes('>Sell</button>'));
 ok('resale listing visible (from Rieke)', paidAfter.includes('Resale') && paidAfter.includes('Rieke'));
 
-// membership (closeness monetization) + members-only FOMO
-ok('tier picker shows Supporter + Clubhouse with monthly/annual', athlete.includes("Raven's Corner") && athlete.includes('The Clubhouse') && athlete.includes('/mo') && athlete.includes('/yr'));
-ok('tier-gated drop is locked (teaser) for a non-member guest', guest.includes('Supporter-only') || guest.includes('Clubhouse-only'));
-ok('exclusivity is legible: per-post access chips + blurred lock + framing note', guest.includes('class="vchip') && guest.includes('class="blur"') && guest.includes('class="lockpill"') && guest.includes('class="feednote"'));
-await fetch(base + '/join', form({ fan_id: app.ids.fanId, owner_kind: 'athlete', owner_id: rico, level: 'supporter', billing: 'annual' }));
-const welcome = await get(`/member/athlete/${rico}`);
-ok('join → shareable founding-member welcome', welcome.includes("You're in") && welcome.includes('Founding member') && welcome.includes('twitter.com/intent'));
-const athleteMem = await get(`/athlete/${rico}`);
-ok('member sees badge + unlocked supporter drop', athleteMem.includes('member #') && athleteMem.includes('Camp diary'));
+// Post-pivot: no subscription tiers, no gated content. The crowd is followable;
+// closeness comes from showing up (standing), never from a paid status.
+ok('athlete page offers "Join the crowd" (follow), not paid tiers', guest.includes('crowd') && !guest.includes('Clubhouse membership') && !guest.includes('/mo'));
+ok('no content/exclusivity gating on the public page', !guest.includes('class="lockpill"') && !guest.includes('Supporter-only'));
 
 const createForm = await get(`/host/athlete/${rico}/new`);
 ok('owner create-event form has admission + price + stream fields', createForm.includes('Admission') && createForm.includes('Price') && createForm.includes('YouTube'));
@@ -171,8 +164,6 @@ writeFileSync('horda-app-start.html', land);
 writeFileSync('horda-app-event.html', evPage);
 writeFileSync('horda-app-event-paid.html', await get(`/e/${paidId}`));
 writeFileSync('horda-app-checkout.html', checkout);
-writeFileSync('horda-app-athlete-member.html', athleteMem);
-writeFileSync('horda-app-member-welcome.html', welcome);
 writeFileSync('horda-app-share.html', shareResult);
 writeFileSync('horda-app-athlete.html', athleteImg);        // registered, attending, with uploaded art
 writeFileSync('horda-app-athlete-guest.html', guest);       // public/guest view

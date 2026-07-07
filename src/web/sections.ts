@@ -6,15 +6,14 @@
 export interface SectionDef { key: string; label: string; short: string; desc: string }
 export interface SectionPick { key: string; on: boolean }
 
+// Post-pivot: a Crowd page is built from EVENTS, not content. No drops, media,
+// merch, or sponsors — those are out of doctrine (§10). Sections are the factual
+// competitive surface + the claimable events.
 export const SECTIONS: Record<string, SectionDef> = {
   record: { key: 'record', label: 'Win / Loss / Draw', short: 'Overview', desc: 'Your fight or match record' },
-  sponsors: { key: 'sponsors', label: 'Sponsors', short: 'Sponsors', desc: 'Partners & backers you want to credit' },
-  nextup: { key: 'nextup', label: 'Next up', short: 'Next up', desc: 'Your next fight or event' },
-  drops: { key: 'drops', label: 'Drops', short: 'Drops', desc: 'Your posts & members-only updates' },
-  events: { key: 'events', label: 'Events', short: 'Events', desc: 'Upcoming events you host' },
-  media: { key: 'media', label: 'Media', short: 'Media', desc: 'Photo & video grid' },
-  results: { key: 'results', label: 'Recent results', short: 'Results', desc: 'Your latest results, with share cards' },
-  merch: { key: 'merch', label: 'Merch', short: 'Shop', desc: 'Your shop items' },
+  nextup: { key: 'nextup', label: 'Next up', short: 'Next up', desc: 'Your next claimable event' },
+  events: { key: 'events', label: 'Events', short: 'Events', desc: 'Upcoming events you host — all claimable' },
+  results: { key: 'results', label: 'Recent results', short: 'Results', desc: 'Your latest results' },
   connected: { key: 'connected', label: 'Connected', short: 'Connected', desc: 'Links to your clubs & teams' },
 };
 
@@ -30,12 +29,8 @@ export function defaultLayout(sport: string | null): SectionPick[] {
   return [
     { key: 'record', on: combat },                 // W-L-D: on for combat sports by default
     { key: 'nextup', on: true },
-    { key: 'results', on: combat || race },         // recent results lead for combat + race
-    { key: 'drops', on: true },
     { key: 'events', on: true },
-    { key: 'media', on: true },
-    { key: 'merch', on: true },
-    { key: 'sponsors', on: false },               // off by default; creators opt in
+    { key: 'results', on: combat || race },         // recent results lead for combat + race
     { key: 'connected', on: true },
   ];
 }

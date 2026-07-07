@@ -3,7 +3,7 @@ import { layout, esc, linkify } from './layout.ts';
 import { socialIcon, kindIcon } from './icons.ts';
 import { editPanel, UPLOAD_SCRIPT } from './shell.ts';
 import { ravenMark, ravenMarkCurrent } from './brand.ts';
-import { THEME_BOOT, THEME_VARS, THM_CSS, themeToggle, bottomNav, verifiedBadge } from './theme.ts';
+import { THEME_BOOT, THEME_VARS, THM_CSS, themeToggle, bottomNav, verifiedBadge, actionBar } from './theme.ts';
 import { bannerSvg, defaultThemeForSport, svgDataUri } from './theme_engine.ts';
 import { oauthProviders } from './oauth.ts';
 import { SECTIONS } from './sections.ts';
@@ -348,7 +348,7 @@ export function renderAthletePage(d: {
   const profhead = `<section class="profhead">
       <div class="avatar">${av}</div>
       <div class="pid"><h1>${esc(p.name)}</h1><div class="hsub">${p.handle ? '@' + esc(p.handle) : ''}${nickname ? ` · “${esc(nickname)}”` : ''}${d.sportsLabel ? ` · ${esc(d.sportsLabel)}` : ''}${d.superfan ? ' · <span class="sfan">✦ Superfan</span>' : ''}</div></div>
-      ${d.canEdit ? '' : (d.guest ? `<a class="btn join" href="/signup?follow=athlete:${p.athleteId}">Follow</a>` : `<a class="btn join" href="#join">Support</a>`)}
+      ${d.canEdit ? '' : (d.guest ? `<a class="btn join" href="/signup?follow=athlete:${p.athleteId}">Follow</a>` : `<form method="post" action="/follow"><input type="hidden" name="target_type" value="athlete"><input type="hidden" name="target_id" value="${p.athleteId}"><button class="btn join">Follow</button></form>`)}
     </section>
     ${socials ? `<div class="icons">${socials}</div>` : ''}
     ${p.tagline ? `<p class="tagline">${esc(p.tagline)}</p>` : ''}`;
@@ -359,7 +359,7 @@ export function renderAthletePage(d: {
   const tabs = `<nav class="tabs">${enabled.map((s, i) => `<a class="tab${i === 0 ? ' on' : ''}" href="#sec-${s.key}">${esc(SECTIONS[s.key].short)}</a>`).join('')}</nav>`;
 
   // Support prompt — owner sees nothing; guest is nudged to follow; member/logged-in to Support.
-  const membership = d.canEdit ? '' : `<div class="joinb"><div><strong>Support ${esc(first)}</strong><div class="bsub">Follow for free — or back ${esc(first)} with a Supporter or Clubhouse membership.</div></div><a class="btn dark" href="${d.guest ? `/signup?follow=athlete:${p.athleteId}` : '#join'}">${d.guest ? 'Follow' : 'Support'}</a></div>`;
+  const membership = d.canEdit ? '' : `<div class="joinb"><div><strong>Join ${esc(first)}'s crowd</strong><div class="bsub">Their events land in your agenda, and showing up starts counting toward earned access.</div></div>${d.guest ? `<a class="btn dark" href="/signup?follow=athlete:${p.athleteId}">Follow</a>` : `<form method="post" action="/follow"><input type="hidden" name="target_type" value="athlete"><input type="hidden" name="target_id" value="${p.athleteId}"><button class="btn dark">Follow</button></form>`}</div>`;
 
   const stats = `<div class="stats">
       <div class="stat"><div class="num">${p.record.wins}</div><div class="slab">Won</div></div>
@@ -612,12 +612,14 @@ export function renderAthletePage(d: {
     ${d.activation ?? ''}
     ${customizeBtn}
     ${membership}
-    ${goalsBlock}
-    ${tierCard}
     ${sectionsHtml}
   </div>
   ${gatebar}
   <div class="prov">Athlete-owned profile · persons self-create on Horda · coverage only, no fan-to-fan venue. Social &amp; affiliation links are athlete-chosen and point out.</div>
+  <div style="height:76px"></div>
+  ${d.canEdit
+    ? actionBar({ title: 'Your Crowd', sub: 'Create an event or booking', cta: `<a class="btn" href="/athlete/${p.athleteId}/compose">＋ Create</a>` })
+    : actionBar({ title: `Join ${esc(first)}'s crowd`, sub: 'Their events land in your agenda', cta: d.guest ? `<a class="btn" href="/signup?follow=athlete:${p.athleteId}">Follow</a>` : `<form method="post" action="/follow"><input type="hidden" name="target_type" value="athlete"><input type="hidden" name="target_id" value="${p.athleteId}"><button class="btn">Follow</button></form>` })}
   ${bottomNav({ guest: d.guest, fanId: d.fanId, createHref: d.canEdit ? `/athlete/${p.athleteId}/compose` : d.createHref })}
   ${d.canEdit ? UPLOAD_SCRIPT : ''}
 </body></html>`;
@@ -743,13 +745,6 @@ export function renderCustomize(d: { athleteId: string; fanId: string | null; sp
       </form>
     </div>
 
-    <div class="card" style="margin-top:16px">
-      <h2 style="font-size:13px;letter-spacing:1px;text-transform:uppercase;margin-bottom:2px">Membership tiers</h2>
-      <p class="mut" style="font-size:12.5px">Set what fans pay to back you. Leave a price empty to offer that tier free. Follow is always free.</p>
-      ${tierForm('supporter', 'Supporter', '4.99', '49', 'Members‑only drops\nEarly & priority tickets\nThe supporter badge')}
-      ${tierForm('clubhouse', 'Clubhouse', '12', '120', 'Everything in Supporter\nThe inside circle & perks\nInstant Superfan status')}
-    </div>
-
     <h2 style="font-size:13px;letter-spacing:1px;text-transform:uppercase;margin:26px 0 4px">Sections</h2>
     <p class="mut">Choose what fans see and the order. Drag the ⋮⋮ handle or use ▲▼, and toggle <b>Show</b> to hide a section.</p>
     <form id="secform" method="post" action="/athlete/${esc(d.athleteId)}/layout">
@@ -775,65 +770,6 @@ export function renderCustomize(d: { athleteId: string; fanId: string | null; sp
         <label class="mut" style="display:block;font-size:13px">Zoom <input id="bnz" type="range" name="zoom" min="1" max="3" step="0.05" value="${d.banner?.pos?.zoom ?? 1}" style="width:100%"></label>
         <label class="mut" style="display:block;margin:8px 0 0;font-size:13px">Video banner URL (mp4/webm — optional)<input style="${inp}" name="video_url" value="${esc(d.banner?.videoUrl ?? '')}" placeholder="https://…/clip.mp4"></label>
         <div class="row" style="margin-top:10px"><button type="submit">Save banner</button></div>
-      </form>
-    </div>
-
-    <div class="card" style="margin-top:16px">
-      <h2 style="font-size:13px;letter-spacing:1px;text-transform:uppercase;margin-bottom:6px">Media</h2>
-      <p class="mut" style="font-size:12.5px">Native-first: add your own photos and video. You can also embed a social post by URL.</p>
-      ${(d.media && d.media.length) ? `<div style="display:flex;gap:8px;flex-wrap:wrap;margin:10px 0">${d.media.map(mi => `<div style="position:relative;width:74px;height:74px;border-radius:10px;overflow:hidden;border:1px solid var(--b);background:var(--s)">${mi.kind === 'image' ? `<img src="${esc(mi.url)}" style="width:100%;height:100%;object-fit:cover">` : `<div style="display:flex;align-items:center;justify-content:center;height:100%;font-size:10px;color:var(--mut)">${esc(mi.kind)}</div>`}<form method="post" action="/athlete/${esc(d.athleteId)}/media/${esc(mi.id)}/delete" style="position:absolute;top:2px;right:2px"><button title="Remove" style="width:20px;height:20px;padding:0;border-radius:6px;border:0;background:rgba(11,11,12,.7);color:#fff;cursor:pointer">×</button></form></div>`).join('')}</div>` : ''}
-      <form method="post" action="/athlete/${esc(d.athleteId)}/media" onsubmit="return hzPrep(this)">
-        <input type="hidden" name="kind" value="image"><input type="hidden" name="url">
-        <label class="mut" style="display:block;font-size:13px">Add a photo<input type="file" accept="image/*" data-target="url" style="margin-top:6px;color:inherit"></label>
-        <label class="mut" style="display:block;margin:8px 0 0;font-size:13px">Caption (optional)<input style="${inp}" name="caption" placeholder="Fight week, Berlin"></label>
-        <div class="row" style="margin-top:10px"><button type="submit">Add photo</button></div>
-      </form>
-      <form method="post" action="/athlete/${esc(d.athleteId)}/media" style="margin-top:10px;border-top:1px solid var(--b);padding-top:10px">
-        <label class="mut" style="display:block;font-size:13px">…or add a video / social embed by URL
-          <select name="kind" style="${inp}"><option value="video">Video (mp4/webm)</option><option value="embed">Social embed (link)</option></select></label>
-        <input style="${inp};margin-top:8px" name="url" placeholder="https://…" required>
-        <label class="mut" style="display:block;margin:8px 0 0;font-size:13px">Caption (optional)<input style="${inp}" name="caption" placeholder="Highlight reel"></label>
-        <div class="row" style="margin-top:10px"><button type="submit">Add link</button></div>
-      </form>
-    </div>
-
-    <div class="card" style="margin-top:16px">
-      <h2 style="font-size:13px;letter-spacing:1px;text-transform:uppercase;margin-bottom:6px">Sponsors</h2>
-      <p class="mut" style="font-size:12.5px">Credit partners and backers. Turn the <b>Sponsors</b> section on above to show them on your page.</p>
-      ${(d.sponsors && d.sponsors.length) ? `<div style="display:flex;gap:8px;flex-wrap:wrap;margin:10px 0">${d.sponsors.map(s => `<div style="display:flex;align-items:center;gap:6px;border:1px solid var(--b);border-radius:10px;padding:6px 10px;background:var(--s)">${s.logoUrl ? `<img src="${esc(s.logoUrl)}" style="height:20px">` : ''}<span style="font-size:13px">${esc(s.name)}</span><form method="post" action="/athlete/${esc(d.athleteId)}/sponsor/${esc(s.id)}/delete"><button title="Remove" style="width:20px;height:20px;padding:0;border-radius:6px;border:0;background:transparent;color:var(--mut);cursor:pointer">×</button></form></div>`).join('')}</div>` : ''}
-      <form method="post" action="/athlete/${esc(d.athleteId)}/sponsor" onsubmit="return hzPrep(this)">
-        <input type="hidden" name="logo_url">
-        <label class="mut" style="display:block;font-size:13px">Sponsor name<input style="${inp}" name="name" required placeholder="Acme Gloves"></label>
-        <label class="mut" style="display:block;margin:8px 0 0;font-size:13px">Link (optional)<input style="${inp}" name="url" placeholder="https://…"></label>
-        <label class="mut" style="display:block;margin:8px 0 0;font-size:13px">Logo (optional)<input type="file" accept="image/*" data-target="logo_url" style="margin-top:6px;color:inherit"></label>
-        <div class="row" style="margin-top:10px"><button type="submit">Add sponsor</button></div>
-      </form>
-    </div>
-
-    <div class="card" style="margin-top:16px">
-      <h2 style="font-size:13px;letter-spacing:1px;text-transform:uppercase;margin-bottom:6px">Shop</h2>
-      <p class="mut" style="font-size:12.5px">Sell merch, let fans gift a membership, share a discount code, or link out. Turn the <b>Shop</b> section on above to show it.</p>
-      ${(d.shop && d.shop.length) ? `<div style="display:flex;flex-direction:column;gap:6px;margin:10px 0">${d.shop.map(s => `<div style="display:flex;align-items:center;gap:8px;border:1px solid var(--b);border-radius:10px;padding:8px 10px;background:var(--s)"><span class="tag mutd" style="font-size:9px">${esc(s.kind.replace('_', ' '))}</span><span style="flex:1;font-size:13px">${esc(s.title)}${s.priceCents != null ? ` · €${(s.priceCents / 100).toString()}` : ''}</span><form method="post" action="/athlete/${esc(d.athleteId)}/shop/${esc(s.id)}/delete"><button title="Remove" style="width:22px;height:22px;padding:0;border-radius:6px;border:0;background:transparent;color:var(--mut);cursor:pointer">×</button></form></div>`).join('')}</div>` : ''}
-      <form method="post" action="/athlete/${esc(d.athleteId)}/shop">
-        <label class="mut" style="display:block;font-size:13px">Type
-          <select name="kind" style="${inp}"><option value="merch">Merch (tee, hoodie, signed gear)</option><option value="gift_membership">Gift a membership</option><option value="discount">Discount code / access</option><option value="link">Other link</option></select></label>
-        <label class="mut" style="display:block;margin:8px 0 0;font-size:13px">Title<input style="${inp}" name="title" required placeholder="Fight-night hoodie"></label>
-        <label class="mut" style="display:block;margin:8px 0 0;font-size:13px">Subtitle (optional)<input style="${inp}" name="subtitle" placeholder="Limited drop"></label>
-        <div style="display:flex;gap:10px"><label class="mut" style="flex:1;font-size:13px">Price € (optional)<input style="${inp}" name="price" type="text" inputmode="decimal" placeholder="69"></label><label class="mut" style="flex:2;font-size:13px">Link (optional)<input style="${inp}" name="url" placeholder="https://…"></label></div>
-        <div class="row" style="margin-top:10px"><button type="submit">Add shop item</button></div>
-      </form>
-    </div>
-
-    <div class="card" style="margin-top:16px">
-      <h2 style="font-size:13px;letter-spacing:1px;text-transform:uppercase;margin-bottom:6px">Collective goal</h2>
-      <p class="mut" style="font-size:12.5px">Set a target your fans rally toward. The progress bar shows on your page for everyone — visible progress + a real reward is what makes fans recruit other fans. Hit it and the reward unlocks automatically.</p>
-      <form method="post" action="/athlete/${esc(d.athleteId)}/goal">
-        <label class="mut" style="display:block;font-size:13px">Metric
-          <select name="metric" style="${inp}"><option value="superfans">Number of Superfans</option><option value="members">Number of members</option><option value="support">Monthly support (€)</option></select></label>
-        <label class="mut" style="display:block;margin:8px 0 0;font-size:13px">Target<input style="${inp}" name="threshold" type="number" min="1" step="1" placeholder="200" required></label>
-        <label class="mut" style="display:block;margin:8px 0 0;font-size:13px">Reward when reached<input style="${inp}" name="reward" placeholder="Unlock the away-day vlog" required></label>
-        <label class="mut" style="display:block;margin:8px 0 0;font-size:13px">Rivalry (optional) — opponent athlete ID for a head-to-head<input style="${inp}" name="rival_id" placeholder="leave empty for a solo goal"></label>
-        <div class="row" style="margin-top:10px"><button type="submit">Set goal</button></div>
       </form>
     </div>
 
@@ -959,24 +895,11 @@ export function renderCompose(d: { athleteId: string; fanId: string | null; hasP
   const ta = 'display:block;width:100%;margin-top:8px;background:var(--s);border:1px solid var(--b);border-radius:12px;color:var(--bone);padding:13px;font:inherit;min-height:120px;line-height:1.55';
   return layout('Create', `
     <h1>Create</h1>
-    <p class="mut">Post a drop, schedule an event, or add merch — and choose exactly who can see each one.</p>
-    <div class="card">
-      <h2 style="font-size:13px;letter-spacing:1px;text-transform:uppercase;margin-bottom:2px">New drop</h2>
-      <form method="post" action="/athlete/${esc(d.athleteId)}/post">
-        <textarea name="body" required placeholder="Share an update — training, fight-week, behind-the-scenes…" style="${ta}"></textarea>
-        <label class="mut" style="display:block;margin:10px 0 0;font-size:13px">Who can see this?
-          <select name="visibility" style="${inp}">
-            <option value="public">Everyone — free to follow</option>
-            <option value="supporter">★ Supporters &amp; Clubhouse members</option>
-            <option value="clubhouse">✦ Only Clubhouse members</option>
-          </select></label>
-        ${d.hasPaidTiers ? '' : `<p class="mut" style="font-size:12px;margin:8px 0 0">Tip: you haven't set a paid tier yet — <a href="/athlete/${esc(d.athleteId)}/customize" style="border-bottom:1px solid var(--b)">set Supporter/Clubhouse prices</a> so locked drops are worth paying for.</p>`}
-        <div class="row" style="margin-top:12px"><button type="submit">Publish drop</button></div>
-      </form>
-    </div>
-    <div class="card"><h2 style="font-size:13px;letter-spacing:1px;text-transform:uppercase;margin-bottom:6px">New event</h2><p class="mut" style="font-size:13.5px">Live stream, physical meet or fight night — set access (open / register / apply / paid) when you create it.</p><a class="btn ghost" href="/host/athlete/${esc(d.athleteId)}/new">Schedule an event →</a></div>
-    <div class="card"><h2 style="font-size:13px;letter-spacing:1px;text-transform:uppercase;margin-bottom:6px">Merch</h2><p class="mut" style="font-size:13.5px">Coming soon — sell tees, signed gear and matchday drops.</p></div>
-  `, { back: `/athlete/${d.athleteId}`, nav: { active: 'you', guest: false, fanId: d.fanId } });
+    <p class="mut">On Horda you create <strong>events people claim</strong> — not content. Everything here is capped, counted, and terminates in a claim.</p>
+    <div class="card"><h2 style="font-size:13px;letter-spacing:1px;text-transform:uppercase;margin-bottom:6px">Main Event</h2><p class="mut" style="font-size:13.5px">The marquee tier — fight night, race day, match day. Capacity, ticket types, waitlists, entry control.</p><a class="btn" href="/host/athlete/${esc(d.athleteId)}/new?tier=main">Create a Main Event →</a></div>
+    <div class="card"><h2 style="font-size:13px;letter-spacing:1px;text-transform:uppercase;margin-bottom:6px">Gathering</h2><p class="mut" style="font-size:13.5px">The cadence engine — watch party, meetup, training session, run, capped online room. Anyone hosts.</p><a class="btn ghost" href="/host/athlete/${esc(d.athleteId)}/new?tier=gathering">Host a Gathering →</a></div>
+    <div class="card"><h2 style="font-size:13px;letter-spacing:1px;text-transform:uppercase;margin-bottom:6px">One-on-One</h2><p class="mut" style="font-size:13.5px">Booked, priced time with you — in person or video. Highest margin, geography-free online.</p><a class="btn ghost" href="/host/athlete/${esc(d.athleteId)}/new?tier=one_on_one">Open One-on-One →</a></div>
+  `, { back: `/athlete/${d.athleteId}`, nav: { active: 'you', guest: false, fanId: d.fanId, createHref: `/athlete/${d.athleteId}/compose` } });
 }
 
 // PUBLIC share page — the acquisition loop. Open to everyone (like Shop): a
@@ -1257,7 +1180,7 @@ export function renderClaimQueue(d: { claims: { id: string; accountEmail: string
 }
 
 // --- fan home (closeness to who you follow) ------------------------------
-export function renderFanHome(d: { fanId: string; fanName: string; home: FanHome; follows: { type: string; id: string; name: string }[]; activation?: string; createHref?: string; pages?: { kind: string; id: string; name: string; events: { id: string; title: string; date?: string }[] }[] }): string {
+export function renderFanHome(d: { fanId: string; fanName: string; home: FanHome; follows: { type: string; id: string; name: string }[]; activation?: string; createHref?: string; doors?: { eventId: string; title: string; date: string | null; hostKind: string | null; hostId: string | null; remaining: number | null; tier: string; mine: boolean }[]; morningAfter?: { title: string; date: string; recordTotal: number } | null; pages?: { kind: string; id: string; name: string; events: { id: string; title: string; date?: string }[] }[] }): string {
   const { home } = d;
   const ehref = (k: string, id: string) => k === 'athlete' ? `/athlete/${id}` : `/${k}/${id}`;
   // "Your pages" = the creator side of this same account: a switcher between the
@@ -1283,24 +1206,34 @@ export function renderFanHome(d: { fanId: string; fanName: string; home: FanHome
   const notifs = home.notifications.length
     ? `<h2>Notifications ${unread ? `<span class="tag ok">${unread} new</span>` : ''}</h2><ul>${home.notifications.map(n => `<li><span class="tag mutd">${esc(n.kind)}</span><span class="hl">${esc(n.headline)}</span></li>`).join('')}</ul>` : '';
 
-  const preds = home.predictions.length
-    ? `<h2>Your calls</h2><ul>${home.predictions.map(pr => `<li><span class="hl">${esc(pr.event)} — backed <strong>${esc(pr.pick)}</strong></span><span class="tag ${pr.status === 'correct' ? 'ok' : 'mutd'}">${esc(pr.status)}</span></li>`).join('')}</ul>` : '';
-
-  const feed = home.feed.length
-    ? `<h2>Your feed</h2><ul>${home.feed.map(it => `<li><span class="tag mutd">${esc(it.kind)}</span><span class="hl">${esc(it.headline)}</span><span class="dt">${esc(it.sub ?? it.date ?? '')}</span></li>`).join('')}</ul>`
-    : `<h2>Your feed</h2><p class="mut">Follow an athlete or club to fill your feed.</p>`;
-
-  const drop = `<div class="card"><strong>Your week in the Horda</strong><div class="mut" style="margin:4px 0 10px">A shareable drop of everything you follow this week.</div><div class="row"><a href="/share/week/${d.fanId}"><button>Get your drop ↗</button></a></div></div>`;
+  // The feed is a ranked stream of DOORS — every card terminates in a claim,
+  // never content. It's finite: it ends visibly ("you're up to date").
+  const tierBadge: Record<string, string> = { main: 'Main Event', gathering: 'Gathering', one_on_one: 'One-on-One' };
+  const doors = d.doors ?? [];
+  const doorCard = (dr: NonNullable<typeof d.doors>[number]) => {
+    const scar = dr.remaining == null ? '' : (dr.remaining <= 0 ? '<span class="tag mutd">Full · waitlist</span>' : `<span class="tag mutd">${dr.remaining} left</span>`);
+    return `<a class="doorcard" href="/e/${dr.eventId}"><div style="flex:1"><div class="hl">${esc(dr.title)}</div><div class="dt">${esc(dr.date ?? 'soon')} · ${esc(tierBadge[dr.tier] ?? 'event')}</div></div><div style="text-align:right">${dr.mine ? '<span class="tag ok">Claimed</span>' : scar}<div style="margin-top:6px" class="tag">${dr.mine ? 'View pass' : 'Claim →'}</div></div></a>`;
+  };
+  const feed = doors.length
+    ? `<h2>Your doors</h2><div class="doorlist">${doors.map(doorCard).join('')}</div><div class="uptodate">You're up to date.</div>`
+    : `<h2>Your doors</h2><p class="mut">Follow a crowd and their claimable events show up here. <a href="/" style="border-bottom:1px solid var(--b)">Find your scene →</a></p>`;
 
   return layout(`${d.fanName}'s Horda`, `
+    <style>
+      .doorlist{display:flex;flex-direction:column;gap:8px;margin:8px 0}
+      .doorcard{display:flex;align-items:center;gap:12px;border:1px solid var(--b);border-radius:14px;padding:13px 15px;background:var(--s);text-decoration:none;color:var(--bone)}
+      .doorcard:hover{border-color:var(--bone)}
+      .uptodate{text-align:center;color:var(--mut);font-size:12px;letter-spacing:1px;text-transform:uppercase;margin:14px 0;padding-top:12px;border-top:1px solid var(--b)}
+    </style>
     <h1>Your Horda</h1>
-    <p class="mut">${esc(d.fanName)} · following ${d.follows.length}</p>
+    <p class="mut">${esc(d.fanName)} · following ${d.follows.length} · <a href="/record" style="border-bottom:1px solid var(--b)">your Record →</a></p>
     ${d.activation ?? ''}
+    ${d.morningAfter ? `<div class="card" style="border-color:var(--bone)"><div style="font-size:11px;letter-spacing:1.5px;text-transform:uppercase;color:var(--mut);font-weight:800">The morning after</div><strong style="font-size:16px">You were at ${esc(d.morningAfter.title)} · ${esc(d.morningAfter.date)}.</strong><div class="mut" style="font-size:13px;margin-top:4px">Your Record is now <strong>${d.morningAfter.recordTotal}</strong> verified ${d.morningAfter.recordTotal === 1 ? 'presence' : 'presences'}. Here's what's next.</div><div class="row" style="margin-top:8px"><a class="tag" href="/record">Your Record →</a></div></div>` : ''}
     ${pagesBlock}
-    ${drop}${following}${notifs}${preds}${feed}
+    ${feed}${following}${notifs}
     <h2>Account</h2>
     <div class="row"><a class="tag" href="/settings">Settings</a><a class="tag mutd" href="/logout">Log out</a></div>
-    <div class="prov">Your feed is coverage of what you follow — not a stream of other fans.</div>`, { back: '/', nav: { active: 'you', guest: false, fanId: d.fanId, createHref: d.createHref } });
+    <div class="prov">Not a stream to watch — a ranked set of doors. When you've seen them, it ends.</div>`, { back: '/', nav: { active: 'you', guest: false, fanId: d.fanId, createHref: d.createHref } });
 }
 
 // --- club page -----------------------------------------------------------

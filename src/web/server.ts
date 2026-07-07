@@ -35,8 +35,9 @@ import { parseTheme, serializeTheme, autoContrast, bannerSvg, svgDataUri, THEME_
 import { listMedia, addMedia, deleteMedia, listSponsors, addSponsor, deleteSponsor, subscribeNewsletter, reserveHandle, getBannerStyle, setBannerStyle, listShopItems, addShopItem, deleteShopItem } from '../db/extras_repo.ts';
 import { track, conversionRate, metricCounts, defaultRoomLabel, roomState, setRoomConfig, setResult, getRoomConfig, listRoomMessages, postRoomMessage, canSeeLiveRoom, createGoal, listGoals, activeGoalProgress, getGoal, maybeGoalSignup, trackConversion, roomPresence } from '../db/hook_repo.ts';
 import { renderEventRoom, renderMediaStudio, renderInsights, goalBar } from './hook_web.ts';
-import { spotsInfo, getClaim, createClaim, getPass, verifyPass, fanRecord, recordCount, crowdStanding, grantConsent } from '../db/claim_rail_repo.ts';
+import { spotsInfo, getClaim, createClaim, getPass, verifyPass, fanRecord, recordCount, crowdStanding, grantConsent, feedDoors, recentPresence } from '../db/claim_rail_repo.ts';
 import { renderPass, renderRecord, renderCheckin, claimCta } from './claim_web.ts';
+import { actionBar } from './theme.ts';
 import { generateEventAssets, eventGraphic, supporterCard } from './mediagen.ts';
 import { resolveLayout } from './sections.ts';
 import { generateProfile, getModel, coverDataUri } from './profilegen.ts';
@@ -658,7 +659,14 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
         const claimBlock = isHost
           ? `<div class="card"><strong>You host this.</strong><div class="row" style="margin-top:8px"><a class="btn" href="/e/${em[1]}/check-in">Open check-in →</a></div></div>`
           : claimCta({ eventId: em[1], remaining: spots.remaining, full: spots.full, mine: minePass, guest, priceLabel: d.admission === 'paid' ? priceLabel(d) : 'Free', mode: evRow?.registration_mode ?? 'open', standing: { have: standHave, need: evRow?.standing_threshold ?? 0 } });
-        return html(res, renderEventPage(d, { guest, fanId: guest ? null : viewer, myRsvp, isHost, myEntities, myTicket, listings, extraTop: claimBlock + roomCta }));
+        // Persistent primary-action bar (the IG/TikTok pattern) — scarcity + one tap.
+        const barSub = spots.remaining == null ? (d.admission === 'paid' ? priceLabel(d) : 'Free') : (spots.full ? 'Full — join the waitlist' : `${spots.remaining} spot${spots.remaining === 1 ? '' : 's'} left${d.admission === 'paid' ? ' · ' + priceLabel(d) : ''}`);
+        const stickyCta = isHost
+          ? actionBar({ title: d.title, sub: `${spots.claimed} claimed`, cta: `<a class="btn" href="/e/${em[1]}/check-in">Check-in</a>` })
+          : minePass
+            ? actionBar({ title: "You're in", sub: minePass.status === 'waitlisted' ? 'On the waitlist' : 'Pass ready', cta: `<a class="btn" href="/pass/${minePass.token}">View pass</a>` })
+            : actionBar({ title: d.title, sub: barSub, cta: `<a class="btn" href="#claim">${spots.full ? 'Join waitlist' : 'Claim your spot'}</a>` });
+        return html(res, renderEventPage(d, { guest, fanId: guest ? null : viewer, myRsvp, isHost, myEntities, myTicket, listings, extraTop: claimBlock + roomCta, stickyCta }));
       }
       if ((em = path.match(/^\/manage\/([^/]+)$/))) {
         const d = await getEventDetail(db, em[1]);
@@ -934,7 +942,10 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
         const ownPages = (account && m[1] === viewer)
           ? await Promise.all((await ownedEntities(db, account.id)).map(async e => ({ ...e, events: await listProfileEvents(db, e.kind, e.id) })))
           : [];
-        return html(res, renderFanHome({ fanId: m[1], fanName: 'You', home, follows, activation: fanAct, pages: ownPages, createHref: viewerCreateHref }));
+        const doors = await feedDoors(db, m[1]);
+        const rp = await recentPresence(db, m[1]);
+        const morningAfter = rp ? { title: rp.title, date: rp.date, recordTotal: (await recordCount(db, m[1])).total } : null;
+        return html(res, renderFanHome({ fanId: m[1], fanName: 'You', home, follows, activation: fanAct, pages: ownPages, createHref: viewerCreateHref, doors, morningAfter }));
       }
       // §4a/§6: hosted themed OG image for an athlete (rich share cards). SVG for
       // now; PNG rasterization is a follow-up once an image lib is added.
