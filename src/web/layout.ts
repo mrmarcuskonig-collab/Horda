@@ -1,7 +1,10 @@
 // layout.ts — shared chrome for the lighter pages (home, fan feed, sign-up).
 // Dark Ink/Bone, matching the profile shell so the whole app is one theme.
 import { ravenMark, ravenMarkCurrent } from './brand.ts';
-import { THEME_BOOT, THEME_VARS, THM_CSS, themeToggle, bottomNav } from './theme.ts';
+import { THEME_BOOT, THEME_VARS, THM_CSS, themeToggle, bottomNav, backButton, deskRail } from './theme.ts';
+import { type Lang } from './i18n.ts';
+// map the bottom-nav active key to the labelled rail's active key
+const railActive = (a?: string) => a === 'you' ? 'profile' : a === 'home' ? 'explore' : a;
 export const esc = (s: string) => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]!));
 
 // Escape, then turn any pasted http(s) URL into a clickable link. Safe because we
@@ -31,14 +34,16 @@ export function ogMeta(o: { title: string; description: string; url?: string; im
   ].filter(Boolean).join('\n');
 }
 
-export function layout(title: string, body: string, opts: { back?: string; nav?: { active?: string; guest: boolean; fanId: string | null; createHref?: string } } = {}): string {
+export function layout(title: string, body: string, opts: { back?: string; nav?: { active?: string; guest: boolean; fanId: string | null; createHref?: string; lang?: Lang; unread?: number } } = {}): string {
+  const nv = opts.nav ?? { guest: true, fanId: null };
   return `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1"><link rel="icon" href="/favicon.svg"><title>${esc(title)} — Horda</title>${THEME_BOOT}
 <style>
   ${THEME_VARS}
   ${THM_CSS}
   *{margin:0;box-sizing:border-box}
-  body{background:var(--ink);color:var(--bone);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif;line-height:1.45;max-width:680px;margin:0 auto;padding:0 18px 96px}
+  body{background:var(--ink);color:var(--bone);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif;line-height:1.45;padding:0 18px 96px}
+  .hz-main{max-width:680px;margin:0 auto}
   a{color:inherit}
   .top{display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--b);padding:12px 0 9px;position:sticky;top:0;background:var(--ink);z-index:5}
   .mark{display:flex;align-items:center;text-decoration:none;color:var(--bone)}.mark svg{display:block}
@@ -70,10 +75,13 @@ export function layout(title: string, body: string, opts: { back?: string; nav?:
   .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:12px 0}
   .prov{margin-top:28px;color:var(--mut);font-size:11px;border-top:1px solid var(--b);padding-top:12px}
   .backx{display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:999px;border:1.5px solid var(--b);color:var(--bone);font-size:22px;line-height:1;text-decoration:none;padding-bottom:2px}.backx:hover{border-color:var(--bone)}
-</style></head><body>
-  <div class="top"><a class="mark" href="/" aria-label="Horda — home">${ravenMarkCurrent(30)}</a>
-  <div style="display:flex;align-items:center;gap:10px">${opts.back ? `<a class="backx" href="${esc(opts.back)}" aria-label="Back" title="Back">‹</a>` : ''}${themeToggle()}${opts.back ? '' : '<span class="dt">system of record</span>'}</div></div>
+</style></head><body class="deskrail">
+  ${deskRail({ guest: nv.guest, fanId: nv.fanId, lang: nv.lang, unread: nv.unread, active: railActive(nv.active) })}
+  ${opts.back ? backButton(opts.back) : ''}
+  <div class="hz-main">
+  ${opts.back ? '<div style="height:40px"></div>' : ''}
   ${body}
-  ${bottomNav(opts.nav ?? { guest: true, fanId: null })}
+  </div>
+  ${bottomNav(nv)}
 </body></html>`;
 }

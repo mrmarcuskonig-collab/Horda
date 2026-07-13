@@ -157,21 +157,39 @@ export function renderMediaStudio(d: {
 }
 
 // --- creator insights dashboard --------------------------------------------
+// Insights = the core crowd → claims → attendance funnel. Social reach / channel
+// insights are "coming soon" (we test the core loop first, before pushing social
+// connect on first-run users).
 export function renderInsights(d: {
-  name: string; athleteId: string;
-  conversion: { conversions: number; opens: number; rate: number };
-  returnRate: number; goalSignups: number; artifactShares: number; aiAdoption: number; events: number;
+  name: string; athleteId: string; editHref: string;
+  followers: number; claims: number; presences: number; events: number;
 }): string {
+  const CSS = `
+    .funnel{margin:16px 0 4px}
+    .fstage{margin:12px 0}
+    .fhd{display:flex;justify-content:space-between;align-items:baseline;gap:10px;margin-bottom:6px}
+    .fhd .fn{font-size:26px;font-weight:800;font-variant-numeric:tabular-nums}
+    .fhd .fl{font-size:12px;letter-spacing:1px;text-transform:uppercase;color:var(--mut);font-weight:700}
+    .fbar{height:14px;border-radius:8px;background:var(--s);border:1px solid var(--b);overflow:hidden}
+    .fbar span{display:block;height:100%;background:linear-gradient(90deg,#e5484d,#ff7a1a)}
+    .fconv{font-size:12px;color:var(--mut);margin:6px 0 0;padding-left:2px}
+    .soon{border:1px dashed var(--b);border-radius:14px;background:var(--s);padding:14px 16px;margin:14px 0;display:flex;align-items:center;justify-content:space-between;gap:12px}
+    .soon .st{font-size:9.5px;font-weight:800;letter-spacing:1px;text-transform:uppercase;border:1px solid var(--b);border-radius:6px;padding:3px 8px;color:var(--mut);white-space:nowrap}`;
+  const pct = (a: number, b: number) => b > 0 ? Math.round((a / b) * 100) : 0;
+  const top = Math.max(d.followers, d.claims, d.presences, 1);
+  const stage = (n: number, label: string) => `<div class="fstage"><div class="fhd"><span class="fn">${n}</span><span class="fl">${esc(label)}</span></div><div class="fbar"><span style="width:${Math.max(3, Math.round((n / top) * 100))}%"></span></div></div>`;
   return layout('Insights', `
-    <style>${ROOM_CSS}</style>
+    <style>${CSS}</style>
     <h1>Insights</h1>
-    <p class="mut">The validation data for ${esc(d.name)} — the metrics that tell us if the hook works.</p>
-    <div class="kpi">
-      <div class="c"><div class="big">${d.conversion.rate}%</div><div class="lab">Event-day conversion</div><div class="mut" style="font-size:12px;margin-top:4px">${d.conversion.conversions} superfans on ${d.conversion.opens} event days</div></div>
-      <div class="c"><div class="big">${d.returnRate}%</div><div class="lab">Next-event return</div><div class="mut" style="font-size:12px;margin-top:4px">superfans back for the next room</div></div>
-      <div class="c"><div class="big">${d.goalSignups}</div><div class="lab">Goal-driven signups / shares</div></div>
-      <div class="c"><div class="big">${d.events ? Math.round((d.aiAdoption / d.events) * 100) : 0}%</div><div class="lab">AI media adoption</div><div class="mut" style="font-size:12px;margin-top:4px">${d.aiAdoption} of ${d.events} events used an AI asset</div></div>
+    <p class="mut">How ${esc(d.name)}'s crowd turns into people who actually show up.</p>
+    <div class="funnel">
+      ${stage(d.followers, 'Crowd — following')}
+      <div class="fconv">↳ ${pct(d.claims, d.followers)}% of your crowd claimed a spot</div>
+      ${stage(d.claims, 'Claims — spots taken')}
+      <div class="fconv">↳ ${pct(d.presences, d.claims)}% of claims turned up (verified presence)</div>
+      ${stage(d.presences, 'Showed up — verified')}
     </div>
-    <div class="prov">Event-day conversion + next-event return are the kill/continue signals for this release.</div>
+    <div class="soon"><div><strong style="font-size:14px">Social reach &amp; channels</strong><div class="mut" style="font-size:12.5px;margin-top:2px">See how each connected channel drives claims — Instagram, TikTok, YouTube.</div></div><span class="st">Coming soon</span></div>
+    <div class="prov">The funnel is your crowd → claims → real attendance across ${d.events} event${d.events === 1 ? '' : 's'}. Social-channel insights land once we've proven the core loop — and only via official APIs you connect, never scraping.</div>
   `, { back: `/athlete/${d.athleteId}`, nav: { active: 'you', guest: false, fanId: null } });
 }

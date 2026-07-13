@@ -16,29 +16,29 @@ const n = async (db: Database, sql: string, params: any[]): Promise<number> =>
 
 export async function fanChecklist(db: Database, fanId: string): Promise<Checklist> {
   const follows = await n(db, `SELECT count(*)::int n FROM follow WHERE fan_id=$1`, [fanId]);
-  const rsvps = await n(db, `SELECT count(*)::int n FROM attendance WHERE fan_id=$1`, [fanId]);
-  const preds = await n(db, `SELECT count(*)::int n FROM prediction WHERE fan_id=$1`, [fanId]);
-  const memb = await n(db, `SELECT count(*)::int n FROM membership WHERE fan_id=$1 AND status='active'`, [fanId]);
+  const claims = await n(db, `SELECT count(*)::int n FROM claim WHERE fan_id=$1`, [fanId]);
+  const pres = await n(db, `SELECT count(*)::int n FROM presence WHERE fan_id=$1`, [fanId]);
   const steps: Step[] = [
-    { label: 'Follow 3 athletes or clubs you love', done: follows >= 3, href: '/' },
-    { label: 'RSVP to an event near you', done: rsvps > 0, href: '/map' },
-    { label: 'Make your first prediction', done: preds > 0, href: '/' },
-    { label: 'Back someone — become a Supporter', done: memb > 0, href: '/' },
+    { label: 'Follow 3 crowds you love', done: follows >= 3, href: '/' },
+    { label: 'Claim your first event', done: claims > 0, href: '/' },
+    { label: 'Show up — earn your first verified presence', done: pres > 0, href: '/record' },
   ];
   return { title: 'Finish setting up your Horda', steps, complete: steps.every(s => s.done), storageKey: 'hz_act_fan' };
 }
 
 export async function athleteChecklist(db: Database, athleteId: string): Promise<Checklist> {
   const a = (await db.query<{ avatar_url: string | null; banner_url: string | null }>(`SELECT avatar_url, banner_url FROM athlete WHERE id=$1`, [athleteId])).rows[0] ?? { avatar_url: null, banner_url: null };
-  const tiers = await n(db, `SELECT count(*)::int n FROM membership_tier WHERE owner_kind='athlete' AND owner_id=$1`, [athleteId]);
-  const posts = await n(db, `SELECT count(*)::int n FROM post WHERE author_type='athlete' AND author_id=$1`, [athleteId]);
+  const conns = await n(db, `SELECT count(*)::int n FROM entity_link WHERE child_kind='athlete' AND child_id=$1 AND status='active'`, [athleteId]);
   const events = (await listProfileEvents(db, 'athlete', athleteId)).length;
   const here = `/athlete/${athleteId}`;
+  const edit = `${here}/customize`;
+  // Keep first-run light: no tiers, no drops, and social connect is "coming soon"
+  // (we're testing the core loop first). Setup = a real page, the clubs/leagues
+  // you belong to, and your first claimable event.
   const steps: Step[] = [
     { label: 'Your page is live', done: true, href: here },
-    { label: 'Add a profile photo & banner', done: !!a.avatar_url && !!a.banner_url, href: here },
-    { label: 'Set your membership tiers', done: tiers > 0, href: `${here}#join` },
-    { label: 'Post your first drop', done: posts > 0, href: here },
+    { label: 'Add a profile photo & banner', done: !!a.avatar_url && !!a.banner_url, href: edit },
+    { label: 'Connect to your clubs & leagues', done: conns > 0, href: `${here}/connections` },
     { label: 'Schedule your first event', done: events > 0, href: `/host/athlete/${athleteId}/new` },
   ];
   return { title: 'Finish setting up your page', steps, complete: steps.every(s => s.done), storageKey: `hz_act_ath_${athleteId}` };
@@ -46,16 +46,16 @@ export async function athleteChecklist(db: Database, athleteId: string): Promise
 
 export async function entityChecklist(db: Database, kind: string, id: string): Promise<Checklist> {
   const b = await getBranding(db, kind, id);
-  // author_type is an enum without an 'association' value — cast to text so the
-  // comparison is always valid (associations simply have no posts of their own).
-  const posts = await n(db, `SELECT count(*)::int n FROM post WHERE author_type::text=$1 AND author_id=$2`, [kind, id]);
   const events = (await listProfileEvents(db, kind, id)).length;
+  const conns = await n(db, `SELECT count(*)::int n FROM entity_link WHERE child_kind=$1 AND child_id=$2 AND status='active'`, [kind, id]);
   const here = `/${kind}/${id}`;
+  // Doctrine: no posts/drops. Clubs can connect up to a league/association;
+  // teams/associations don't have that step.
   const steps: Step[] = [
     { label: 'Page claimed & verified', done: true, href: here },
     { label: 'Set up your look — badge & banner', done: !!b.avatarUrl || !!b.bannerUrl, href: here },
-    { label: 'Post your first update', done: posts > 0, href: here },
-    { label: 'Add your first fixture or event', done: events > 0, href: `/host/${kind}/${id}/new` },
+    ...(kind === 'club' ? [{ label: 'Connect to your league or association', done: conns > 0, href: `${here}/connections` }] : []),
+    { label: 'Add your first event', done: events > 0, href: `/host/${kind}/${id}/new` },
   ];
   return { title: 'Finish setting up your page', steps, complete: steps.every(s => s.done), storageKey: `hz_act_${kind}_${id}` };
 }

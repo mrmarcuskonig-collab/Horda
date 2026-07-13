@@ -3,6 +3,7 @@
 // management with approvals. Built on the shared dark layout().
 import { layout, esc } from './layout.ts';
 import { UPLOAD_SCRIPT } from './shell.ts';
+import { shareButton } from './theme.ts';
 import { type EventDetail, priceLabel } from '../db/events_repo.ts';
 
 const hostHref = (kind: string | null, id: string | null) =>
@@ -80,7 +81,7 @@ export function renderEventPage(d: EventDetail, ctx: {
         : `<form method="post" action="/ticket/buy"><input type="hidden" name="ticket_id" value="${l.id}"><input type="hidden" name="event_id" value="${d.id}"><input type="hidden" name="fan_id" value="${ctx.fanId}"><button class="rb p" type="submit">Buy ${money(l.priceCents, d.currency)} · from ${esc(l.seller)}</button></form>`).join('')}</div>`
     : '';
 
-  const extras = [`<a class="rb" href="/e/${d.id}/ics">＋ Add to calendar</a>`];
+  const extras = [shareButton({ title: d.title, cls: 'rb' }), `<a class="rb" href="/e/${d.id}/ics">＋ Add to calendar</a>`];
   if (ctx.isHost) extras.push(`<a class="rb" href="/manage/${d.id}">Manage</a>`);
 
   // cross-post: feature this event on one of your own profiles
@@ -167,14 +168,6 @@ export function renderEventPage(d: EventDetail, ctx: {
         <div><div class="wt">${esc(d.date || 'Date TBA')}</div><div class="ws">${esc(d.time ? d.time + (dt ? '' : '') : 'Time TBA')}${d.capacity ? ` · capacity ${d.capacity}` : ''}${d.recurrence && d.recurrence !== 'none' ? ` · repeats ${esc(d.recurrence)}` : ''}</div></div></div>
       ${d.location ? `<div class="ww"><div class="wi">${ICON.pin}</div><div><div class="wt">${d.locationKind === 'online' ? 'Online event' : esc(d.location)}</div><div class="ws">${d.locationKind === 'online' ? `<a href="${esc(d.location)}" target="_blank" rel="noopener">Join link ↗</a>` : d.locationKind === 'hybrid' ? `In person + streamed${mapsHref ? ` · <a href="${mapsHref}" target="_blank" rel="noopener">Maps ↗</a>` : ''}` : (mapsHref ? `<a href="${mapsHref}" target="_blank" rel="noopener">Open in Maps ↗</a>` : '')}</div></div></div>` : (d.locationKind === 'online' ? `<div class="ww"><div class="wi">${ICON.pin}</div><div><div class="wt">Online event</div></div></div>` : '')}
 
-      <div class="regcard">
-        <div class="rt">Registration</div>
-        ${goingConfirmed ? '' : `<div class="rsub">${ctx.guest ? 'Welcome! To attend this event, sign up below.' : 'Attend in person — choose how you’ll join.'}</div>`}
-        <div class="rsvp">${primary}</div>
-        <div class="rsvp">${secondary}</div>
-        <div class="ws" style="margin-top:6px;color:var(--mut);font-size:12.5px"><b>${d.counts.going}</b> going · ${d.counts.interested} interested${d.counts.pending ? ` · ${d.counts.pending} ${d.admission === 'paid' ? 'awaiting payment' : 'pending'}` : ''}</div>
-      </div>
-
       ${watch ? `<div class="h3">Watch live</div><div class="rsvp">${watch}</div>` : ''}
       ${ticketSection}${resaleSection}
 
@@ -230,7 +223,7 @@ export function renderCreateEvent(hostKind: string, hostId: string, hostName: st
         <option value="weekly">Weekly</option>
         <option value="monthly">Monthly</option>
       </select></label>
-    <label style="${fld}">Description<textarea style="${inp};min-height:90px" name="description" placeholder="What's happening, who's invited…"></textarea></label>
+    <label style="${fld}">About this event <span class="mut">(optional)</span><textarea style="${inp};min-height:100px" name="description" placeholder="What's happening, who's invited, what to expect, schedule, rules…"></textarea></label>
     <label style="${fld}">Cover image<input type="file" accept="image/*" data-target="cover" style="margin-top:6px;color:inherit"></label>
     <input type="hidden" name="cover">
     <label style="${fld}">Admission

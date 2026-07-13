@@ -3,7 +3,7 @@ import { layout, esc, linkify } from './layout.ts';
 import { socialIcon, kindIcon } from './icons.ts';
 import { editPanel, UPLOAD_SCRIPT } from './shell.ts';
 import { ravenMark, ravenMarkCurrent } from './brand.ts';
-import { THEME_BOOT, THEME_VARS, THM_CSS, themeToggle, bottomNav, verifiedBadge, actionBar, langToggle } from './theme.ts';
+import { THEME_BOOT, THEME_VARS, THM_CSS, themeToggle, bottomNav, verifiedBadge, actionBar, langToggle, backButton, deskRail, shareButton } from './theme.ts';
 import { t, type Lang } from './i18n.ts';
 import { bannerSvg, defaultThemeForSport, svgDataUri } from './theme_engine.ts';
 import { oauthProviders } from './oauth.ts';
@@ -149,40 +149,8 @@ export function renderDiscover(d: {
     ? `<div class="joinb"><div><strong>Your Horda</strong><div class="bsub">Pick a few you love and your feed already knows you. Free.</div></div><a class="btn dark" href="/signup">Get your feed</a></div>`
     : `<div class="joinb"><div><strong>Your Horda is ready</strong><div class="bsub">Your feed of everyone you follow.</div></div><a class="btn dark" href="/fan/${d.fanId}">Open feed →</a></div>`;
 
-  // TikTok-style desktop left rail (labelled nav + search + settings). Desktop-only;
-  // the bottom tab bar covers mobile. Erkunden (this page) is the active item.
-  const RI = {
-    explore: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m15.2 8.8-2 4.4-4.4 2 2-4.4 4.4-2Z"/></svg>`,
-    following: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.4"/><path d="M3.5 20c0-3.4 2.7-5.6 5.5-5.6S14.5 16.6 14.5 20"/><path d="M17 8.5v5M14.5 11h5"/></svg>`,
-    create: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="3.5" width="17" height="17" rx="5"/><path d="M12 8v8M8 12h8"/></svg>`,
-    profile: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="3.6"/><path d="M5.5 20c0-3.7 2.9-6.2 6.5-6.2S18.5 16.3 18.5 20"/></svg>`,
-    bell: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9a6 6 0 0 1 12 0c0 4 1.2 5.4 1.8 6.2.3.4 0 .9-.5.9H4.7c-.5 0-.8-.5-.5-.9C4.8 14.4 6 13 6 9Z"/><path d="M10 20a2 2 0 0 0 4 0"/></svg>`,
-  };
-  const followHref = d.guest ? '/signup' : `/fan/${d.fanId ?? ''}#hordas`;
-  const unread = d.unread ?? 0;
-  // Always the generic creator entry — never the owned-athlete compose href, which
-  // would leak a private entity id onto the public landing (and break filters).
-  const createHref = '/create';
-  const ritem = (active: boolean, href: string, icon: string, label: string) =>
-    `<a class="dr-item${active ? ' on' : ''}" href="${href}"${active ? ' aria-current="page"' : ''}>${icon}<span>${esc(label)}</span></a>`;
-  const deskRail = `<aside class="drail">
-    <a class="dr-logo" href="/" aria-label="Horda">${ravenMarkCurrent(26)}<b>Horda</b></a>
-    <form class="dr-search" method="get" action="/">${d.sport ? `<input type="hidden" name="sport" value="${esc(d.sport)}">` : ''}<input name="region" value="${esc(d.region ?? '')}" placeholder="${esc(tr('search_ph'))}" autocomplete="off" aria-label="${esc(tr('search_ph'))}"></form>
-    <nav class="dr-nav" aria-label="Primary">
-      ${ritem(true, '/', RI.explore, tr('explore'))}
-      ${ritem(false, followHref, RI.following, tr('following'))}
-      ${d.guest ? '' : `<a class="dr-item" href="/notifications">${RI.bell}<span>${esc(tr('notifications'))}</span>${unread ? `<span class="dr-badge">${unread > 9 ? '9+' : unread}</span>` : ''}</a>`}
-      ${ritem(false, createHref, RI.create, tr('create_event'))}
-      ${ritem(false, '/settings', RI.profile, tr('profile'))}
-    </nav>
-    <div class="dr-sep"></div>
-    <div class="dr-set">
-      <div class="dr-srow"><span class="dr-slabel">${esc(tr('language'))}</span>${langToggle(lang, d.region ? '/?region=' + encodeURIComponent(d.region) : '/')}</div>
-    </div>
-    <div class="dr-foot">${d.guest
-      ? `<a class="btn ghost" href="/login">${esc(tr('login'))}</a><a class="btn" href="/signup">${esc(tr('join_free'))}</a>`
-      : `<a class="btn" href="/fan/${d.fanId}">${esc(tr('your_feed'))} →</a>`}</div>
-  </aside>`;
+  // The shared desktop rail (identical to every other page).
+  const deskRailHtml = deskRail({ guest: d.guest, fanId: d.fanId, lang, unread: d.unread ?? 0, active: 'explore', region: d.region, sport: d.sport });
 
   return `<!DOCTYPE html><html lang="${lang}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><link rel="icon" href="/favicon.svg"><title>Horda</title>${THEME_BOOT}
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -270,9 +238,7 @@ export function renderDiscover(d: {
   .joinb .bsub{font-size:12.5px;opacity:.66;margin-top:3px}
   .prov{max-width:900px;margin:24px auto 0;padding:0 20px;color:var(--mut);font-size:11.5px;line-height:1.6}
 </style></head><body class="deskrail">
-  ${deskRail}
-  <header class="top"><a class="mark" href="/" aria-label="Horda">${ravenMarkCurrent(30)}</a>
-    <div class="nav">${d.guest ? `<a class="btn ghost" href="/login">${esc(tr('login'))}</a><a class="btn" href="/signup">${esc(tr('join_free'))}</a>` : `<a class="btn" href="/fan/${d.fanId}">${esc(tr('your_feed'))} →</a>`}</div></header>
+  ${deskRailHtml}
   <div class="wrap">
     ${rail}
     ${sportChips}${locRow}
@@ -357,7 +323,8 @@ export function renderAthletePage(d: {
   upcoming: UpcomingView | null;
   attendance: { mode: string } | null;
   affiliations: { kind: string; label: string; href: string | null }[];
-  events?: { id: string; title: string; date?: string; featured?: boolean; hostName?: string }[];
+  events?: { id: string; title: string; date?: string; featured?: boolean; hostName?: string; live?: boolean; past?: boolean; startsAt?: string | null }[];
+  connections?: { kind: string; id: string; name: string; logoUrl: string | null; role?: string }[];
   scheduleHref?: string;
   tiers?: { level: string; name: string; priceCents: number; priceAnnualCents: number | null; currency: string; perks: string[] }[];
   membership?: { memberNo: number; tierLevel: string } | null;
@@ -405,18 +372,20 @@ export function renderAthletePage(d: {
   const profhead = `<section class="profhead">
       <div class="avatar">${av}</div>
       <div class="pid"><h1>${esc(p.name)}</h1><div class="hsub">${p.handle ? '@' + esc(p.handle) : ''}${nickname ? ` · “${esc(nickname)}”` : ''}${d.sportsLabel ? ` · ${esc(d.sportsLabel)}` : ''}${d.superfan ? ' · <span class="sfan">✦ Superfan</span>' : ''}</div></div>
-      ${d.canEdit ? '' : (d.guest ? `<a class="btn join" href="/signup?follow=athlete:${p.athleteId}">Follow</a>` : `<form method="post" action="/follow"><input type="hidden" name="target_type" value="athlete"><input type="hidden" name="target_id" value="${p.athleteId}"><button class="btn join">Follow</button></form>`)}
+      <div class="phactions" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">${d.canEdit ? '' : (d.guest ? `<a class="btn join" href="/signup?follow=athlete:${p.athleteId}">Follow</a>` : `<form method="post" action="/follow"><input type="hidden" name="target_type" value="athlete"><input type="hidden" name="target_id" value="${p.athleteId}"><button class="btn join">Follow</button></form>`)}${shareButton({ title: p.name, cls: 'btn ghost join' })}</div>
     </section>
     ${socials ? `<div class="icons">${socials}</div>` : ''}
     ${p.tagline ? `<p class="tagline">${esc(p.tagline)}</p>` : ''}`;
 
   // Tabs are the athlete's chosen sections, in order — they scroll to each section.
-  const order = d.sections ?? [{ key: 'record', on: true }, { key: 'nextup', on: true }, { key: 'results', on: true }, { key: 'drops', on: true }, { key: 'events', on: true }, { key: 'media', on: true }, { key: 'merch', on: true }, { key: 'connected', on: true }];
-  const enabled = order.filter(s => s.on && SECTIONS[s.key]);
+  const order = d.sections ?? [{ key: 'nextup', on: true }, { key: 'events', on: true }, { key: 'drops', on: true }, { key: 'media', on: true }, { key: 'merch', on: true }, { key: 'connected', on: true }];
+  // Result statistics (Win/Loss/Draw) and "Recent results" are intentionally not
+  // shown — Horda leads with events + presence, not a scores product.
+  const enabled = order.filter(s => s.on && SECTIONS[s.key] && s.key !== 'record' && s.key !== 'results');
   const tabs = `<nav class="tabs">${enabled.map((s, i) => `<a class="tab${i === 0 ? ' on' : ''}" href="#sec-${s.key}">${esc(SECTIONS[s.key].short)}</a>`).join('')}</nav>`;
 
-  // Support prompt — owner sees nothing; guest is nudged to follow; member/logged-in to Support.
-  const membership = d.canEdit ? '' : `<div class="joinb"><div><strong>Join ${esc(first)}'s crowd</strong><div class="bsub">Their events land in your agenda, and showing up starts counting toward earned access.</div></div>${d.guest ? `<a class="btn dark" href="/signup?follow=athlete:${p.athleteId}">Follow</a>` : `<form method="post" action="/follow"><input type="hidden" name="target_type" value="athlete"><input type="hidden" name="target_id" value="${p.athleteId}"><button class="btn dark">Follow</button></form>`}</div>`;
+  // Follow lives next to the profile only (no duplicate "Join crowd" banner).
+  const membership = '';
 
   const stats = `<div class="stats">
       <div class="stat"><div class="num">${p.record.wins}</div><div class="slab">Won</div></div>
@@ -509,8 +478,8 @@ export function renderAthletePage(d: {
     } else {
       const b: string[] = [];
       if (u.access === 'free') b.push(d.guest
-        ? `<a class="btn" href="/signup">Join for free</a>`
-        : `<form method="post" action="/attend"><input type="hidden" name="fan_id" value="${d.fanId}"><input type="hidden" name="event_id" value="${u.eventId}"><input type="hidden" name="mode" value="going"><button class="btn">Join for free</button></form>`);
+        ? `<a class="btn ghost" href="/signup">Join for free</a>`
+        : `<form method="post" action="/attend"><input type="hidden" name="fan_id" value="${d.fanId}"><input type="hidden" name="event_id" value="${u.eventId}"><input type="hidden" name="mode" value="going"><button class="btn ghost">Join for free</button></form>`);
       if (u.ticketUrl) b.push(`<a class="btn ghost" ${ext(u.ticketUrl)}>Buy tickets</a>`);
       if (u.streamUrl) b.push(`<a class="btn ghost" ${ext(u.streamUrl)}>Stream live</a>`);
       cta = `<div class="notyet">You're not attending yet.</div><div class="opts">${b.join('')}</div>`;
@@ -520,8 +489,23 @@ export function renderAthletePage(d: {
       <div class="row"><a class="more" style="display:inline;padding:6px 12px" href="/share/fight/${u.eventId}">Share the matchup card ↗</a></div></section>`;
   }
 
-  const eventsBlock = ((d.events && d.events.length) || (d.scheduleHref && d.canEdit))
-    ? `<section class="card"><h2>Events</h2><ul style="list-style:none">${(d.events ?? []).map(e => `<li style="display:flex;gap:10px;align-items:center;padding:9px 0;border-bottom:1px solid var(--b)"><span class="tag mutd">${e.featured ? 'FEATURED' : 'EVENT'}</span><a class="hl" style="flex:1" href="/e/${e.id}">${esc(e.title)}${e.featured ? ` · <span class="dt">via ${esc(e.hostName ?? '')}</span>` : ''}</a><span class="dt">${esc(e.date ?? '')}</span></li>`).join('') || '<li style="color:var(--mut);font-size:13px;list-style:none">No upcoming events.</li>'}</ul>${d.scheduleHref && d.canEdit ? `<div class="row"><a class="more" style="display:inline;padding:7px 12px" href="${d.scheduleHref}">＋ Schedule an event</a></div>` : ''}</section>`
+  // Events split into Live (top) / Upcoming / Past. Associated (participated-in)
+  // events are labelled — the athlete isn't the organizer, just competing.
+  const evRow = (e: { id: string; title: string; date?: string; featured?: boolean; hostName?: string; live?: boolean }) =>
+    `<li style="display:flex;gap:10px;align-items:center;padding:9px 0;border-bottom:1px solid var(--b)"><span class="tag ${e.live ? 'win' : 'mutd'}">${e.live ? 'LIVE' : e.featured ? 'PLAYING' : 'EVENT'}</span><a class="hl" style="flex:1" href="/e/${e.id}">${esc(e.title)}${e.featured ? ` · <span class="dt">${esc(e.hostName ?? '')}</span>` : ''}</a><span class="dt">${esc(e.date ?? '')}</span></li>`;
+  const evAll = d.events ?? [];
+  const evLive = evAll.filter(e => e.live);
+  const evUpcoming = evAll.filter(e => !e.live && !e.past);
+  const evPast = evAll.filter(e => e.past);
+  const evGroup = (label: string, list: typeof evAll, cls = '') => list.length ? `<div class="evgrp ${cls}"><div class="evgh">${label}</div><ul style="list-style:none">${list.map(evRow).join('')}</ul></div>` : '';
+  const eventsBlock = (evAll.length || (d.scheduleHref && d.canEdit))
+    ? `<section class="card"><h2>Events</h2>
+        <style>.evgh{font-size:10.5px;letter-spacing:1.5px;text-transform:uppercase;color:var(--mut);font-weight:800;margin:6px 0 2px}.evgrp.live .evgh{color:#e5484d}</style>
+        ${evGroup('● Live now', evLive, 'live')}
+        ${evGroup('Upcoming', evUpcoming)}
+        ${evGroup('Past', evPast)}
+        ${!evAll.length ? '<p class="mut" style="font-size:13px">No events yet.</p>' : ''}
+        ${d.scheduleHref && d.canEdit ? `<div class="row"><a class="more" style="display:inline;padding:7px 12px" href="${d.scheduleHref}">＋ Schedule an event</a></div>` : ''}</section>`
     : '';
 
   const resultsBlock = p.recentResults.length
@@ -539,17 +523,19 @@ export function renderAthletePage(d: {
     ? `<section class="card"><h2>Shop</h2><div class="shelf">${shopItems.map(shopCard).join('')}</div></section>`
     : (d.canEdit ? `<section class="card"><h2>Shop</h2><p class="mut" style="font-size:13px">Add merch, gift-a-membership, discount codes or links from <a href="/athlete/${p.athleteId}/customize" style="border-bottom:1px solid var(--b)">Edit page</a>.</p></section>` : '');
 
-  const affs = d.affiliations.length
-    ? `<div class="affs">${d.affiliations.map(a => `<a class="aff" href="${a.href ? gate(a.href) : gate('#')}"><span class="ai">${kindIcon(a.kind)}</span><span class="al">${esc(a.label)}</span><span class="av">${esc(a.kind)}</span></a>`).join('')}</div>`
-    : '';
-  const connected = `<section class="card"><h2>Connected</h2>${affs || '<div class="dim2">No links yet.</div>'}</section>`;
+  // Clubs & Leagues the athlete is part of — cool logo cards. These come from the
+  // entity connection graph (active links only). Owner can manage connections.
+  const connCard = (c: { kind: string; id: string; name: string; logoUrl: string | null; role?: string }) => {
+    const href = c.kind === 'club' ? `/club/${c.id}` : c.kind === 'association' ? `/association/${c.id}` : null;
+    const inner = `<span class="connlogo">${c.logoUrl ? `<img src="${esc(c.logoUrl)}" alt="">` : avatarSvg(c.name)}</span><span class="connmeta"><span class="connname">${esc(c.name)}</span><span class="connrole">${esc(c.role || c.kind)}</span></span>`;
+    return href ? `<a class="conncard" href="${href}">${inner}</a>` : `<div class="conncard">${inner}</div>`;
+  };
+  const conns = d.connections ?? [];
+  const connectionsBlock = conns.length
+    ? `<section class="card"><h2>Clubs &amp; Leagues</h2><style>.conngrid{display:grid;gap:10px;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));margin-top:8px}.conncard{display:flex;align-items:center;gap:11px;border:1px solid var(--b);border-radius:14px;padding:11px 12px;background:var(--s);transition:border-color .15s}.conncard:hover{border-color:var(--bone)}.connlogo{width:40px;height:40px;border-radius:10px;overflow:hidden;flex:0 0 auto;border:1px solid var(--b)}.connlogo img,.connlogo svg{width:100%;height:100%;object-fit:cover;display:block}.connname{font-weight:700;font-size:14px;display:block}.connrole{font-size:11px;color:var(--mut);text-transform:capitalize}</style><div class="conngrid">${conns.map(connCard).join('')}</div>${d.canEdit ? `<div class="row"><a class="more" style="display:inline;padding:7px 12px" href="/athlete/${p.athleteId}/connections">Manage connections</a></div>` : ''}</section>`
+    : (d.canEdit ? `<section class="card"><h2>Clubs &amp; Leagues</h2><p class="mut" style="font-size:13px">Request to join the clubs, leagues and series you compete in — they admit you and it shows here. <a href="/athlete/${p.athleteId}/connections" style="border-bottom:1px solid var(--b)">Manage connections →</a></p></section>` : '');
 
-  // Render the athlete's chosen sections in order, each with a scroll anchor that
-  // the connected top tabs jump to.
-  // Newsletter opt-in — fans (not the owner) can subscribe to the creator's updates.
-  const newsletterBlock = d.canEdit ? '' : `<section class="card"><h2>Newsletter</h2><p class="mut" style="font-size:13px;margin:2px 0 10px">Get ${esc(first)}'s updates in your inbox — fight weeks, drops and behind-the-scenes.</p><form method="post" action="/newsletter" class="nlform"><input type="hidden" name="owner_kind" value="athlete"><input type="hidden" name="owner_id" value="${p.athleteId}"><input type="email" name="email" required placeholder="you@email.com" class="nlin"><button class="btn" type="submit">Subscribe</button></form></section>`;
-
-  const sectionMap: Record<string, string> = { record: recordBlock, nextup: attendBlock, drops: postsBlock, media: mediaBlock, events: eventsBlock, results: resultsBlock, merch, sponsors: sponsorsBlock, connected: connected + newsletterBlock };
+  const sectionMap: Record<string, string> = { record: recordBlock, nextup: attendBlock, drops: postsBlock, media: mediaBlock, events: eventsBlock, results: resultsBlock, merch, sponsors: sponsorsBlock, connected: connectionsBlock };
   const sectionsHtml = enabled.map(s => `<div id="sec-${s.key}" class="secanchor">${sectionMap[s.key] ?? ''}</div>`).join('\n');
   // Create lives in the nav (the "+"); the page keeps only page-management actions.
   const customizeBtn = d.canEdit ? `<div class="row" style="margin:6px 0 0"><a class="btn ghost sm" href="/athlete/${p.athleteId}/customize">Edit page</a><a class="btn ghost sm" href="/athlete/${p.athleteId}?as=fan">View as fan</a><a class="btn ghost sm" href="/athlete/${p.athleteId}/insights">Insights</a></div>` : '';
@@ -659,8 +645,9 @@ export function renderAthletePage(d: {
   .gatebar{max-width:648px;margin:18px auto 8px;background:var(--bone);color:var(--ink);display:flex;justify-content:center;align-items:center;gap:16px;padding:14px 18px;font-size:14px;border-radius:14px;flex-wrap:wrap;text-align:center}
   .gatebar .btn{background:var(--ink);color:var(--bone);border-color:var(--ink)}
   .prov{max-width:680px;margin:10px auto 30px;padding:0 16px;color:var(--mut);font-size:11px}
-</style></head><body>
-  <header class="top"><div class="tl">${themeToggle()}</div><a class="mark" href="/" aria-label="Horda — home">${ravenMarkCurrent(30)}</a><div class="tr"><a class="dt" href="${d.guest ? '/signup' : `/fan/${d.fanId ?? ''}`}">${d.guest ? 'log in' : 'your feed →'}</a></div></header>
+</style></head><body class="deskrail">
+  ${deskRail({ guest: d.guest, fanId: d.fanId, active: 'explore' })}
+  ${backButton()}
   ${d.previewAsFan ? `<div style="background:var(--bone);color:var(--ink);text-align:center;font-size:13px;font-weight:700;padding:8px 14px">👁 Previewing as a fan — <a href="/athlete/${p.athleteId}" style="text-decoration:underline">exit preview</a></div>` : ''}
   ${cover}
   <div class="wrap">
@@ -673,10 +660,7 @@ export function renderAthletePage(d: {
   </div>
   ${gatebar}
   <div class="prov">Athlete-owned profile · persons self-create on Horda · coverage only, no fan-to-fan venue. Social &amp; affiliation links are athlete-chosen and point out.</div>
-  <div style="height:76px"></div>
-  ${d.canEdit
-    ? actionBar({ title: 'Your Crowd', sub: 'Create an event or booking', cta: `<a class="btn" href="/athlete/${p.athleteId}/compose">＋ Create</a>` })
-    : actionBar({ title: `Join ${esc(first)}'s crowd`, sub: 'Their events land in your agenda', cta: d.guest ? `<a class="btn" href="/signup?follow=athlete:${p.athleteId}">Follow</a>` : `<form method="post" action="/follow"><input type="hidden" name="target_type" value="athlete"><input type="hidden" name="target_id" value="${p.athleteId}"><button class="btn">Follow</button></form>` })}
+  ${d.canEdit ? '<div style="height:76px"></div>' + actionBar({ title: 'Your Crowd', sub: 'Create an event or booking', cta: `<a class="btn" href="/athlete/${p.athleteId}/compose">＋ Create</a>` }) : ''}
   ${bottomNav({ guest: d.guest, fanId: d.fanId, createHref: d.canEdit ? `/athlete/${p.athleteId}/compose` : d.createHref })}
   ${d.canEdit ? UPLOAD_SCRIPT : ''}
 </body></html>`;
@@ -937,6 +921,35 @@ export function renderNotifications(d: { fanId: string; createHref?: string; ite
     ${d.items.length ? d.items.map(row).join('') : '<p class="mut" style="margin-top:12px">Nothing yet. When someone confirms for one of your events — or an organizer confirms your spot — it shows up here.</p>'}
     <div class="prov">Attendance confirmations, approvals and live-event alerts for the crowds and events you run or follow.</div>
   `, { back: '/', nav: { active: 'you', guest: false, fanId: d.fanId, createHref: d.createHref } });
+}
+
+// --- connections manager (owner) — request/admit/reject/remove club & league links
+export function renderConnections(d: {
+  fanId: string; createHref?: string; kind: string; id: string; name: string;
+  outgoing: { kind: string; id: string; name: string; logoUrl: string | null; role?: string; linkId?: string; status?: string }[];
+  incoming: { kind: string; id: string; name: string; logoUrl: string | null; role?: string; linkId?: string; status?: string }[];
+  candidates: { kind: string; id: string; name: string }[];
+}): string {
+  const back = d.kind === 'athlete' ? `/athlete/${d.id}` : `/${d.kind}/${d.id}`;
+  const logo = (c: { name: string; logoUrl: string | null }) => `<span class="clogo">${c.logoUrl ? `<img src="${esc(c.logoUrl)}" alt="">` : avatarSvg(c.name)}</span>`;
+  const outRow = (c: typeof d.outgoing[number]) => `<div class="crow">${logo(c)}<span class="cmeta"><span class="cn">${esc(c.name)}</span><span class="cs">${c.status === 'active' ? 'Connected' : 'Requested — awaiting approval'}</span></span><form method="post" action="/connections/link/${c.linkId}/remove"><button class="btn ghost sm" type="submit">${c.status === 'active' ? 'Leave' : 'Cancel'}</button></form></div>`;
+  const inRow = (c: typeof d.incoming[number]) => `<div class="crow">${logo(c)}<span class="cmeta"><span class="cn">${esc(c.name)}</span><span class="cs">${esc(c.kind)} · wants to join${c.status === 'active' ? ' (connected)' : ''}</span></span>${c.status === 'pending' ? `<span style="display:flex;gap:6px"><form method="post" action="/connections/link/${c.linkId}/admit"><button class="btn sm" type="submit">Admit</button></form><form method="post" action="/connections/link/${c.linkId}/reject"><button class="btn ghost sm" type="submit">Reject</button></form></span>` : `<form method="post" action="/connections/link/${c.linkId}/remove"><button class="btn ghost sm" type="submit">Remove</button></form>`}</div>`;
+  const inp = 'width:100%;margin-top:6px;background:var(--s);border:1px solid var(--b);border-radius:10px;color:var(--bone);padding:10px;font:inherit';
+  return layout('Connections', `
+    <style>.crow{display:flex;align-items:center;gap:11px;padding:11px 0;border-bottom:1px solid var(--b)}.clogo{width:38px;height:38px;border-radius:9px;overflow:hidden;border:1px solid var(--b);flex:0 0 auto}.clogo img,.clogo svg{width:100%;height:100%;object-fit:cover;display:block}.cmeta{flex:1;min-width:0}.cn{font-weight:700;display:block}.cs{font-size:12px;color:var(--mut)}</style>
+    <h1>Connections</h1>
+    <p class="mut">${esc(d.name)} — the clubs, leagues and series you're part of.</p>
+    <h2>Your connections</h2>
+    ${d.outgoing.length ? d.outgoing.map(outRow).join('') : '<p class="mut" style="font-size:13px">None yet.</p>'}
+    ${d.incoming.length ? `<h2>Requests to join you</h2>${d.incoming.map(inRow).join('')}` : ''}
+    <h2>Request to join</h2>
+    <form method="post" action="/connections/request" style="max-width:420px">
+      <input type="hidden" name="child_kind" value="${esc(d.kind)}"><input type="hidden" name="child_id" value="${esc(d.id)}">
+      <label class="mut" style="display:block;font-size:13px">Pick a club or league<select name="parent" style="${inp}">${d.candidates.map(c => `<option value="${esc(c.kind)}:${esc(c.id)}">${esc(c.name)} (${esc(c.kind)})</option>`).join('')}</select></label>
+      <div class="row"><button type="submit">Send request</button></div>
+    </form>
+    <div class="prov">You request to join; they admit or reject, and can remove you later (e.g. when you move clubs).</div>
+  `, { back, nav: { active: 'you', guest: false, fanId: d.fanId, createHref: d.createHref } });
 }
 
 // --- handle-claim vitality campaign: reserve your @handle before you build --

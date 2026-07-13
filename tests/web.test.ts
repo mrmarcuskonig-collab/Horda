@@ -24,13 +24,13 @@ ok('home leads with the face rail (no marketing hero)', home.includes('class="ra
 ok('home links the idol', home.includes(`/athlete/${rico}`));
 
 const athlete = await get(`/athlete/${rico}`);
-ok('record is labeled (Wins–Losses–Draws), not bare 2–0–0', athlete.includes('2–0–0') && athlete.includes('Wins–Losses–Draws'));
+ok('result statistics (Win/Loss/Draw) and Recent results removed from athlete page', !athlete.includes('Win / Loss / Draw') && !athlete.includes('Wins–Losses–Draws') && !athlete.includes('Recent results'));
 ok('athlete-controlled tagline shows', athlete.includes('Southpaw out of Kreuzberg'));
 ok('socials render as icons (svg) linking OUT', athlete.includes('class="ic"') && athlete.includes('<svg') && athlete.includes('instagram.com/ricotheraven'));
 ok('tabs derive from the athlete\'s sections + scroll-anchor to them', athlete.includes('class="tabs"') && athlete.includes('href="#sec-') && athlete.includes('id="sec-'));
 ok('no vanity follower count (Follow is the free tier now, but no follower numbers)', !athlete.includes('follower'));
 ok('attendance options: not attending yet + Join free / tickets / stream', athlete.includes("You're not attending yet") && athlete.includes('Join for free') && athlete.includes('Buy tickets') && athlete.includes('Stream live'));
-ok('athlete-chosen affiliations (gym/league) shown', athlete.includes('Kreuzberg Boxing Club') && athlete.includes('WBO Welterweight'));
+ok('athlete page has the Clubs & Leagues connections section (owner view)', athlete.includes('Clubs &amp; Leagues') && athlete.includes('Manage connections'));
 
 // --- guest view: public, but actions gate to sign-up (Shop exempt) ---
 const guest = await get(`/athlete/${rico}?guest=1`);
@@ -99,26 +99,28 @@ ok('week-drop share: public + join CTA', shareWeek.includes('week in the Horda')
 // --- Luma-style scheduled events ---
 const evId = (await app.db.query<{ id: string }>(`SELECT id FROM event WHERE host_kind='athlete' AND admission='open' LIMIT 1`)).rows[0].id;
 const evPage = await get(`/e/${evId}`);
-ok('event page (Luma-style): title + registration card + going count + host', evPage.includes('Open sparring') && evPage.includes('Registration') && evPage.includes('going') && evPage.includes('Hosted by'));
+const evPageG = await get(`/e/${evId}?guest=1`);
+ok('event page: title + claim CTA + host (registration card removed)', evPage.includes('Open sparring') && evPage.includes('Hosted by') && evPageG.includes('Claim your spot') && !evPage.includes('>Registration<'));
 ok('watch-live channels (YouTube/Twitch)', evPage.includes('Watch on YouTube') && evPage.includes('Watch on Twitch'));
 ok('event page: add-to-calendar link', evPage.includes(`/e/${evId}/ics`));
 const ics = await (await fetch(base + `/e/${evId}/ics`)).text();
 ok('ICS route returns a calendar file', ics.includes('BEGIN:VCALENDAR') && ics.includes('SUMMARY:'));
-await fetch(base + '/rsvp', form({ fan_id: app.ids.fanId, event_id: evId, response: 'interested' }));
-ok('RSVP over HTTP is recorded', (await get(`/e/${evId}`)).includes('✓ Interested'));
-ok('guest RSVP is gated to sign-up', (await get(`/e/${evId}?guest=1`)).includes('href="/signup"'));
+await fetch(base + '/rsvp', form({ fan_id: app.ids.fanId, event_id: evId, response: 'not_going' }));
+ok('decline ("can\'t attend") is recorded via /rsvp', (await app.db.query(`SELECT count(*)::int n FROM attendance WHERE event_id=$1 AND fan_id=$2 AND mode='not_going'`, [evId, app.ids.fanId])).rows[0].n >= 1);
+ok('guest event page routes to sign-up', (await get(`/e/${evId}?guest=1`)).includes('href="/signup"'));
 
 // admission types: paid (checkout + payment) and apply
 const paidId = (await app.db.query<{ id: string }>(`SELECT id FROM event WHERE admission='paid' LIMIT 1`)).rows[0].id;
 const paidPage = await get(`/e/${paidId}`);
-ok('paid event shows a price + Get ticket', paidPage.includes('Get ticket') && /€\s?15/.test(paidPage));
+const paidPageG = await get(`/e/${paidId}?guest=1`);
+ok('paid event shows a price + claim CTA', paidPageG.includes('Claim your spot') && /€\s?15/.test(paidPageG));
 const checkout = await get(`/e/${paidId}/checkout`);
 ok('checkout page shows the charge', checkout.includes('Checkout') && checkout.includes('Pay'));
 await fetch(base + `/e/${paidId}/pay`, form({ fan_id: app.ids.fanId }));
 const paidAfter = await get(`/e/${paidId}`);
-ok('after pay, fan holds a ticket', paidAfter.includes("You're in"));
+ok('after pay, fan holds a ticket', paidAfter.includes('You hold a ticket'));
 const applyId = (await app.db.query<{ id: string }>(`SELECT id FROM event WHERE admission='apply' LIMIT 1`)).rows[0].id;
-ok('apply event shows Apply to attend', (await get(`/e/${applyId}`)).includes('Apply to attend'));
+ok('apply event shows the claim CTA (approval-gated)', (await get(`/e/${applyId}?guest=1`)).includes('Claim your spot'));
 
 // tickets: gift / sell + resale on the paid event (seed gave "You" a ticket + a Rieke listing)
 ok('ticket holder can gift + sell', paidAfter.includes('You hold a ticket') && paidAfter.includes('>Gift</button>') && paidAfter.includes('>Sell</button>'));
@@ -180,9 +182,9 @@ const mfRes = await fetch(base + '/events', { method: 'POST', headers: { 'conten
 const mfLoc = mfRes.headers.get('location') || '';
 const mfId = (mfLoc.match(/\/e\/([^/?]+)/) || [])[1] || '';
 const mfPage = await get(`/e/${mfId}?guest=1`);
-ok('event with formats shows a format picker (in person + streams)', mfPage.includes('class="fmtwrap"') && mfPage.includes('In person') && mfPage.includes('TikTok Live') && mfPage.includes('Sportdeutschland.TV'));
+ok('picker mirrors the "Next up" design (card + notyet + opts buttons)', mfPage.includes('>Attend</h2>') && mfPage.includes('class="notyet"') && mfPage.includes('class="opts"') && mfPage.includes('Stream on TikTok Live') && mfPage.includes('Stream on Sportdeutschland.TV') && !mfPage.includes('class="fmtwrap"'));
 ok('in-person shows Get-ticket price; channel links hidden until claim', mfPage.includes('Get ticket · €25') && !mfPage.includes('Channel ↗') && !mfPage.includes('Watch on'));
-ok('guest enters name + email once; each format is a submit button', (mfPage.match(/name="name"/g) || []).length === 1 && (mfPage.match(/name="format_id"/g) || []).length >= 3 && mfPage.includes("I'll watch here"));
+ok('name + email entered once; one submit button per format + Can’t attend', (mfPage.match(/name="name"/g) || []).length === 1 && (mfPage.match(/name="format_id"/g) || []).length === 3 && mfPage.includes('Can’t attend'));
 const mfManage = await get(`/manage/${mfId}`);
 ok('organizer manage view shows attendance-by-format breakdown', mfManage.includes('Attendance by format') && mfManage.includes('watching'));
 
@@ -192,6 +194,31 @@ const seasonRes = await fetch(base + '/events', { method: 'POST', headers: { 'co
 ok('season paste creates multiple events (redirects to one)', /\/e\//.test(seasonRes.headers.get('location') || ''));
 const afterSeason = await get('/?guest=1');
 ok('newly created season fixtures appear in discover', afterSeason.includes('Round 1 vs A') || afterSeason.includes('Round 2 vs B') || afterSeason.includes('German Championship Final'));
+
+// shared shell: identical rail on athlete + discover; NO header anywhere
+const athPage = await get(`/athlete/${rico}`);
+ok('athlete + discover use the shared rail and have no page header', athPage.includes('class="drail"') && landIn.includes('class="drail"') && !athPage.includes('class="hz-top"') && !landIn.includes('class="hz-top"'));
+ok('consistent floating back button on inner pages (athlete), not on home', athPage.includes('class="hz-back"') && !landIn.includes('class="hz-back"'));
+const athGuest = await get(`/athlete/${rico}?guest=1`);
+ok('athlete page: Follow next to profile, no duplicate "Join crowd" banner', athGuest.includes('class="btn join"') && !athGuest.includes("'s crowd</strong>"));
+// connection graph: seeded athlete→club link shows as a card
+ok('athlete shows connected club as a logo card', athPage.includes('class="conngrid"') && athPage.includes('conncard') && athPage.includes('FC Beispiel'));
+ok('connections manager lists your connections + request form', (await get(`/athlete/${rico}/connections`)).includes('Your connections') && (await get(`/athlete/${rico}/connections`)).includes('Request to join'));
+// insights: core crowd→claims→presence funnel; social reach is "coming soon"
+const ins = await get(`/athlete/${rico}/insights`);
+ok('insights shows the core funnel; social reach is coming soon (not gated)', ins.includes('Crowd — following') && ins.includes('Showed up — verified') && ins.includes('Coming soon') && !ins.includes('unlock Insights'));
+// no 'support anyway' format anymore
+ok('support/"root for them" format removed', !mfPage.includes('Root for them') && !mfPage.includes('rooting'));
+// share buttons on event / athlete / club pages (native share or copy link)
+ok('event page has a Share button (native share / copy link)', mfPage.includes('navigator.share') && /aria-label="Share"/.test(mfPage));
+ok('athlete page has a Share button', athGuest.includes('aria-label="Share"') && athGuest.includes('navigator.clipboard'));
+// event create form exposes an "About this event" field
+ok('event create form offers an About this event section', createForm.includes('About this event') && createForm.includes('name="description"'));
+// auto-follow: guest filter → interest on signup
+const suEmail = `au${Date.now()}@x.co`;
+await fetch(base + '/signup', { method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ email: suEmail, name: 'AF', password: 'pw123456', sport: 'boxing', region: 'Hamburg' }).toString(), redirect: 'manual' });
+const intCount = (await app.db.query(`SELECT count(*)::int n FROM fan_interest WHERE kind='sport' AND value='boxing'`)).rows[0].n;
+ok('signup with a filter records sport + region interests', intCount >= 1 && (await app.db.query(`SELECT count(*)::int n FROM fan_interest WHERE kind='region' AND value='Hamburg'`)).rows[0].n >= 1);
 
 const cg = await get(`/club/${club}?guest=1`);
 ok('guest gate now coexists with the bottom nav (in-flow banner)', cg.includes('Log in to continue') && cg.includes('class="bnav"') && cg.includes('border-radius:14px'));

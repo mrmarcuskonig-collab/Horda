@@ -81,52 +81,45 @@ export function renderCheckin(d: { eventId: string; title: string; claimed: numb
 // streams carry a watch link. Shown in place of the plain claim CTA when the
 // organizer has defined formats.
 export function formatPicker(d: {
-  eventId: string; guest: boolean; full: boolean;
+  eventId: string; guest: boolean; full: boolean; fanId?: string | null;
   formats: { id: string; kind: string; label: string; channelUrl: string | null; requiresTicket: boolean; priceCents: number | null; going: number }[];
   mine: { status: string; token: string; formatId: string | null } | null;
 }): string {
+  // Same logic + design as the athlete profile "Next up" block: a .card with a
+  // "You're not attending yet." line and an .opts row of buttons (primary .btn for
+  // in-person, .btn ghost for streams), or a bold .going note once you're in.
   const money = (c: number) => `€${(c / 100).toFixed(2).replace(/\.00$/, '')}`;
   const inp = 'display:block;width:100%;margin-top:6px;background:var(--ink);border:1px solid var(--b);border-radius:10px;color:var(--bone);padding:11px;font:inherit';
-  const icon = (k: string) => k === 'stream' ? '📺' : '📍';
-  // Name + email are collected ONCE (guests only); the option buttons share them.
   const guestFields = d.guest
-    ? `<div class="fmt-guest"><label class="mut" style="display:block;font-size:13px">Name<input name="name" required style="${inp}"></label><label class="mut" style="display:block;margin:8px 0 0;font-size:13px">Email<input name="contact" type="email" required style="${inp}"></label></div>`
+    ? `<label class="mut" style="display:block;font-size:13px;margin-bottom:8px">Name<input name="name" required style="${inp}"></label><label class="mut" style="display:block;font-size:13px;margin-bottom:12px">Email<input name="contact" type="email" required style="${inp}"></label>`
     : '';
-  // Each option is a submit button carrying its own format_id (shared form fields).
-  // Channel links are NEVER shown before claiming — only after, for the format you chose.
-  const rowFor = (f: typeof d.formats[number]) => {
-    const mineHere = !!d.mine && d.mine.formatId === f.id;
-    const priceTag = f.requiresTicket && f.priceCents ? `<span class="fmt-price">${money(f.priceCents)}</span>` : `<span class="fmt-price free">Free</span>`;
-    const btnLabel = mineHere ? "✓ You're in" : f.kind === 'stream' ? "I'll watch here" : (f.requiresTicket && f.priceCents ? `Get ticket · ${money(f.priceCents)}` : "I'll be there");
-    const watch = mineHere && f.kind === 'stream' && f.channelUrl ? `<a class="fmt-watch" href="${esc(f.channelUrl)}" target="_blank" rel="noopener">Watch on ${esc(f.label)} ↗</a>` : '';
-    return `<div class="fmt${mineHere ? ' on' : ''}">
-      <div class="fmt-hd"><span class="fmt-ic">${icon(f.kind)}</span><span class="fmt-lb">${esc(f.label)}</span>${priceTag}</div>
-      <div class="fmt-meta"><b>${f.going}</b> ${f.kind === 'stream' ? 'watching' : 'attending'}</div>
-      <button class="rb${mineHere ? ' on' : ' p'}" type="submit" name="format_id" value="${f.id}"${mineHere ? ' disabled' : ''} style="margin-top:8px">${btnLabel}</button>
-      ${watch}
-    </div>`;
+  // One button per way to attend. NONE is filled/pre-selected — a filled button
+  // would read as "already registered". They're outlined actions; the in-person
+  // option gets a subtle emphasis (fmt-primary) without looking chosen.
+  const btnFor = (f: typeof d.formats[number]) => {
+    const label = f.kind === 'stream'
+      ? `Stream on ${esc(f.label)}`
+      : (f.requiresTicket && f.priceCents ? `Get ticket · ${money(f.priceCents)}` : "I'll be there");
+    return `<button class="btn ghost${f.kind === 'stream' ? '' : ' fmt-primary'}" type="submit" name="format_id" value="${f.id}">${label}</button>`;
   };
-  const passRow = d.mine ? `<div class="row" style="margin-top:8px"><a class="btn" href="/pass/${esc(d.mine.token)}">View your pass &amp; details →</a></div>` : '';
-  return `<style>
-    .fmtwrap{border:1px solid var(--bone);border-radius:16px;padding:14px;margin:2px 0}
-    .fmt-guest{margin:2px 0 12px}
-    .fmt{border:1px solid var(--b);border-radius:12px;padding:12px;margin:8px 0;background:var(--s)}
-    .fmt.on{border-color:var(--bone)}
-    .fmt-hd{display:flex;align-items:center;gap:9px}
-    .fmt-ic{font-size:17px}.fmt-lb{font-weight:700;font-size:15px;flex:1}
-    .fmt-price{font-size:13px;font-weight:700}.fmt-price.free{color:var(--mut);font-weight:500}
-    .fmt-meta{font-size:12.5px;color:var(--mut);margin-top:4px}
-    .fmt .rb{width:100%;text-align:center}
-    .fmt-watch{display:inline-block;margin-top:9px;font-weight:600;border-bottom:1px solid var(--b)}
-  </style>
-  <form class="fmtwrap" method="post" action="/claim/${d.eventId}">
-    <div class="h3" style="margin-top:0">${d.mine ? "You're in — attend another way?" : "Choose how you'll attend"}</div>
-    <p class="mut" style="font-size:12.5px;margin:0 0 4px">${d.guest ? 'Enter your details once, then pick how you’ll join. ' : ''}Every way counts on Horda, so the organizer knows exactly what to expect.</p>
-    ${guestFields}
-    ${d.formats.map(rowFor).join('')}
-    ${passRow}
-    <p class="mut" style="font-size:11px;margin-top:8px">Identity-bound, non-transferable. No passwords — your claim is your account. You’ll get the watch link after you claim.</p>
-  </form>`;
+  const cantAttend = d.guest
+    ? `<a class="btn ghost" href="/signup">Can’t attend</a>`
+    : `<form method="post" action="/rsvp"><input type="hidden" name="fan_id" value="${esc(d.fanId ?? '')}"><input type="hidden" name="event_id" value="${esc(d.eventId)}"><input type="hidden" name="response" value="not_going"><button class="btn ghost" type="submit">Can’t attend</button></form>`;
+  const going = d.formats.filter(f => f.kind !== 'stream').reduce((a, f) => a + f.going, 0);
+  const watching = d.formats.filter(f => f.kind === 'stream').reduce((a, f) => a + f.going, 0);
+  const summary = `<div class="ws" style="margin-top:10px;color:var(--mut);font-size:12.5px"><b>${going}</b> going${watching ? ` · <b>${watching}</b> streaming` : ''}</div>`;
+  // Already in → a bold .going note (wording mirrors the profile block) + watch link + pass.
+  const mineFmt = d.mine ? d.formats.find(f => f.id === d.mine!.formatId) : null;
+  const goingNote = mineFmt && mineFmt.kind === 'stream' ? "You're streaming this" : (mineFmt && mineFmt.requiresTicket ? "You're ticketed — see you there" : "You're going");
+  const inner = d.mine
+    ? `<div class="going">${goingNote} ✓</div>
+       ${mineFmt && mineFmt.kind === 'stream' && mineFmt.channelUrl ? `<div class="opts" style="margin-top:10px"><a class="btn ghost" href="${esc(mineFmt.channelUrl)}" target="_blank" rel="noopener">Watch on ${esc(mineFmt.label)} ↗</a></div>` : ''}
+       <div class="opts" style="margin-top:10px"><a class="btn" href="/pass/${esc(d.mine.token)}">View your pass →</a></div>`
+    : `<form method="post" action="/claim/${d.eventId}">${guestFields}<div class="notyet">You're not attending yet.</div><div class="opts">${d.formats.map(btnFor).join('')}</div></form>
+       <div class="opts" style="margin-top:8px">${cantAttend}</div>`;
+  return `<section class="card"><h2>Attend</h2>${inner}${summary}
+    <style>.notyet{color:var(--mut);margin-bottom:10px}.opts{display:flex;gap:8px;flex-wrap:wrap}.opts form{display:inline}.going{font-weight:800}.btn.fmt-primary{box-shadow:inset 0 0 0 1px var(--bone)}</style>
+  </section>`;
 }
 
 // The claim CTA block injected on the public event page — scarcity-forward.

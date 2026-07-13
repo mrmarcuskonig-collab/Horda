@@ -127,6 +127,7 @@ export async function applySchema(db: Database, migrationsDir = 'db/migrations')
         '0030': () => colExists('account', 'creator_layer'),
         '0031': () => relExists('public.claim'),
         '0032': () => relExists('public.event_format'),
+        '0033': () => relExists('public.entity_link'),
       };
       for (const f of files) {
         const probe = present[f.slice(0, 4)];

@@ -151,6 +151,10 @@ Sa 28.06. 15:00 FC Beispiel – TSV Musterstadt
   await grantOwnership(db, demoAccountId, 'team', tid['FC Beispiel']);
   await grantOwnership(db, demoAccountId, 'association', bfv);
 
+  // an active entity connection so the athlete page shows a "Clubs & Leagues" card
+  await db.query(`INSERT INTO entity_link (child_kind, child_id, parent_kind, parent_id, role, status, requested_by) VALUES ('athlete',$1,'club',$2,'player','active','child') ON CONFLICT DO NOTHING`, [rico, cid['FC Beispiel']]);
+  await db.query(`INSERT INTO entity_link (child_kind, child_id, parent_kind, parent_id, role, status, requested_by) VALUES ('club',$1,'association',$2,'member','active','child') ON CONFLICT DO NOTHING`, [cid['FC Beispiel'], bfv]);
+
   return {
     fanId, demoAccountId,
     athletes: [{ id: rico, name: names[rico] }, { id: max, name: names[max] }],

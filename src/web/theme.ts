@@ -61,12 +61,17 @@ export const THM_CSS = `.thm{display:inline-flex;align-items:center;justify-cont
   .lgp:not(.on):hover{color:var(--bone)}
   /* TikTok-style desktop left rail (labelled). Hidden on mobile; the bottom
      tab bar takes over there. Shown from 1024px, sitting in the left gutter. */
+  /* consistent floating back button (no page headers) — top-left, over content;
+     offset past the rail on desktop so it never overlaps the nav. */
+  .hz-back{position:fixed;top:12px;left:12px;z-index:60;display:inline-flex;align-items:center;justify-content:center;width:38px;height:38px;border-radius:999px;border:1px solid var(--b);background:var(--scrim);backdrop-filter:blur(10px);color:var(--bone);text-decoration:none;cursor:pointer;padding:0}
+  .hz-back:hover{border-color:var(--bone)}.hz-back svg{display:block}
   .drail{display:none}
   @media(min-width:1024px){
     .drail{display:flex;flex-direction:column;position:fixed;left:0;top:0;bottom:0;width:236px;border-right:1px solid var(--b);background:var(--ink);padding:20px 14px 16px;z-index:50;overflow-y:auto}
     body.deskrail{padding-left:236px}
     body.deskrail .bnav{display:none}
     body.deskrail .top{display:none}
+    body.deskrail .hz-back{left:250px}   /* clear the fixed rail */
   }
   .dr-logo{display:flex;align-items:center;gap:9px;padding:2px 8px 16px;color:var(--bone)}
   .dr-logo b{font-size:19px;font-weight:800;letter-spacing:-.02em}
@@ -84,6 +89,67 @@ export const THM_CSS = `.thm{display:inline-flex;align-items:center;justify-cont
   .dr-srow{display:flex;align-items:center;justify-content:space-between;gap:10px}
   .dr-slabel{font-size:13px;color:var(--mut);font-weight:500}
   .dr-foot{margin-top:auto;padding:14px 8px 4px;display:flex;flex-direction:column;gap:8px}`;
+
+// ---- shared global shell: the SAME top bar + labelled left rail on every page --
+// (imports kept local to avoid pulling page renderers into the theme module)
+import { ravenMarkCurrent as _ravenMark } from './brand.ts';
+import { t as _t, type Lang as _Lang } from './i18n.ts';
+
+const RAIL_ICON = {
+  explore: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m15.2 8.8-2 4.4-4.4 2 2-4.4 4.4-2Z"/></svg>`,
+  following: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.4"/><path d="M3.5 20c0-3.4 2.7-5.6 5.5-5.6S14.5 16.6 14.5 20"/><path d="M17 8.5v5M14.5 11h5"/></svg>`,
+  bell: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9a6 6 0 0 1 12 0c0 4 1.2 5.4 1.8 6.2.3.4 0 .9-.5.9H4.7c-.5 0-.8-.5-.5-.9C4.8 14.4 6 13 6 9Z"/><path d="M10 20a2 2 0 0 0 4 0"/></svg>`,
+  create: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="3.5" width="17" height="17" rx="5"/><path d="M12 8v8M8 12h8"/></svg>`,
+  profile: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="3.6"/><path d="M5.5 20c0-3.7 2.9-6.2 6.5-6.2S18.5 16.3 18.5 20"/></svg>`,
+};
+
+// The one consistent back control used on every page (no headers). If `href` is
+// given it links there; otherwise it goes back in history (falling back to home).
+// Fixed top-left, floating over content / cover — same look everywhere.
+export function backButton(href?: string): string {
+  const icon = `<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 5-7 7 7 7"/></svg>`;
+  return href
+    ? `<a class="hz-back" href="${href}" aria-label="Back" title="Back">${icon}</a>`
+    : `<button type="button" class="hz-back" aria-label="Back" title="Back" onclick="if(history.length>1){history.back()}else{location.href='/'}">${icon}</button>`;
+}
+
+// The identical TikTok-style labelled left rail on every page (desktop). Mobile
+// keeps the bottom tab bar. `active` ∈ explore|following|notifications|create|profile.
+export function deskRail(o: { guest: boolean; fanId: string | null; lang?: _Lang; unread?: number; active?: string; region?: string; sport?: string }): string {
+  const lang = o.lang ?? 'en';
+  const unread = o.unread ?? 0;
+  const followHref = o.guest ? '/signup' : `/fan/${o.fanId ?? ''}#hordas`;
+  const item = (key: string, href: string, icon: string, label: string, badge = '') => {
+    const on = o.active === key;
+    return `<a class="dr-item${on ? ' on' : ''}" href="${href}"${on ? ' aria-current="page"' : ''}>${icon}<span>${label}</span>${badge}</a>`;
+  };
+  return `<aside class="drail">
+    <a class="dr-logo" href="/" aria-label="Horda">${_ravenMark(26)}<b>Horda</b></a>
+    <form class="dr-search" method="get" action="/">${o.sport ? `<input type="hidden" name="sport" value="${o.sport}">` : ''}<input name="region" value="${o.region ?? ''}" placeholder="${_t(lang, 'search_ph')}" autocomplete="off" aria-label="${_t(lang, 'search_ph')}"></form>
+    <nav class="dr-nav" aria-label="Primary">
+      ${item('explore', '/', RAIL_ICON.explore, _t(lang, 'explore'))}
+      ${item('following', followHref, RAIL_ICON.following, _t(lang, 'following'))}
+      ${o.guest ? '' : item('notifications', '/notifications', RAIL_ICON.bell, _t(lang, 'notifications'), unread ? `<span class="dr-badge">${unread > 9 ? '9+' : unread}</span>` : '')}
+      ${item('create', '/create', RAIL_ICON.create, _t(lang, 'create_event'))}
+      ${item('profile', '/settings', RAIL_ICON.profile, _t(lang, 'profile'))}
+    </nav>
+    <div class="dr-sep"></div>
+    <div class="dr-set"><div class="dr-srow"><span class="dr-slabel">${_t(lang, 'language')}</span>${langToggle(lang, '/')}</div></div>
+    <div class="dr-foot">${o.guest
+      ? `<a class="btn ghost" href="/login">${_t(lang, 'login')}</a><a class="btn" href="/signup">${_t(lang, 'join_free')}</a>`
+      : `<a class="btn" href="/fan/${o.fanId ?? ''}">${_t(lang, 'your_feed')} →</a>`}</div>
+  </aside>`;
+}
+
+// Universal Share button — native share sheet where available (mobile / social),
+// otherwise copies the current page link to the clipboard. Self-contained: the
+// URL is read from location.href at click time, so it works on any page.
+export function shareButton(o: { title?: string; cls?: string; label?: string } = {}): string {
+  const t = (o.title || '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]!));
+  const icon = `<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:5px"><circle cx="6" cy="12" r="2.4"/><circle cx="17.5" cy="6" r="2.4"/><circle cx="17.5" cy="18" r="2.4"/><path d="m8.2 10.9 7.1-3.8M8.2 13.1l7.1 3.8"/></svg>`;
+  const onclick = `(function(b){var u=location.href,t=b.getAttribute('data-t')||document.title;if(navigator.share){navigator.share({title:t,url:u}).catch(function(){})}else if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(u).then(function(){var o=b.innerHTML;b.innerHTML='Link copied ✓';setTimeout(function(){b.innerHTML=o},1600)})}else{prompt('Copy this link',u)}})(this)`;
+  return `<button type="button" class="${o.cls || 'btn ghost sm'}" data-t="${t}" aria-label="Share" onclick="${onclick}">${icon}${o.label || 'Share'}</button>`;
+}
 
 // Small DE/EN pill toggle. Each pill links to /set-lang, preserving the page via
 // ?next=. Persisted as a cookie server-side (no flash, works without JS).

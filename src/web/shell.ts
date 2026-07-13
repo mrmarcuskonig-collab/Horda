@@ -3,7 +3,7 @@
 import { esc } from './layout.ts';
 import { socialIcon, kindIcon } from './icons.ts';
 import { ravenMark, ravenMarkCurrent } from './brand.ts';
-import { THEME_BOOT, THEME_VARS, THM_CSS, themeToggle, bottomNav } from './theme.ts';
+import { THEME_BOOT, THEME_VARS, THM_CSS, themeToggle, bottomNav, backButton, deskRail, shareButton } from './theme.ts';
 
 export interface ListItem { kind: string; label: string; href: string | null; tag?: string }
 export interface ProfileVM {
@@ -68,7 +68,7 @@ export function renderEntityProfile(vm: ProfileVM): string {
 
   const hero = `<div class="hero">
     ${vm.bannerUrl ? `<img class="bg" src="${esc(vm.bannerUrl)}" alt="">` : `<div class="bg ph"><span class="kick">${esc(vm.nickname || vm.name)}</span></div>`}
-    <div class="heroin"><span class="kindtag">${esc(vm.kindLabel)}</span><h1>${esc(vm.name)}</h1><a class="btn" href="${gate('#join')}">Join the Horda</a></div>
+    <div class="heroin"><span class="kindtag">${esc(vm.kindLabel)}</span><h1>${esc(vm.name)}</h1><div style="display:flex;gap:8px;flex-wrap:wrap"><a class="btn" href="${gate('#join')}">Join the Horda</a>${shareButton({ title: vm.name, cls: 'btn ghost' })}</div></div>
   </div>`;
 
   const tab = (label: string, on = false, shop = false) => shop
@@ -133,8 +133,9 @@ export function renderEntityProfile(vm: ProfileVM): string {
     : '';
 
   return `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${esc(vm.name)} — Horda</title>${vm.ogTags ?? ''}
-<link rel="icon" href="/favicon.svg">${THEME_BOOT}<style>${DARK_CSS}</style></head><body>
-  <header class="top"><div class="tl">${themeToggle()}</div><a class="mark" href="/" aria-label="Horda — home">${ravenMarkCurrent(30)}</a><div class="tr">${vm.guest ? `<a class="dt" href="/signup">log in</a>` : `<a class="backx" href="${esc(vm.backHref ?? '/')}" aria-label="Back" title="Back">‹</a>`}</div></header>
+<link rel="icon" href="/favicon.svg">${THEME_BOOT}<style>${DARK_CSS}</style></head><body class="deskrail">
+  ${deskRail({ guest: vm.guest, fanId: vm.fanId, active: 'explore' })}
+  ${backButton(vm.backHref)}
   ${hero}${tabs}
   <div class="grid"><main>${vm.activation ?? ''}${(vm.editAction && vm.canEdit) ? `<div class="row" style="margin:0 0 10px"><a class="btn ghost" href="${esc(vm.editAction.replace('/entity/', '/onboarding/brand/').replace('/branding', ''))}">✦ AI page setup</a></div>` + editPanel(vm.editAction) : ''}${notice}${post}${attend}${eventsCard}${merch}</main>${aside}</div>
   ${gatebar}

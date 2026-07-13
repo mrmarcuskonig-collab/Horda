@@ -151,17 +151,23 @@ export async function getEventDetail(db: Database, eventId: string): Promise<Eve
   };
 }
 
-// events shown on a profile = the ones it hosts + the ones it has featured (cross-posted)
-export async function listProfileEvents(db: Database, kind: string, id: string): Promise<{ id: string; title: string; date?: string; featured?: boolean; hostName?: string }[]> {
+// events shown on a profile = the ones it hosts + the ones it has featured (cross-posted).
+// Each carries live/past flags + a real timestamp so the page can split them into
+// Live / Upcoming / Past. `associated` marks a featured (participated-in) event.
+export interface ProfileEvent { id: string; title: string; date?: string; startsAt: string | null; live: boolean; past: boolean; featured?: boolean; hostName?: string }
+export async function listProfileEvents(db: Database, kind: string, id: string): Promise<ProfileEvent[]> {
+  const liveExpr = `(starts_at IS NOT NULL AND starts_at <= now() AND now() < COALESCE(ends_at, starts_at + interval '3 hours'))`;
+  const pastExpr = `(starts_at IS NOT NULL AND now() >= COALESCE(ends_at, starts_at + interval '3 hours'))`;
   const hosted = (await db.query<any>(
-    `SELECT id, name title, to_char(starts_at,'DD Mon') date FROM event WHERE host_kind=$1 AND host_id=$2`, [kind, id])).rows
-    .map(r => ({ id: r.id, title: r.title, date: r.date ?? undefined }));
+    `SELECT id, name title, to_char(starts_at,'DD Mon') date, starts_at, ${liveExpr} live, ${pastExpr} past FROM event WHERE host_kind=$1 AND host_id=$2`, [kind, id])).rows
+    .map(r => ({ id: r.id, title: r.title, date: r.date ?? undefined, startsAt: r.starts_at ?? null, live: !!r.live, past: !!r.past }));
   const featured = (await db.query<any>(
-    `SELECT e.id, e.name title, to_char(e.starts_at,'DD Mon') date, e.host_kind, e.host_id
+    `SELECT e.id, e.name title, to_char(e.starts_at,'DD Mon') date, e.starts_at, e.host_kind, e.host_id, ${liveExpr} live, ${pastExpr} past
      FROM event_feature f JOIN event e ON e.id=f.event_id WHERE f.feat_kind=$1 AND f.feat_id=$2`, [kind, id])).rows;
-  const feat = [];
-  for (const r of featured) feat.push({ id: r.id, title: r.title, date: r.date ?? undefined, featured: true, hostName: r.host_kind ? await hostName(db, r.host_kind, r.host_id) : undefined });
-  return [...hosted, ...feat].sort((a, b) => (a.date ?? '').localeCompare(b.date ?? ''));
+  const feat: ProfileEvent[] = [];
+  for (const r of featured) feat.push({ id: r.id, title: r.title, date: r.date ?? undefined, startsAt: r.starts_at ?? null, live: !!r.live, past: !!r.past, featured: true, hostName: r.host_kind ? await hostName(db, r.host_kind, r.host_id) : undefined });
+  const ms = (v: string | null) => v ? new Date(v).getTime() : 0;
+  return [...hosted, ...feat].sort((a, b) => ms(a.startsAt) - ms(b.startsAt));
 }
 
 export async function getGuestList(db: Database, eventId: string): Promise<{ response: string; status: string; fanId: string; name: string; handle: string | null }[]> {

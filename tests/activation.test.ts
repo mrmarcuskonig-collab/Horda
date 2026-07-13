@@ -16,7 +16,7 @@ const club = ids.clubs[0].id;
 console.log('\n[activation · fan]');
 const fan = await createFan(db, 'newbie', 'Newbie');
 let fc = await fanChecklist(db, fan);
-ok('fresh fan: 4 steps, none done, incomplete', fc.steps.length === 4 && fc.steps.every(s => !s.done) && !fc.complete);
+ok('fresh fan: 3 steps, none done, incomplete', fc.steps.length === 3 && fc.steps.every(s => !s.done) && !fc.complete);
 ok('checklist renders a card with progress + dismiss', renderChecklist(fc).includes('Finish setting up') && renderChecklist(fc).includes('id="actck"') && renderChecklist(fc).includes('Dismiss'));
 // one follow isn't enough — the step needs 3
 await followEntity(db, fan, 'athlete', rico);
@@ -31,8 +31,8 @@ ok('three follows auto-checks the "follow 3" step', fc.steps.find(s => s.label.s
 console.log('\n[activation · athlete owner]');
 const ac = await athleteChecklist(db, rico);
 ok('athlete: "page is live" is done', ac.steps[0].done === true);
-ok('athlete: tiers step auto-checks from seeded tiers', ac.steps.find(s => s.label.includes('tiers'))!.done === true);
-ok('athlete: has 5 steps', ac.steps.length === 5);
+ok('athlete: doctrine steps (clubs/leagues), no tiers/drops/social prompt', ac.steps.some(s => s.label.includes('clubs & leagues')) && !ac.steps.some(s => /tier|drop|social/i.test(s.label)));
+ok('athlete: has 4 steps', ac.steps.length === 4);
 
 console.log('\n[activation · club owner]');
 const ec = await entityChecklist(db, 'club', club);

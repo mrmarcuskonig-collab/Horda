@@ -39,8 +39,9 @@ import { spotsInfo, getClaim, createClaim, getPass, verifyPass, fanRecord, recor
 import { listFormats, addFormat, formatCounts, setClaimFormat, getFormat } from '../db/event_format_repo.ts';
 import { notify, listNotifications, unreadCount, markAllRead } from '../db/notif_repo.ts';
 import { parseSeasonLines, shiftDate } from '../db/events_repo.ts';
-import { renderNotifications } from './pages.ts';
+import { renderNotifications, renderConnections } from './pages.ts';
 import { formatPicker } from './claim_web.ts';
+import { requestLink, setLinkStatus, getLink, activeParents, parentsOf, childrenOf } from '../db/connection_repo.ts';
 import { renderPass, renderRecord, renderCheckin, claimCta } from './claim_web.ts';
 import { actionBar } from './theme.ts';
 import { normLang } from './i18n.ts';
@@ -122,6 +123,9 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
         const role = next.includes('/onboarding/athlete') ? 'athlete' : next.includes('/onboarding/claim') ? 'club' : 'fan';
         const r = await signup(db, (f.email || '').toLowerCase().trim(), f.name || 'Fan', f.password || '', role);
         if (!r) return redirect(res, '/login');
+        // auto-follow the sport/region the guest was filtering (their filter → their feed)
+        const filt = f.sport || f.region ? `${f.sport || ''}|${f.region || ''}` : (cookies.hz_filter ? decodeURIComponent(cookies.hz_filter) : '');
+        if (filt) { const [sp, rg] = filt.split('|'); if (sp) await db.query(`INSERT INTO fan_interest (fan_id,kind,value) VALUES ($1,'sport',$2) ON CONFLICT DO NOTHING`, [r.fanId, sp]); if (rg) await db.query(`INSERT INTO fan_interest (fan_id,kind,value) VALUES ($1,'region',$2) ON CONFLICT DO NOTHING`, [r.fanId, rg]); }
         // §1b: /pros (athlete-intent) auto-activates the creator layer, unverified
         // until light verification (Featured is gated on verified). Club-invite path
         // pre-verifies (the club vouches). Plain fans get a base account only.
@@ -626,6 +630,51 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
         await markAllRead(db, viewer);   // opening the page clears the unread badge
         return html(res, renderNotifications({ fanId: viewer, createHref: viewerCreateHref, items }));
       }
+      // --- entity connections (athlete↔club↔league) --------------------------
+      if ((em = path.match(/^\/(athlete|club)\/([^/]+)\/connections$/))) {
+        if (viewerGuest) return redirect(res, '/login');
+        const ck = em[1], cid = em[2];
+        if (!await canEdit(ck, cid)) return redirect(res, `/${ck}/${cid}`);
+        const outgoing = await parentsOf(db, ck, cid);
+        const incoming = ck === 'club' ? await childrenOf(db, ck, cid) : [];  // clubs receive join requests
+        const q = async (t: string) => (await db.query<any>(`SELECT id, name FROM ${t} ORDER BY name LIMIT 40`)).rows;
+        const clubs = ck === 'athlete' ? (await q('club')).map((r: any) => ({ kind: 'club', id: r.id, name: r.name })) : [];
+        const leagues = (await q('league')).map((r: any) => ({ kind: 'league', id: r.id, name: r.name }));
+        const assocs = (await q('association')).map((r: any) => ({ kind: 'association', id: r.id, name: r.name }));
+        const candidates = [...clubs, ...leagues, ...assocs];
+        return html(res, renderConnections({ fanId: viewer, createHref: viewerCreateHref, kind: ck, id: cid, name: await hostName(db, ck, cid), outgoing, incoming, candidates }));
+      }
+      if (req.method === 'POST' && path === '/connections/request') {
+        if (viewerGuest) return redirect(res, '/login');
+        const f = await parseForm(req);
+        if (!await canEdit(f.child_kind, f.child_id)) return redirect(res, '/');
+        const [pk, pid] = (f.parent || '').split(':');
+        if (pk && pid) {
+          await requestLink(db, { childKind: f.child_kind, childId: f.child_id, parentKind: pk, parentId: pid, requestedBy: 'child' });
+          // notify the parent's owner (if any) that someone requested to join
+          const pAcct = (await db.query<{ account_id: string }>(`SELECT account_id FROM ownership WHERE owner_kind=$1 AND owner_id=$2 LIMIT 1`, [pk, pid])).rows[0]?.account_id ?? null;
+          const pFan = pAcct ? await fanForAccount(db, pAcct) : null;
+          if (pFan) await notify(db, { fanId: pFan, kind: 'claim_new', headline: `${await hostName(db, f.child_kind, f.child_id)} requested to join ${await hostName(db, pk, pid)}.`, href: `/${pk}/${pid}/connections` });
+        }
+        return redirect(res, `/${f.child_kind}/${f.child_id}/connections`);
+      }
+      if (req.method === 'POST' && (em = path.match(/^\/connections\/link\/([^/]+)\/(admit|reject|remove)$/))) {
+        if (viewerGuest) return redirect(res, '/login');
+        const link = await getLink(db, em[1]);
+        if (!link) return redirect(res, '/');
+        const parentOwner = await canEdit(link.parent_kind, link.parent_id);
+        const childOwner = await canEdit(link.child_kind, link.child_id);
+        if (em[2] === 'admit' && parentOwner) {
+          await setLinkStatus(db, em[1], 'active');
+          const cAcct = (await db.query<{ account_id: string }>(`SELECT account_id FROM ownership WHERE owner_kind=$1 AND owner_id=$2 LIMIT 1`, [link.child_kind, link.child_id])).rows[0]?.account_id
+            ?? (link.child_kind === 'athlete' ? (await db.query<{ account_id: string }>(`SELECT account_id FROM athlete WHERE id=$1`, [link.child_id])).rows[0]?.account_id : null);
+          const cFan = cAcct ? await fanForAccount(db, cAcct) : null;
+          if (cFan) await notify(db, { fanId: cFan, kind: 'claim_confirmed', headline: `You're now connected to ${await hostName(db, link.parent_kind, link.parent_id)}.`, href: `/${link.child_kind}/${link.child_id}` });
+        } else if (em[2] === 'reject' && parentOwner) await setLinkStatus(db, em[1], 'removed');
+        else if (em[2] === 'remove' && (parentOwner || childOwner)) await setLinkStatus(db, em[1], 'removed');
+        const bk = childOwner ? link.child_kind : link.parent_kind, bid = childOwner ? link.child_id : link.parent_id;
+        return redirect(res, `/${bk}/${bid}/connections`);
+      }
       // --- Build Order #3: Event Room ---------------------------------------
       // Build an EventBrief for the AI media + room graphic from the event + host.
       const eventBrief = async (ev: any) => {
@@ -728,7 +777,7 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
         const claimBlock = isHost
           ? `<div class="card"><strong>You host this.</strong><div class="row" style="margin-top:8px"><a class="btn" href="/e/${em[1]}/check-in">Open check-in →</a><a class="btn ghost" href="/manage/${em[1]}">Manage &amp; attendance →</a></div></div>`
           : evFormats.length
-            ? formatPicker({ eventId: em[1], guest, full: spots.full, formats: evFormats, mine: minePass ? { status: minePass.status, token: minePass.token, formatId: mineFormatId } : null })
+            ? formatPicker({ eventId: em[1], guest, full: spots.full, fanId: guest ? null : viewer, formats: evFormats, mine: minePass ? { status: minePass.status, token: minePass.token, formatId: mineFormatId } : null })
             : claimCta({ eventId: em[1], remaining: spots.remaining, full: spots.full, mine: minePass, guest, priceLabel: d.admission === 'paid' ? priceLabel(d) : 'Free', mode: evRow?.registration_mode ?? 'open', standing: { have: standHave, need: evRow?.standing_threshold ?? 0 } });
         // Persistent primary-action bar (the IG/TikTok pattern) — scarcity + one tap.
         const barSub = spots.remaining == null ? (d.admission === 'paid' ? priceLabel(d) : 'Free') : (spots.full ? 'Full — join the waitlist' : `${spots.remaining} spot${spots.remaining === 1 ? '' : 's'} left${d.admission === 'paid' ? ' · ' + priceLabel(d) : ''}`);
@@ -803,6 +852,9 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
         const region = url.searchParams.get('region') || undefined;
         const data = await getDiscover(db, { sport, region });
         const unread = viewerGuest ? 0 : await unreadCount(db, viewer);
+        // Remember a guest's filter so, when they sign up, it becomes their feed
+        // (auto-follow the sport + region they were browsing).
+        if (viewerGuest && (sport || region)) res.setHeader('set-cookie', `hz_filter=${encodeURIComponent((sport || '') + '|' + (region || ''))}; Path=/; Max-Age=1800; SameSite=Lax`);
         return html(res, renderDiscover({ guest: viewerGuest, fanId: viewer, sport, region, data, regions: REGIONS, lang, unread }));
       }
       if (path === '/map') {
@@ -906,10 +958,14 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
       // creator insights dashboard (owner)
       if ((m = path.match(/^\/athlete\/([^/]+)\/insights$/))) {
         if (!await canEdit('athlete', m[1])) return redirect(res, `/athlete/${m[1]}`);
-        const conv = await conversionRate(db, 'athlete', m[1]);
-        const mc = await metricCounts(db, ['next_event_return', 'goal_signup', 'artifact_share', 'ai_asset_posted', 'event_room_open'], 'athlete', m[1]);
-        const prof = await getAthleteProfile(db, m[1]);
-        return html(res, renderInsights({ name: prof.name, athleteId: m[1], conversion: conv, returnRate: conv.opens ? Math.round((mc.next_event_return / conv.opens) * 100) : 0, goalSignups: mc.goal_signup, artifactShares: mc.artifact_share, aiAdoption: mc.ai_asset_posted, events: mc.event_room_open }));
+        const aid = m[1];
+        const prof = await getAthleteProfile(db, aid);
+        const one = async (sql: string) => (await db.query<{ n: number }>(sql, [aid])).rows[0]?.n ?? 0;
+        const followers = await one(`SELECT count(*)::int n FROM follow WHERE target_type::text='athlete' AND target_id=$1`);
+        const claims = await one(`SELECT count(*)::int n FROM claim c JOIN event e ON e.id=c.event_id WHERE e.host_kind='athlete' AND e.host_id=$1 AND c.status NOT IN ('refunded','no_show')`);
+        const presences = await one(`SELECT count(*)::int n FROM presence p JOIN event e ON e.id=p.event_id WHERE e.host_kind='athlete' AND e.host_id=$1`);
+        const events = (await listProfileEvents(db, 'athlete', aid)).length;
+        return html(res, renderInsights({ name: prof.name, athleteId: aid, editHref: `/athlete/${aid}/customize`, followers, claims, presences, events }));
       }
       // shareable supporter card (the viral surface) — free + OG-tagged
       if ((sm = path.match(/^\/share\/supporter\/(athlete|club|team|association)\/([^/]+)$/))) {
@@ -1074,7 +1130,8 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
         const goalsHtml = athGoals.map(g => goalBar(g)).join('');
         const athShop = await listShopItems(db, 'athlete', m[1]);
         const athSportsLabel = sportsLabel(await getAthleteSports(db, m[1]));
-        return html(res, renderAthletePage({ guest, fanId, profile, upcoming, attendance, affiliations, events, scheduleHref: `/host/athlete/${m[1]}/new`, tiers, membership, superfan, loyalty: fanId ? { score: lscore, threshold: 200 } : null, memberCount: members, canEdit: athOwner, activation: athAct, sections: athSections, ogTags: athOg, previewAsFan: realOwner && asFan, media: athMedia, sponsors: athSponsors, banner: athBanner, goalsHtml, sportsLabel: athSportsLabel, createHref: viewerCreateHref, shop: athShop, themedBanner: athThemedBanner }));
+        const athConnections = await activeParents(db, 'athlete', m[1]);
+        return html(res, renderAthletePage({ guest, fanId, profile, upcoming, attendance, affiliations, events, connections: athConnections, scheduleHref: `/host/athlete/${m[1]}/new`, tiers, membership, superfan, loyalty: fanId ? { score: lscore, threshold: 200 } : null, memberCount: members, canEdit: athOwner, activation: athAct, sections: athSections, ogTags: athOg, previewAsFan: realOwner && asFan, media: athMedia, sponsors: athSponsors, banner: athBanner, goalsHtml, sportsLabel: athSportsLabel, createHref: viewerCreateHref, shop: athShop, themedBanner: athThemedBanner }));
       }
       if ((m = path.match(/^\/club\/([^/]+)$/))) {
         const guest = viewerGuest;
