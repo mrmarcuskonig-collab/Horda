@@ -13,10 +13,10 @@ const evId = (await app.db.query<{ id: string }>(`SELECT id FROM event WHERE hos
 
 console.log('\n[guest / public surfaces]');
 const home = await txt('/');
-ok('home 200 + rail + location datalist', (await G('/')).status === 200 && home.includes('class="rail"') && home.includes('loclist'));
+ok('home 200 + event map section + location datalist', (await G('/')).status === 200 && home.includes('class="mapcard"') && home.includes('loclist') && !home.includes('class="rail"'));
 ok('sport filter 200', await code('/?sport=boxing') === 200);
 ok('map avatar-ring markers', (await txt('/map')).includes("className:'hz-av'"));
-ok('/about/pricing fee-trust copy', (await txt('/about/pricing')).includes('Fair by design') && (await txt('/about/pricing')).includes('never raise your rate'));
+ok('/about/pricing fee-trust copy', (await txt('/about/pricing')).includes('Fair by design') && (await txt('/about/pricing')).includes('flat 10%') && (await txt('/about/pricing')).includes('Gate money, not creation'));
 ok('/about/creators pitch', (await txt('/about/creators')).includes('Athletes'));
 const apg = await txt(`/athlete/${rico}`);
 ok('athlete page is a followable Crowd (no paid tiers/content gating)', apg.includes('crowd') && !apg.includes('class="lockpill"'));
@@ -256,8 +256,9 @@ ok('logged-in fan can join the crowd (Follow), not paid Support', fanAth.include
 ok('OG / Twitter share-card meta on athlete page', guestAth.includes('property="og:title"') && guestAth.includes('name="twitter:card"') && guestAth.includes('property="og:url"'));
 const clubOg = await txt(`/club/${club}`);
 ok('OG meta on club page too', clubOg.includes('property="og:title"') && clubOg.includes('og:description'));
-ok('logged-in user does NOT see "Create a fan account" on /create', !(await txt('/create', cookie)).includes('Create a fan account'));
-ok('guest DOES see "Create a fan account" on /create', (await txt('/create')).includes('Create a fan account'));
+// The standing-page chooser now lives at /onboarding; /create is the event-first action.
+ok('logged-in user does NOT see "Create a fan account" on /onboarding', !(await txt('/onboarding', cookie)).includes('Create a fan account'));
+ok('guest DOES see "Create a fan account" on /onboarding', (await txt('/onboarding')).includes('Create a fan account'));
 
 console.log('\n[nav + back design]');
 ok('bottom nav is icon-only (no text labels)', !home.includes('class="lbl"') && !home.includes('>Home<'));
