@@ -143,16 +143,16 @@ ok('start screen leads with athletes + events (no results section)', land.includ
 ok('guest gets a gated "your feed" CTA', land.includes('Your Horda') && land.includes('Get your feed'));
 const filtered = await get(`/?sport=boxing&region=Hamburg`);
 ok('filter narrows to taste (Hamburg boxing → Max, not Rico)', filtered.includes(`/athlete/${max}`) && !filtered.includes(`/athlete/${rico}`));
-// fyndafit-inspired surface: story rail (Join + Creator map first), big featured photos, regional map, theme toggle
-ok('story rail leads with Join + Creator map tiles', land.includes('class="rail"') && land.includes('>Join the Horda<') && land.includes('Creator map'));
+// story rail (Join + Event map first), big featured EVENT cards, regional map
+ok('story rail leads with Join + Event map tiles', land.includes('class="rail"') && land.includes('>Join the Horda<') && land.includes('>Event map<') && !land.includes('Creator map'));
 ok('story rail shows athlete faces with names', land.includes('class="story"') && land.includes('class="ring"'));
-ok('featured photo cards with identity chip', land.includes('class="fcard"') && land.includes('class="fid"') && land.includes('class="fnm"'));
+ok('featured cards are PUBLIC EVENTS (photo posters linking to /e/)', land.includes('class="fcard"') && land.includes('class="ftitle"') && /class="fcard[^"]*" href="\/e\//.test(land));
 const mapPage = await get('/map');
-ok('creator map is its own page (Leaflet + CARTO), removed from landing', mapPage.includes('id="map"') && mapPage.includes('cartocdn.com') && !land.includes('id="map"'));
+ok('event map is its own page (Leaflet + CARTO), removed from landing', mapPage.includes('id="map"') && mapPage.includes('cartocdn.com') && mapPage.includes('Event map') && !land.includes('id="map"'));
 ok('map markers are avatar rings that link to the profile (no name/popup label)', mapPage.includes("className:'hz-av'") && mapPage.includes('class="mav"') && mapPage.includes('window.location.href=p.href') && !mapPage.includes('bindPopup'));
 ok('landing footer carries the superfan tagline', land.includes('The home for sports superfans'));
-ok('no-flash theme boot script on landing (toggle now lives in Settings/profile)', land.includes("localStorage.getItem('hz_theme')") && !land.includes('class="thm"'));
-ok('light theme variables defined app-wide', land.includes('data-theme="light"') && (await get(`/athlete/${rico}`)).includes('data-theme="light"'));
+ok('single dark arena theme: no theme boot script + no toggle on landing', !land.includes("localStorage.getItem('hz_theme')") && !land.includes('class="thm"'));
+ok('no light mode anywhere (dark-only guardrail)', !land.includes('data-theme="light"') && !(await get(`/athlete/${rico}`)).includes('data-theme="light"'));
 ok('map filters with taste too (Hamburg boxing excludes Rico everywhere)', !filtered.includes(`/athlete/${rico}`));
 // instagram-like usability: persistent bottom tab bar + verified trust badges
 ok('persistent bottom tab bar, icon-only (labels via aria-label, no text)', land.includes('class="bnav"') && land.includes('aria-label="Home"') && land.includes('aria-label="You"') && !land.includes('class="lbl"') && !land.includes('>Home<'));
@@ -168,7 +168,7 @@ ok('German locale translates the rail (Erkunden/Gefolgt/Einstellungen)', deLand.
 // rail: notifications item for logged-in, and dark toggle moved out of the rail
 const landIn = await get('/');
 ok('rail shows Notifications for logged-in users, not for guests', landIn.includes('href="/notifications"') && landIn.includes('Notifications') && !land.includes('href="/notifications"'));
-ok('dark-mode toggle removed from discover (moved to Settings)', !landIn.includes('class="thm"') && (await get('/settings')).includes('class="thm"'));
+ok('no theme toggle anywhere — dark-only (discover + settings)', !landIn.includes('class="thm"') && !(await get('/settings')).includes('class="thm"'));
 
 // multi-format attendance: create an event with in-person ticket + a stream,
 // then a guest picks a format and the organizer sees the per-format breakdown.
@@ -219,6 +219,26 @@ const suEmail = `au${Date.now()}@x.co`;
 await fetch(base + '/signup', { method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ email: suEmail, name: 'AF', password: 'pw123456', sport: 'boxing', region: 'Hamburg' }).toString(), redirect: 'manual' });
 const intCount = (await app.db.query(`SELECT count(*)::int n FROM fan_interest WHERE kind='sport' AND value='boxing'`)).rows[0].n;
 ok('signup with a filter records sport + region interests', intCount >= 1 && (await app.db.query(`SELECT count(*)::int n FROM fan_interest WHERE kind='region' AND value='Hamburg'`)).rows[0].n >= 1);
+
+// --- access model + QR check-in (Phase 0 item 5) ---
+const mkEvent = async (p: Record<string, string>) => {
+  const r = await fetch(base + '/events', { method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams(p).toString(), redirect: 'manual' });
+  return ((r.headers.get('location') || '').match(/\/e\/([^/?]+)/) || [])[1] || '';
+};
+const claimToPass = async (eid: string) => {
+  const r = await fetch(base + `/claim/${eid}`, { method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ name: 'Door Fan', contact: `d${Date.now()}@x.co` }).toString(), redirect: 'manual' });
+  return await get(r.headers.get('location') || '/');
+};
+const tkId = await mkEvent({ host_kind: 'athlete', host_id: rico, title: 'Door Test', starts_at: '2027-06-01T19:00', location_kind: 'in_person', location: 'Kreuzberg Boxing, Berlin', admission: 'open', access_mode: 'ticket' });
+ok('ticket-mode event: guest CTA says "Claim your spot" (QR ticket)', (await get(`/e/${tkId}?guest=1`)).includes('Claim your spot'));
+const tkPass = await claimToPass(tkId);
+ok('ticket-mode pass shows a scannable QR (client-side QR) + door instruction', tkPass.includes('id="hzqr"') && tkPass.includes('qrcode.min.js') && tkPass.includes('Show this QR at the door'));
+const checkinPage = await get(`/e/${tkId}/check-in`);
+ok('organizer check-in has a camera QR scanner + manual fallback', checkinPage.includes('jsQR') && checkinPage.includes('hzScan') && checkinPage.includes('Scan a QR ticket') && checkinPage.includes('name="token"'));
+const lkId = await mkEvent({ host_kind: 'athlete', host_id: rico, title: 'Stream Test', starts_at: '2027-06-02T19:00', location_kind: 'online', location: 'https://youtube.com/live/x', admission: 'open', access_mode: 'link' });
+ok('link-mode event: guest CTA says "Get access" (no ticket/QR)', (await get(`/e/${lkId}?guest=1`)).includes('Get access'));
+const lkPass = await claimToPass(lkId);
+ok('link-mode pass reveals the link, no QR', lkPass.includes('Open the event link') && !lkPass.includes('id="hzqr"'));
 
 const cg = await get(`/club/${club}?guest=1`);
 ok('guest gate now coexists with the bottom nav (in-flow banner)', cg.includes('Log in to continue') && cg.includes('class="bnav"') && cg.includes('border-radius:14px'));

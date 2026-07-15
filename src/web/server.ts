@@ -394,7 +394,7 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
           coverUrl, admission: (f.admission as any) || 'open',
           priceCents: f.price ? Math.round(Number(f.price) * 100) : undefined, streams,
           capacity: f.capacity ? Number(f.capacity) : undefined,
-          locationKind: f.location_kind,
+          locationKind: f.location_kind, accessMode: f.access_mode,
         };
         // Attendance formats (multi-format): in-person (ticketed on Horda) + up to
         // two streams (e.g. TikTok Live, a media provider). Every format's
@@ -778,7 +778,7 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
           ? `<div class="card"><strong>You host this.</strong><div class="row" style="margin-top:8px"><a class="btn" href="/e/${em[1]}/check-in">Open check-in →</a><a class="btn ghost" href="/manage/${em[1]}">Manage &amp; attendance →</a></div></div>`
           : evFormats.length
             ? formatPicker({ eventId: em[1], guest, full: spots.full, fanId: guest ? null : viewer, formats: evFormats, mine: minePass ? { status: minePass.status, token: minePass.token, formatId: mineFormatId } : null })
-            : claimCta({ eventId: em[1], remaining: spots.remaining, full: spots.full, mine: minePass, guest, priceLabel: d.admission === 'paid' ? priceLabel(d) : 'Free', mode: evRow?.registration_mode ?? 'open', standing: { have: standHave, need: evRow?.standing_threshold ?? 0 } });
+            : claimCta({ eventId: em[1], remaining: spots.remaining, full: spots.full, mine: minePass, guest, priceLabel: d.admission === 'paid' ? priceLabel(d) : 'Free', mode: evRow?.registration_mode ?? 'open', accessMode: d.accessMode, standing: { have: standHave, need: evRow?.standing_threshold ?? 0 } });
         // Persistent primary-action bar (the IG/TikTok pattern) — scarcity + one tap.
         const barSub = spots.remaining == null ? (d.admission === 'paid' ? priceLabel(d) : 'Free') : (spots.full ? 'Full — join the waitlist' : `${spots.remaining} spot${spots.remaining === 1 ? '' : 's'} left${d.admission === 'paid' ? ' · ' + priceLabel(d) : ''}`);
         const stickyCta = isHost
@@ -858,11 +858,17 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
         return html(res, renderDiscover({ guest: viewerGuest, fanId: viewer, sport, region, data, regions: REGIONS, lang, unread }));
       }
       if (path === '/map') {
-        const data = await getDiscover(db, {});
-        const points = [
-          ...data.athletes.filter(a => a.region).map(a => ({ name: a.name, region: a.region, href: `/athlete/${a.id}`, kind: 'athlete', avatar: a.avatar || a.banner || null })),
-          ...data.clubs.filter(c => c.region).map(c => ({ name: c.name, region: c.region, href: `/club/${c.id}`, kind: 'club', avatar: c.avatar || null })),
-        ];
+        // Event map: plot public events at their host's region, cover image as the pin.
+        const evRows = (await db.query<any>(
+          `SELECT e.id, e.name title, e.cover_url,
+                  COALESCE(a.region, cl.region) region,
+                  COALESCE(e.cover_url, a.avatar_url) avatar
+           FROM event e
+           LEFT JOIN athlete a ON e.host_kind::text='athlete' AND a.id::text=e.host_id::text
+           LEFT JOIN club cl  ON e.host_kind::text='club'    AND cl.id::text=e.host_id::text
+           WHERE e.host_kind IS NOT NULL AND e.starts_at IS NOT NULL
+           ORDER BY e.starts_at LIMIT 80`)).rows;
+        const points = evRows.filter(r => r.region).map(r => ({ name: r.title, region: r.region, href: `/e/${r.id}`, kind: 'event', avatar: r.avatar || null }));
         return html(res, renderMap({ guest: viewerGuest, fanId: viewer, points }));
       }
       let m;

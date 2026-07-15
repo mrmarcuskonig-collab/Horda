@@ -19,22 +19,36 @@ const CSS = `
 
 export function renderPass(d: { pass: PassView; verifyUrl: string; guest: boolean; fanId: string | null }): string {
   const p = d.pass;
+  const isStream = p.formatKind === 'stream';
+  // Ticket mode = show a scannable QR at the door. Link mode = just reveal the link.
+  const isTicket = !isStream && p.accessMode !== 'link';
+  const accessLink = isStream ? p.channelUrl : (p.location && /^https?:\/\//i.test(p.location) ? p.location : null);
   const statusTag = p.verified
-    ? `<span class="passtag ok">✓ Verified — you were in the building</span>`
+    ? `<span class="passtag ok">✓ Verified — you were there</span>`
     : p.status === 'waitlisted' ? `<span class="passtag">Waitlisted</span>`
       : p.status === 'approved' ? `<span class="passtag">Awaiting approval</span>`
-        : `<span class="passtag">Claimed · show this at the gate</span>`;
+        : isTicket ? `<span class="passtag">Ticket · show this QR at the door</span>` : `<span class="passtag">You're in</span>`;
+  // Client-side QR of the raw token — the organizer's scanner reads it → check-in.
+  const qrBlock = `<div class="qrwrap"><div id="hzqr"></div></div>
+    <p class="mut" style="font-size:12.5px;margin:10px 0 2px">Show this QR at the door — the organizer scans it to check you in.</p>
+    <details style="margin-top:6px"><summary class="mut" style="font-size:12px;cursor:pointer">Can't scan? Show the code</summary><div class="code" style="margin-top:8px">${esc(p.token.replace(/(.{4})/g, '$1 ').trim())}</div></details>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <script>(function(){function d(){if(!window.QRCode){return setTimeout(d,120)}var el=document.getElementById('hzqr');if(el&&!el.hasChildNodes()){new QRCode(el,{text:${JSON.stringify(p.token)},width:208,height:208,colorDark:'#0B0B0C',colorLight:'#ffffff',correctLevel:window.QRCode.CorrectLevel.M})}}d()})();</script>`;
+  const linkBlock = accessLink
+    ? `<a class="rb p" style="display:block;margin:0 0 8px;padding:13px" href="${esc(accessLink)}" target="_blank" rel="noopener">${isStream ? `Watch on ${esc(p.formatLabel || 'the stream')} ↗` : 'Open the event link ↗'}</a><p class="mut" style="font-size:12px">Saved to your pass — we'll send it again before it starts.</p>`
+    : `<div class="mut" style="font-size:13.5px">${p.location ? `Where: <b style="color:var(--bone)">${esc(p.location)}</b>` : 'The organizer will share the details here.'}</div>`;
   return layout(`Your pass · ${p.eventTitle}`, `
-    <style>${CSS}</style>
+    <style>${CSS}
+      .qrwrap{background:#fff;padding:14px;border-radius:14px;display:inline-block;margin:4px 0 2px}
+      #hzqr img,#hzqr canvas{display:block}
+    </style>
     <div class="pass">
-      <div class="passhd"><div class="k">Horda pass</div><h1>${esc(p.eventTitle)}</h1><div class="mut" style="font-size:13px;margin-top:4px">${esc(p.startsAt ? new Date(p.startsAt).toLocaleString() : 'Time TBA')}</div></div>
+      <div class="passhd"><div class="k">Horda ${isTicket ? 'ticket' : 'pass'}</div><h1>${esc(p.eventTitle)}</h1><div class="mut" style="font-size:13px;margin-top:4px">${esc(p.startsAt ? new Date(p.startsAt).toLocaleString() : 'Time TBA')}</div></div>
       <div class="passbody">
         <div style="margin-bottom:12px">${statusTag}</div>
         ${p.formatLabel ? `<div class="mut" style="font-size:13px;margin-bottom:10px">Attending via <b style="color:var(--bone)">${esc(p.formatLabel)}</b></div>` : ''}
-        ${p.formatKind === 'stream' && p.channelUrl
-          ? `<a class="rb p" style="display:block;margin:0 0 12px;padding:12px" href="${esc(p.channelUrl)}" target="_blank" rel="noopener">Watch on ${esc(p.formatLabel || 'the stream')} ↗</a><p class="mut" style="font-size:12px;margin:-4px 0 12px">Your watch link — saved here and sent again before it starts.</p>`
-          : `<div class="code">${esc(p.token.replace(/(.{4})/g, '$1 ').trim())}</div><p class="mut" style="font-size:12.5px;margin-top:12px">Identity‑bound, non‑transferable. Show this code (or its link) at the gate — the organizer scans or enters it to count you in.</p>`}
-        <div class="row" style="justify-content:center"><a class="tag mutd" href="/e/${p.eventId}">Change how you attend</a>${p.formatKind !== 'stream' ? `<a class="tag mutd" href="${esc(d.verifyUrl)}">Verify link ↗</a>` : ''}<span class="tag mutd">＋ Add to Wallet — soon</span></div>
+        ${isTicket ? qrBlock : linkBlock}
+        <div class="row" style="justify-content:center;margin-top:12px"><a class="tag mutd" href="/e/${p.eventId}">Change how you attend</a><span class="tag mutd">＋ Add to Wallet — soon</span></div>
       </div>
     </div>
     <div class="row"><a class="btn ghost" href="/e/${p.eventId}">Back to the event</a>${p.hostKind ? `<a class="btn ghost" href="${p.hostKind === 'athlete' ? `/athlete/${p.hostId}` : `/${p.hostKind}/${p.hostId}`}">The crowd</a>` : ''}</div>
@@ -62,16 +76,51 @@ export function renderCheckin(d: { eventId: string; title: string; claimed: numb
       : `<div class="card" style="border-color:#e5484d"><strong>Not a valid pass.</strong></div>`)
     : '';
   return layout(`Check-in · ${d.title}`, `
-    <style>${CSS}</style>
+    <style>${CSS}
+      .scanbox{border:1px solid var(--b);border-radius:14px;background:var(--s);padding:14px;margin:12px 0}
+      #cam{width:100%;max-width:420px;border-radius:12px;background:#000;display:none}
+      .scanbtn{display:inline-flex;align-items:center;gap:8px}
+    </style>
     <h1>Check-in</h1>
     <p class="mut">${esc(d.title)}</p>
-    <div class="card"><b>${d.verifiedCount}</b> verified · <b>${d.claimed}</b> claimed${d.capacity ? ` · capacity ${d.capacity}` : ''}</div>
+    <div class="card"><b>${d.verifiedCount}</b> checked in · <b>${d.claimed}</b> registered${d.capacity ? ` · capacity ${d.capacity}` : ''}</div>
     ${banner}
-    <form method="post" action="/e/${d.eventId}/check-in">
-      <label class="mut" style="display:block;font-size:13px">Scan or enter the pass code<input class="mono" style="${inp}" name="token" autofocus autocomplete="off" placeholder="pass code from the fan"></label>
-      <div class="row" style="margin-top:10px"><button type="submit">Verify presence</button></div>
+    <div class="scanbox">
+      <button type="button" id="scanbtn" class="scanbtn" onclick="hzScan()">📷 Scan a QR ticket</button>
+      <div id="scanmsg" class="mut" style="font-size:12.5px;margin-top:8px">Point your camera at the fan's ticket QR — it checks them in automatically.</div>
+      <video id="cam" playsinline muted></video>
+      <canvas id="cv" style="display:none"></canvas>
+    </div>
+    <form id="checkform" method="post" action="/e/${d.eventId}/check-in">
+      <label class="mut" style="display:block;font-size:13px">…or enter the code by hand<input id="tokfield" class="mono" style="${inp}" name="token" autocomplete="off" placeholder="pass code from the fan"></label>
+      <div class="row" style="margin-top:10px"><button type="submit">Check in</button></div>
     </form>
-    <p class="mut" style="font-size:12px">Phone-only, no hardware. QR scanning + offline mode land with the Wallet pass.</p>
+    <p class="mut" style="font-size:12px">Phone-only, no hardware. If a fan can't show a QR, type their code. Offline queueing lands with the Wallet pass.</p>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jsQR/1.4.0/jsQR.min.js"></script>
+    <script>(function(){var stream=null;window.hzScan=function(){
+      var v=document.getElementById('cam'),cv=document.getElementById('cv'),msg=document.getElementById('scanmsg'),btn=document.getElementById('scanbtn');
+      if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){msg.textContent='Camera not available on this device — type the code below.';return}
+      btn.style.display='none';v.style.display='block';msg.textContent='Scanning… point at the QR';
+      navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'}}).then(function(s){
+        stream=s;v.srcObject=s;v.setAttribute('playsinline',true);v.play();
+        var ctx=cv.getContext('2d');
+        function tick(){
+          if(v.readyState===v.HAVE_ENOUGH_DATA&&window.jsQR){
+            cv.width=v.videoWidth;cv.height=v.videoHeight;ctx.drawImage(v,0,0,cv.width,cv.height);
+            var img=ctx.getImageData(0,0,cv.width,cv.height);
+            var code=jsQR(img.data,img.width,img.height,{inversionAttempts:'dontInvert'});
+            if(code&&code.data){
+              var t=(code.data||'').trim();var m=t.match(/[0-9a-fA-F]{16,}/);if(m)t=m[0];
+              document.getElementById('tokfield').value=t;
+              if(stream){stream.getTracks().forEach(function(tr){tr.stop()})}
+              document.getElementById('checkform').submit();return;
+            }
+          }
+          requestAnimationFrame(tick);
+        }
+        requestAnimationFrame(tick);
+      }).catch(function(){msg.textContent='Camera blocked — allow access or type the code below.';btn.style.display='';v.style.display='none';});
+    };})();</script>
   `, { back: `/e/${d.eventId}`, nav: { active: 'you', guest: false, fanId: null } });
 }
 
@@ -123,16 +172,21 @@ export function formatPicker(d: {
 }
 
 // The claim CTA block injected on the public event page — scarcity-forward.
-export function claimCta(d: { eventId: string; remaining: number | null; full: boolean; mine: { status: string; token: string } | null; guest: boolean; priceLabel: string; mode: string; standing?: { have: number; need: number } }): string {
+export function claimCta(d: { eventId: string; remaining: number | null; full: boolean; mine: { status: string; token: string } | null; guest: boolean; priceLabel: string; mode: string; accessMode?: string; standing?: { have: number; need: number } }): string {
+  const isLink = d.accessMode === 'link';
+  const paid = !!d.priceLabel && d.priceLabel !== 'Free';
+  // Verb matches how they get in: link = "Get access", ticket = claim/get ticket.
+  const verb = d.full ? 'Join the waitlist' : isLink ? (paid ? `Get access · ${d.priceLabel}` : 'Get access') : (paid ? `Get ticket · ${d.priceLabel}` : 'Claim your spot');
   if (d.mine) {
-    return `<div class="card" style="border-color:var(--bone)"><strong>You're in.</strong> ${d.mine.status === 'waitlisted' ? "You're on the waitlist — we'll bump you if a spot opens." : d.mine.status === 'approved' ? 'Awaiting the host\'s approval.' : 'Your pass is ready.'}<div class="row" style="margin-top:8px"><a class="btn" href="/pass/${esc(d.mine.token)}">View your pass →</a></div></div>`;
+    return `<div class="card" style="border-color:var(--bone)"><strong>You're in.</strong> ${d.mine.status === 'waitlisted' ? "You're on the waitlist — we'll bump you if a spot opens." : d.mine.status === 'approved' ? 'Awaiting the host\'s approval.' : isLink ? 'Your access is ready.' : 'Your ticket is ready.'}<div class="row" style="margin-top:8px"><a class="btn" href="/pass/${esc(d.mine.token)}">${isLink ? 'Get the link →' : 'View your ticket →'}</a></div></div>`;
   }
   const spots = d.remaining == null ? '' : `<div class="mut" style="font-size:13px;margin-bottom:8px">${d.full ? 'Full — join the waitlist' : `<strong>${d.remaining}</strong> spot${d.remaining === 1 ? '' : 's'} remaining`}</div>`;
   const gate = d.mode === 'standing' && d.standing && d.standing.have < d.standing.need
     ? `<div class="card"><strong>Earned access.</strong> This one opens at ${d.standing.need} verified presences with this crowd — you have ${d.standing.have}. Show up to unlock it.</div>`
     : `<form method="post" action="/claim/${d.eventId}">
         ${d.guest ? `<label class="mut" style="display:block;font-size:13px">Name<input name="name" required style="display:block;width:100%;margin-top:6px;background:var(--s);border:1px solid var(--b);border-radius:10px;color:var(--bone);padding:11px;font:inherit"></label><label class="mut" style="display:block;margin:8px 0 0;font-size:13px">Email or phone<input name="contact" required style="display:block;width:100%;margin-top:6px;background:var(--s);border:1px solid var(--b);border-radius:10px;color:var(--bone);padding:11px;font:inherit"></label>` : ''}
-        <div class="row" style="margin-top:10px"><button type="submit" style="font-size:16px;padding:12px 22px">${d.full ? 'Join the waitlist' : `Claim your spot${d.priceLabel && d.priceLabel !== 'Free' ? ' · ' + d.priceLabel : ''}`}</button></div>
+        <div class="row" style="margin-top:10px"><button type="submit" style="font-size:16px;padding:12px 22px">${verb}</button></div>
       </form>`;
-  return `<div class="card" style="border-color:var(--bone)">${spots}${gate}<p class="mut" style="font-size:11px;margin-top:8px">Your spot is identity‑bound and non‑transferable. No passwords — the claim is your account.</p></div>`;
+  const note = isLink ? 'No passwords — your details unlock the link, saved to your account.' : 'Identity‑bound and non‑transferable — you get a QR ticket to show at the door.';
+  return `<div class="card" style="border-color:var(--bone)">${spots}${gate}<p class="mut" style="font-size:11px;margin-top:8px">${note}</p></div>`;
 }

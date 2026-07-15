@@ -8,13 +8,14 @@
 //   <style>${THEME_VARS}${THM_CSS} ...page css...</style></head>
 //   ... put ${themeToggle()} in the header nav ...
 
+// Single dark "arena" theme — no light mode, no toggle (design guardrail).
 export const THEME_VARS = `
   :root{color-scheme:dark;--ink:#0B0B0C;--bone:#EDE9DF;--s:rgba(237,233,223,.05);--b:rgba(237,233,223,.16);--mut:rgba(237,233,223,.6);--scrim:rgba(11,11,12,.82)}
-  html[data-theme="light"]{color-scheme:light;--ink:#FBF9F4;--bone:#141310;--s:rgba(20,19,16,.045);--b:rgba(20,19,16,.13);--mut:rgba(20,19,16,.56);--scrim:rgba(251,249,244,.82)}
 `;
 
-// Runs in <head> before body paint → sets the saved theme with no flash of dark.
-export const THEME_BOOT = `<script>try{if(localStorage.getItem('hz_theme')==='light')document.documentElement.setAttribute('data-theme','light')}catch(e){}</script>`;
+// No theme boot needed — the app is dark-only. Kept as an empty export so every
+// page's <head> that references it stays valid.
+export const THEME_BOOT = '';
 
 export const THM_CSS = `.thm{display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:999px;border:1.5px solid var(--b);background:transparent;color:var(--bone);cursor:pointer;padding:0;flex:0 0 auto}.thm:hover{border-color:var(--bone)}.thm svg{display:block}
   .vbadge{display:inline-flex;vertical-align:-2px;margin-left:4px;color:currentColor}.vbadge svg{display:block}
@@ -196,7 +197,8 @@ export function actionBar(o: { title: string; sub?: string; cta: string }): stri
   return `<div class="actionbar"><div class="abin"><div class="ablabel"><div class="abt">${o.title}</div>${o.sub ? `<div class="abs">${o.sub}</div>` : ''}</div>${o.cta}</div></div>`;
 }
 
-// A round contrast-disc toggle. Flips the <html data-theme> and persists it.
+// Retired: Horda is a single dark "arena" theme with no light mode and no toggle.
+// Kept as a no-op so existing call sites render nothing (removed cleanly over time).
 export function themeToggle(): string {
-  return `<button type="button" class="thm" aria-label="Switch light or dark theme" title="Switch theme" onclick="(function(d){var l=d.getAttribute('data-theme')==='light';if(l){d.removeAttribute('data-theme')}else{d.setAttribute('data-theme','light')}try{localStorage.setItem('hz_theme',l?'dark':'light')}catch(e){}window.dispatchEvent(new Event('hz-theme'))})(document.documentElement)"><svg viewBox="0 0 18 18" width="16" height="16" aria-hidden="true"><circle cx="9" cy="9" r="7.4" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M9 1.6a7.4 7.4 0 0 0 0 14.8z" fill="currentColor"/></svg></button>`;
+  return '';
 }

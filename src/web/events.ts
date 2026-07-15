@@ -210,13 +210,20 @@ export function renderCreateEvent(hostKind: string, hostId: string, hostName: st
     <input type="hidden" name="host_kind" value="${esc(hostKind)}"><input type="hidden" name="host_id" value="${esc(hostId)}">
     <label style="${fld}">Title<input style="${inp}" name="title" required placeholder="Open sparring night"></label>
     <label style="${fld}">Date &amp; time<input style="${inp}" type="datetime-local" name="starts_at" required></label>
-    <label style="${fld}">Type
-      <select name="location_kind" style="${inp}">
-        <option value="in_person">In person</option>
-        <option value="online">Online</option>
+    <label style="${fld}">Where
+      <select id="ev_loc_kind" name="location_kind" style="${inp}" onchange="var s=document.getElementById('ev_access');if(this.value==='online'&&s)s.value='link';if(this.value==='in_person'&&s)s.value='ticket'">
+        <option value="in_person">In person (a venue)</option>
+        <option value="online">Online (a stream / call link)</option>
         <option value="hybrid">Hybrid — in person + streamed</option>
       </select></label>
-    <label style="${fld}">Location / link<input style="${inp}" name="location" placeholder="Kreuzberg Boxing Club, Berlin — or a stream URL"></label>
+    <label style="${fld}">Address or link<input style="${inp}" name="location" placeholder="Kreuzberg Boxing Club, Berlin — or a YouTube / Instagram / Zoom URL"></label>
+
+    <label style="${fld}">How do people get in?
+      <select id="ev_access" name="access_mode" style="${inp}">
+        <option value="ticket">🎟 Ticket + QR check-in — they register, get a QR ticket, show it at the door; you scan to confirm who showed up</option>
+        <option value="link">🔗 Just a link — they receive the details / stream link, no door check-in</option>
+      </select></label>
+    <p class="mut" style="font-size:12px;margin:-6px 0 0">Ticket + QR is for in-person events you'll check people into. "Just a link" is for online events or when you only need to hand out the details.</p>
     <label style="${fld}">Repeats
       <select name="recurrence" style="${inp}">
         <option value="none">One-off</option>

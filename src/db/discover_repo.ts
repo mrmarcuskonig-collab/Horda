@@ -9,7 +9,7 @@ export interface Discover {
   sports: { key: string; name: string }[];
   athletes: { id: string; name: string; region: string | null; sport: string | null; avatar: string | null; banner: string | null; verified: boolean }[];
   clubs: { id: string; name: string; region: string | null; sport: string | null; avatar: string | null; verified: boolean }[];
-  upcoming: { id: string; title: string; date?: string; host: string; admission: string; going: number; shares: number; followers: number; live: boolean }[];
+  upcoming: { id: string; title: string; date?: string; host: string; admission: string; going: number; shares: number; followers: number; live: boolean; coverUrl: string | null }[];
   results: { headline: string; date?: string }[];
 }
 
@@ -62,7 +62,7 @@ export async function getDiscover(db: Database, filter: { sport?: string; region
   // not streaming. Ended-window defaults to +3h when no ends_at is set. Live
   // events surface first.
   const evRows = (await db.query<any>(
-    `SELECT e.id, e.name title, to_char(e.starts_at,'DD Mon') date, e.host_kind, e.host_id, e.admission,
+    `SELECT e.id, e.name title, to_char(e.starts_at,'DD Mon') date, e.host_kind, e.host_id, e.admission, e.cover_url,
             (e.starts_at IS NOT NULL AND e.starts_at <= now() AND now() < COALESCE(e.ends_at, e.starts_at + interval '3 hours')) live
      FROM event e WHERE e.host_kind IS NOT NULL
      ORDER BY (e.starts_at IS NOT NULL AND e.starts_at <= now() AND now() < COALESCE(e.ends_at, e.starts_at + interval '3 hours')) DESC, e.starts_at
@@ -70,7 +70,7 @@ export async function getDiscover(db: Database, filter: { sport?: string; region
   const upcoming = [];
   for (const e of evRows) {
     const s = await eventStats(db, e);
-    upcoming.push({ id: e.id, title: e.title, date: e.date ?? undefined, host: await hostName(db, e.host_kind, e.host_id), admission: e.admission, live: !!e.live, ...s });
+    upcoming.push({ id: e.id, title: e.title, date: e.date ?? undefined, host: await hostName(db, e.host_kind, e.host_id), admission: e.admission, live: !!e.live, coverUrl: e.cover_url ?? null, ...s });
   }
 
   const results = (await db.query<any>(

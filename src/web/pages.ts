@@ -78,7 +78,7 @@ export function renderDiscover(d: {
   data: { sports: { key: string; name: string }[]; regions?: string[];
     athletes: { id: string; name: string; region: string | null; sport: string | null; avatar: string | null; banner: string | null; verified?: boolean }[];
     clubs: { id: string; name: string; region: string | null; sport: string | null; avatar: string | null; verified?: boolean }[];
-    upcoming: { id: string; title: string; date?: string; host: string; admission: string; going?: number; shares?: number; followers?: number }[];
+    upcoming: { id: string; title: string; date?: string; host: string; admission: string; going?: number; shares?: number; followers?: number; live?: boolean; coverUrl?: string | null }[];
     results: { headline: string; date?: string }[] };
   regions: string[];
 }): string {
@@ -102,42 +102,39 @@ export function renderDiscover(d: {
 
   const ringImg = (url: string | null, name: string) => url ? `<img src="${esc(url)}" alt="">` : avatarSvg(name);
 
-  // story rail — Creator map + athlete faces. "Join the Horda" only for guests.
+  // story rail — Event map + athlete faces. "Join the Horda" only for guests.
   const rail = `<div class="rail">
     ${d.guest ? `<a class="story" href="/signup" aria-label="Join the Horda"><span class="ring act"><svg viewBox="0 0 24 24" width="19" height="19" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.35" stroke-linecap="round" d="M12 5.75v12.5M5.75 12h12.5"/></svg></span><span class="sname">Join the Horda</span></a>` : ''}
-    <a class="story" href="/map" aria-label="Open the creator map"><span class="ring act"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.35" stroke-linejoin="round" stroke-linecap="round" d="M9 4.3 3.6 6.1v13.6L9 17.9l6 1.8 5.4-1.8V4.1L15 5.9 9 4.3Z"/><path fill="none" stroke="currentColor" stroke-width="1.1" stroke-linecap="round" opacity=".8" d="M9 4.5v13.4M15 6v13.4"/></svg></span><span class="sname">Creator map</span></a>
+    <a class="story" href="/map" aria-label="Open the event map"><span class="ring act"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.35" stroke-linejoin="round" stroke-linecap="round" d="M9 4.3 3.6 6.1v13.6L9 17.9l6 1.8 5.4-1.8V4.1L15 5.9 9 4.3Z"/><path fill="none" stroke="currentColor" stroke-width="1.1" stroke-linecap="round" opacity=".8" d="M9 4.5v13.4M15 6v13.4"/></svg></span><span class="sname">Event map</span></a>
     ${d.data.athletes.map(a => `<a class="story" href="/athlete/${a.id}"><span class="ring">${ringImg(a.avatar || a.banner, a.name)}</span><span class="sname">${esc(a.name.split(' ')[0])}</span></a>`).join('')}
   </div>`;
-
-  // featured — big, photo-forward athlete cards, each with a consistent identity chip
-  const featured = d.data.athletes.length ? `<div class="feat">${d.data.athletes.map(a => {
-    const photo = a.banner || a.avatar;
-    // No empty cards: a themed, individual backdrop (§4a) when there's no photo —
-    // this is what makes the landing a wall of cool, distinct athlete cards.
-    const big = photo ? `<img class="fimg" src="${esc(photo)}" alt="">` : `<img class="fimg" src="${esc(svgDataUri(bannerSvg({ name: a.name, sport: a.sport }, defaultThemeForSport(a.sport), { backdrop: true })))}" alt="">`;
-    const sub = [a.sport, a.region].filter(Boolean).join(' · ') || 'athlete';
-    return `<a class="fcard" href="/athlete/${a.id}">${big}<div class="fscrim"></div>` +
-      `<div class="fid"><span class="fav">${ringImg(a.avatar || a.banner, a.name)}</span><span class="fnm">${esc(a.name)}${a.verified ? verifiedBadge() : ''}</span></div>` +
-      `<div class="fcap">${esc(sub)}</div></a>`;
-  }).join('')}</div>` : '';
-
-  const card = (href: string, title: string, sub: string, badge: string, verified = false) =>
-    `<a class="dcard" href="${href}"><div class="dav">${avatarSvg(title)}</div><div class="dmeta"><div class="dt-title">${esc(title)}${verified ? verifiedBadge() : ''}</div><div class="dt-sub">${esc(sub)}</div></div><span class="dbadge">${esc(badge)}</span></a>`;
 
   // Compact numbers (1.2K) for the engagement chips — the TikTok idiom.
   const num = (n: number) => n >= 1000 ? (n / 1000).toFixed(n >= 10000 ? 0 : 1).replace(/\.0$/, '') + 'K' : String(n);
   const ICN = {
-    going: `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.2"/><path d="M3.5 19c0-3 2.5-5 5.5-5s5.5 2 5.5 5"/><path d="M16 6.2a3 3 0 0 1 0 5.6M17.5 14c2.2.4 3.7 2 3.7 4.4"/></svg>`,
-    share: `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="12" r="2.4"/><circle cx="17.5" cy="6" r="2.4"/><circle cx="17.5" cy="18" r="2.4"/><path d="m8.2 10.9 7.1-3.8M8.2 13.1l7.1 3.8"/></svg>`,
-    heart: `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20S3 14.6 3 8.9C3 6 5.1 4 7.7 4c1.8 0 3.3 1 4.3 2.4C13 5 14.5 4 16.3 4 18.9 4 21 6 21 8.9 21 14.6 12 20 12 20Z"/></svg>`,
+    going: `<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.2"/><path d="M3.5 19c0-3 2.5-5 5.5-5s5.5 2 5.5 5"/><path d="M16 6.2a3 3 0 0 1 0 5.6M17.5 14c2.2.4 3.7 2 3.7 4.4"/></svg>`,
+    share: `<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="12" r="2.4"/><circle cx="17.5" cy="6" r="2.4"/><circle cx="17.5" cy="18" r="2.4"/><path d="m8.2 10.9 7.1-3.8M8.2 13.1l7.1 3.8"/></svg>`,
+    heart: `<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20S3 14.6 3 8.9C3 6 5.1 4 7.7 4c1.8 0 3.3 1 4.3 2.4C13 5 14.5 4 16.3 4 18.9 4 21 6 21 8.9 21 14.6 12 20 12 20Z"/></svg>`,
   };
   const estats = (e: { going?: number; shares?: number; followers?: number }) => `<div class="estats">` +
     `<span class="est" title="${esc(tr('going'))}">${ICN.going}${num(e.going ?? 0)}</span>` +
     `<span class="est" title="${esc(tr('followers'))}">${ICN.heart}${num(e.followers ?? 0)}</span>` +
     `<span class="est" title="${esc(tr('shares'))}">${ICN.share}${num(e.shares ?? 0)}</span></div>`;
-  const upcoming = d.data.upcoming.length ? `<h2>${esc(tr('events_head'))}</h2><div class="drow">${
-    d.data.upcoming.map(e => `<a class="ecard${e.live ? ' islive' : ''}" href="/e/${e.id}"><div class="ecover">${e.live ? `<span class="livepill"><span class="live-dot"></span>${esc(tr('live_now'))}</span>` : ''}</div><div class="etitle">${esc(e.title)}</div><div class="esub">${esc(e.host)} · ${e.live ? '<b style="color:#e5484d">happening now</b>' : esc(e.date ?? 'soon')} · ${e.admission === 'paid' ? 'ticketed' : e.admission === 'apply' ? 'apply' : 'free'}</div>${estats(e)}</a>`).join('')
-  }</div>` : '';
+
+  // featured — the lead content: big, photo-forward PUBLIC EVENT cards (Horda is
+  // an identity-capture + events + ticketing product; events lead everywhere).
+  const admLabel = (a: string) => a === 'paid' ? 'Ticketed' : a === 'apply' ? 'Apply' : 'Free';
+  const featured = d.data.upcoming.length ? `<h2>${esc(tr('events_head'))}</h2><div class="feat">${d.data.upcoming.map(e => {
+    const big = e.coverUrl ? `<img class="fimg" src="${esc(e.coverUrl)}" alt="">` : `<img class="fimg" src="${esc(svgDataUri(bannerSvg({ name: e.title, sport: null }, defaultThemeForSport(null), { backdrop: true })))}" alt="">`;
+    const chip = e.live ? `<span class="livepill" style="top:11px;left:11px"><span class="live-dot"></span>${esc(tr('live_now'))}</span>` : `<div class="fid"><span class="fnm">${esc(admLabel(e.admission))}</span></div>`;
+    const meta = `${esc(e.host)} · ${e.live ? '<b style="color:#e5484d">happening now</b>' : esc(e.date ?? 'soon')}`;
+    return `<a class="fcard${e.live ? ' islive' : ''}" href="/e/${e.id}">${big}<div class="fscrim"></div>${chip}` +
+      `<div class="fcap"><div class="ftitle">${esc(e.title)}</div><div class="fmeta">${meta}</div><div class="fstats">${estats(e)}</div></div></a>`;
+  }).join('')}</div>` : '';
+
+  const card = (href: string, title: string, sub: string, badge: string, verified = false) =>
+    `<a class="dcard" href="${href}"><div class="dav">${avatarSvg(title)}</div><div class="dmeta"><div class="dt-title">${esc(title)}${verified ? verifiedBadge() : ''}</div><div class="dt-sub">${esc(sub)}</div></div><span class="dbadge">${esc(badge)}</span></a>`;
+
   const clubs = d.data.clubs.length ? `<h2>${esc(tr('clubs_head'))}</h2><div class="dlist">${
     d.data.clubs.map(c => card(`/club/${c.id}`, c.name, [c.sport, c.region].filter(Boolean).join(' · ') || 'club', 'club', c.verified)).join('')
   }</div>` : '';
@@ -192,10 +189,8 @@ export function renderDiscover(d: {
   .story{flex:0 0 auto;width:66px;display:flex;flex-direction:column;align-items:center;gap:8px}
   .ring{width:64px;height:64px;border-radius:50%;padding:3px;display:block;box-sizing:border-box;transition:transform .16s}
   .story:hover .ring{transform:scale(1.05)}
-  /* dark: soft white halo ring */
+  /* soft white halo ring (dark-only) */
   .ring:not(.act){background:var(--bone);box-shadow:0 0 12px rgba(237,233,223,.32)}
-  /* light: the familiar Instagram gradient ring */
-  html[data-theme="light"] .ring:not(.act){background:conic-gradient(from 135deg,#feda75,#fa7e1e,#d62976,#962fbf,#4f5bd5,#feda75);box-shadow:none}
   .ring:not(.act) img,.ring:not(.act) svg{width:100%;height:100%;border-radius:50%;object-fit:cover;display:block;border:2px solid var(--ink);box-sizing:border-box}
   .ring.act{display:flex;align-items:center;justify-content:center;border:1px solid var(--b);background:var(--s);color:var(--bone)}
   .sname{font-size:11.5px;font-weight:500;line-height:1.2;color:var(--mut);max-width:66px;text-align:center;white-space:normal}
@@ -209,7 +204,13 @@ export function renderDiscover(d: {
   .fid{position:absolute;top:11px;left:11px;display:flex;align-items:center;gap:7px;background:rgba(11,11,12,.4);backdrop-filter:blur(8px);border-radius:999px;padding:3px 11px 3px 3px}
   .fav{width:24px;height:24px;border-radius:50%;overflow:hidden;flex:0 0 auto;border:1px solid rgba(237,233,223,.22)}.fav img,.fav svg{width:100%;height:100%;object-fit:cover;display:block}
   .fnm{font-weight:500;font-size:12.5px;color:#EDE9DF;letter-spacing:.1px}
-  .fcap{position:absolute;left:14px;bottom:14px;color:#EDE9DF;font-size:12px;font-weight:500;letter-spacing:.2px;text-transform:capitalize;opacity:.9}
+  .fcap{position:absolute;left:14px;right:14px;bottom:14px;color:#EDE9DF;font-size:12px;font-weight:500;letter-spacing:.2px;text-transform:capitalize;opacity:.9}
+  .fcap .ftitle{font-weight:700;font-size:14.5px;line-height:1.15;text-transform:none;letter-spacing:-.01em}
+  .fcap .fmeta{margin-top:3px;font-size:12px;font-weight:500;text-transform:none;opacity:.92}
+  .fcap .fstats{margin-top:7px}
+  .fcap .fstats .est{color:rgba(237,233,223,.92)}
+  .fcard.islive{border-color:#e5484d}
+  .rail{margin-top:2px}
   #map{height:360px;border-radius:18px;overflow:hidden;border:1px solid var(--b);margin:2px 0;background:var(--s)}
   .hz-pin span{display:block;width:13px;height:13px;border-radius:50%;background:var(--bone);border:2px solid var(--ink);box-shadow:0 0 0 1px var(--b)}
   .leaflet-popup-content-wrapper,.leaflet-popup-tip{background:var(--ink);color:var(--bone);border:1px solid var(--b)}
@@ -240,11 +241,10 @@ export function renderDiscover(d: {
 </style></head><body class="deskrail">
   ${deskRailHtml}
   <div class="wrap">
-    ${rail}
     ${sportChips}${locRow}
+    ${rail}
     ${featured}
     ${yours}
-    ${upcoming}
     ${clubs}
     ${empty}
   </div>
@@ -253,10 +253,10 @@ export function renderDiscover(d: {
 </body></html>`;
 }
 
-// --- creator map (its own destination, like fyndafit's Creator Map) ----------
+// --- event map (its own destination) — public events plotted near you --------
 export function renderMap(d: { guest: boolean; fanId: string | null; createHref?: string; points: { name: string; region: string | null; href: string; kind: string; avatar?: string | null }[] }): string {
   const pointsJson = JSON.stringify(d.points).replace(/</g, '\\u003c');
-  return `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><link rel="icon" href="/favicon.svg"><title>Creator map — Horda</title>${THEME_BOOT}
+  return `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><link rel="icon" href="/favicon.svg"><title>Event map — Horda</title>${THEME_BOOT}
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
@@ -272,20 +272,19 @@ export function renderMap(d: { guest: boolean; fanId: string | null; createHref?
   .btn.ghost{background:transparent;color:var(--bone);border-color:var(--b)}
   .mapwrap{padding:14px 16px 0;max-width:980px;margin:0 auto}
   .mtitle{font-size:11.5px;letter-spacing:1.6px;text-transform:uppercase;font-weight:600;color:var(--mut);margin:2px 2px 10px}
-  #map{height:calc(100vh - 156px);min-height:380px;border-radius:18px;overflow:hidden;border:1px solid var(--b);background:var(--s)}
+  #map{height:calc(100vh - 118px);min-height:380px;border-radius:18px;overflow:hidden;border:1px solid var(--b);background:var(--s)}
   /* Instagram-style ring avatar markers — white halo (dark) / gradient (light), matching the landing */
   .hz-av{background:transparent !important;border:0 !important}
   .hz-av .mav{display:block;width:46px;height:46px;border-radius:50%;padding:2px;box-sizing:border-box;cursor:pointer;transition:transform .15s;background:var(--bone);box-shadow:0 0 10px rgba(237,233,223,.4)}
   .hz-av .mav:hover{transform:scale(1.1)}
-  html[data-theme="light"] .hz-av .mav{background:conic-gradient(from 135deg,#feda75,#fa7e1e,#d62976,#962fbf,#4f5bd5,#feda75);box-shadow:0 1px 6px rgba(0,0,0,.25)}
   .hz-av .mav img,.hz-av .mav .ini{width:100%;height:100%;border-radius:50%;object-fit:cover;display:block;border:2px solid var(--ink);box-sizing:border-box;background:var(--s)}
   .hz-av .mav .ini{display:flex;align-items:center;justify-content:center;font-weight:700;font-size:15px;color:var(--bone)}
-</style></head><body>
-  <header class="top"><a class="mark" href="/" aria-label="Horda">${ravenMarkCurrent(30)}</a>
-    <div class="nav">${themeToggle()}${d.guest ? `<a class="btn ghost" href="/login">Log in</a><a class="btn" href="/signup">Join free</a>` : `<a class="btn" href="/fan/${d.fanId}">Your feed →</a>`}</div></header>
+</style></head><body class="deskrail">
+  ${deskRail({ guest: d.guest, fanId: d.fanId, active: 'explore' })}
+  ${backButton('/')}
   <div class="mapwrap">
-    <div class="mtitle">Creator map · athletes &amp; clubs near you</div>
-    <div id="map" role="img" aria-label="Map of athletes and clubs"></div>
+    <div class="mtitle">Event map · public events near you</div>
+    <div id="map" role="img" aria-label="Map of public events"></div>
   </div>
   ${bottomNav({ active: 'explore', guest: d.guest, fanId: d.fanId, createHref: d.createHref })}
   <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
@@ -890,9 +889,6 @@ export function renderSettings(d: { fanId: string; fanName: string; email?: stri
     <h1>Settings</h1>
     <div class="setgroup"><div class="seth">Account</div>
       <div class="setbar"><span>Signed in${d.email ? `<span class="setsub">${esc(d.email)}</span>` : ''}</span></div>
-    </div>
-    <div class="setgroup"><div class="seth">Appearance</div>
-      <div class="setbar"><span>Theme</span>${themeToggle()}</div>
     </div>
     ${creatorRows}
     ${group('Your Horda', row('Your Record', '/record', 'Where you actually showed up') + row('Your profile & feed', `/fan/${esc(d.fanId)}`) + row('Following — My Hordas', `/fan/${esc(d.fanId)}#hordas`))}
