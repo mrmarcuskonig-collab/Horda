@@ -1,0 +1,21 @@
+import { PGliteDatabase, applySchema } from './src/db/index.ts';
+import { readdirSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
+const db = await PGliteDatabase.open();
+const dir = 'db/migrations';
+const files = readdirSync(dir).filter(f=>f.endsWith('.sql')).sort();
+// simulate a legacy DB: apply ONLY 0001..0016 the old (untracked) way
+for (const f of files) if (f.slice(0,4) <= '0016') await db.exec(readFileSync(join(dir,f),'utf8'));
+const colLevel = async () => (await db.query(`SELECT 1 FROM information_schema.columns WHERE table_name='membership_tier' AND column_name='level'`)).rows.length;
+console.log('level col BEFORE (expect 0):', await colLevel());
+const applied = await applySchema(db, dir);
+console.log('tracker applied:', applied.join(', ') || '(none)');
+console.log('level col AFTER (expect 1):', await colLevel());
+console.log('loyalty_event exists:', (await db.query(`SELECT to_regclass('public.loyalty_event') x`)).rows[0].x);
+console.log('account.role exists:', (await db.query(`SELECT 1 FROM information_schema.columns WHERE table_name='account' AND column_name='role'`)).rows.length);
+console.log('membership.stripe_subscription_id exists:', (await db.query(`SELECT 1 FROM information_schema.columns WHERE table_name='membership' AND column_name='stripe_subscription_id'`)).rows.length);
+console.log('password_reset exists:', (await db.query(`SELECT to_regclass('public.password_reset') x`)).rows[0].x);
+console.log('post_visibility has supporter+clubhouse:', (await db.query(`SELECT count(*)::int n FROM pg_enum e JOIN pg_type t ON t.oid=e.enumtypid WHERE t.typname='post_visibility' AND e.enumlabel IN ('supporter','clubhouse')`)).rows[0].n);
+const again = await applySchema(db, dir);
+console.log('SECOND run applied (expect none):', again.join(', ') || '(none)');
+await db.close(); process.exit(0);

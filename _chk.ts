@@ -1,5 +1,13 @@
-import { generateProfile } from './src/web/profilegen.ts';
-const g = await generateProfile({ kind:'athlete', description:`I'm Rico "The Raven" Vargas, a southpaw welterweight boxer out of Kreuzberg, Berlin. Dark, intense, fight-week.` });
-console.log('name:', g.displayName, '| handle:', g.handle, '| headline:', g.headline, '| tagline:', g.tagline);
-console.log('cover has RAVEN:', g.cover.toUpperCase().includes('RAVEN'), '| BOXING kicker:', g.cover.toUpperCase().includes('BOXING'));
-process.exit(0);
+import { startServer } from './src/web/server.ts';
+const app = await startServer(0);
+const base = `http://localhost:${app.port}`;
+const ath = await (await fetch(base+'/athletes')).text();
+const fanId = app.ids.fanId;
+const fan = await (await fetch(base+'/fan/'+fanId)).text();
+const rico = app.ids.athletes[0].id;
+const apage = await (await fetch(base+'/athlete/'+rico)).text();
+console.log('/athletes has fee-trust copy:', ath.includes('Fair by design') && ath.includes('never raise your rate'));
+console.log('/athlete tier card annual-default note:', apage.includes('annnote') || apage.includes('/yr'));
+console.log('/athlete has tcol (annual stacked primary):', apage.includes('class="tcol"'));
+console.log('/fan checklist present-or-complete (ok either):', fan.includes('Finish setting up') || true);
+await app.close(); process.exit(0);

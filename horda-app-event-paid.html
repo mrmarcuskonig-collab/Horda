@@ -1,0 +1,221 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1"><link rel="icon" href="/favicon.svg"><title>Season launch night — Horda</title>
+<style>
+  
+  :root{color-scheme:dark;--ink:#0B0B0C;--bone:#EDE9DF;--s:rgba(237,233,223,.05);--b:rgba(237,233,223,.16);--mut:rgba(237,233,223,.6);--scrim:rgba(11,11,12,.82)}
+
+  .thm{display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:999px;border:1.5px solid var(--b);background:transparent;color:var(--bone);cursor:pointer;padding:0;flex:0 0 auto}.thm:hover{border-color:var(--bone)}.thm svg{display:block}
+  .vbadge{display:inline-flex;vertical-align:-2px;margin-left:4px;color:currentColor}.vbadge svg{display:block}
+  .bnav{position:fixed;left:0;right:0;bottom:0;z-index:40;border-top:1px solid var(--b);background:var(--scrim);backdrop-filter:blur(14px)}
+  .bninner{max-width:680px;margin:0 auto;display:flex;justify-content:space-around;align-items:center;padding:11px 6px calc(11px + env(safe-area-inset-bottom))}
+  .bnav a{flex:1;max-width:130px;display:flex;align-items:center;justify-content:center;color:var(--mut);padding:3px 0}
+  .bnav a.on{color:var(--bone)}
+  .bnav a:hover{color:var(--bone)}
+  .bnav svg{width:25px;height:25px;display:block}
+  /* Desktop: lift the bar into a vertical rail on the LEFT (Instagram pattern),
+     sitting in the left gutter so it never overlaps the centred 680px column. */
+  @media(min-width:1024px){
+    .bnav{top:0;right:auto;bottom:0;width:74px;border-top:0;border-right:1px solid var(--b);background:transparent;backdrop-filter:none}
+    .bninner{flex-direction:column;justify-content:flex-start;align-items:center;gap:8px;height:100%;max-width:none;padding:80px 0 0}
+    .bnav a{flex:0 0 auto;max-width:none;width:46px;height:46px;border-radius:13px}
+    .bnav a.on{background:var(--s)}
+    .bnav a:hover{background:var(--s)}
+  }
+  /* --- polish layer (mobile-first, IG/TikTok idiom) --- */
+  .btn,button{transition:transform .12s ease,opacity .12s ease,background .15s ease,border-color .15s ease}
+  .btn:active,button:active{transform:scale(.97)}
+  .btn:hover,button:hover{opacity:.92}
+  .card{transition:border-color .15s ease}
+  /* Poster hero: full-bleed media with a legibility scrim + overlaid title */
+  .poster{position:relative;margin:0 -18px;height:min(78vw,420px);overflow:hidden}
+  .poster>img,.poster>video{width:100%;height:100%;object-fit:cover;display:block}
+  .poster::after{content:"";position:absolute;inset:0;background:linear-gradient(to top,var(--ink) 2%,rgba(11,11,12,.35) 42%,transparent 72%)}
+  .poster .pcap{position:absolute;left:18px;right:18px;bottom:16px;z-index:2}
+  .poster .pkick{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:800;letter-spacing:1.5px;text-transform:uppercase;background:var(--bone);color:var(--ink);border-radius:999px;padding:4px 11px;margin-bottom:10px}
+  .poster .ptitle{font-size:clamp(26px,8vw,42px);font-weight:800;line-height:1.02;letter-spacing:-.01em;text-shadow:0 2px 24px rgba(0,0,0,.5)}
+  .poster .pmeta{margin-top:8px;font-size:13px;color:rgba(237,233,223,.85);display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+  .live-dot{width:8px;height:8px;border-radius:50%;background:#e5484d;box-shadow:0 0 0 4px rgba(229,72,77,.25);display:inline-block}
+  /* Sticky action bar — the persistent primary CTA (event/crowd pages) */
+  .actionbar{position:fixed;left:0;right:0;bottom:calc(54px + env(safe-area-inset-bottom));z-index:45;background:var(--scrim);backdrop-filter:blur(16px);border-top:1px solid var(--b);border-bottom:1px solid var(--b);padding:10px 16px}
+  .actionbar .abin{max-width:680px;margin:0 auto;display:flex;align-items:center;gap:12px}
+  .actionbar .ablabel{flex:1;min-width:0;line-height:1.15}
+  .actionbar .abt{font-size:14px;font-weight:800}.actionbar .abs{font-size:11.5px;color:var(--mut)}
+  .actionbar .btn,.actionbar button{padding:12px 22px;font-size:15px;white-space:nowrap}
+  @media(min-width:1024px){.actionbar{left:74px;bottom:0}}
+  /* language pill toggle (settings) */
+  .lgtog{display:inline-flex;gap:2px;border:1px solid var(--b);border-radius:999px;padding:2px;background:transparent}
+  .lgp{font-size:11.5px;font-weight:700;letter-spacing:.3px;color:var(--mut);border-radius:999px;padding:4px 11px}
+  .lgp.on{background:var(--bone);color:var(--ink)}
+  .lgp:not(.on):hover{color:var(--bone)}
+  /* TikTok-style desktop left rail (labelled). Hidden on mobile; the bottom
+     tab bar takes over there. Shown from 1024px, sitting in the left gutter. */
+  /* consistent floating back button (no page headers) — top-left, over content;
+     offset past the rail on desktop so it never overlaps the nav. */
+  .hz-back{position:fixed;top:12px;left:12px;z-index:60;display:inline-flex;align-items:center;justify-content:center;width:38px;height:38px;border-radius:999px;border:1px solid var(--b);background:var(--scrim);backdrop-filter:blur(10px);color:var(--bone);text-decoration:none;cursor:pointer;padding:0}
+  .hz-back:hover{border-color:var(--bone)}.hz-back svg{display:block}
+  .drail{display:none}
+  @media(min-width:1024px){
+    .drail{display:flex;flex-direction:column;position:fixed;left:0;top:0;bottom:0;width:236px;border-right:1px solid var(--b);background:var(--ink);padding:20px 14px 16px;z-index:50;overflow-y:auto}
+    body.deskrail{padding-left:236px}
+    body.deskrail .bnav{display:none}
+    body.deskrail .top{display:none}
+    body.deskrail .hz-back{left:250px}   /* clear the fixed rail */
+  }
+  .dr-logo{display:flex;align-items:center;gap:9px;padding:2px 8px 16px;color:var(--bone)}
+  .dr-logo b{font-size:19px;font-weight:800;letter-spacing:-.02em}
+  .dr-search{display:block;margin:0 4px 14px}
+  .dr-search input{width:100%;background:var(--s);border:1px solid var(--b);border-radius:999px;color:var(--bone);padding:9px 14px;font:inherit;font-size:13px}
+  .dr-search input:focus{outline:none;border-color:var(--bone)}.dr-search input::placeholder{color:var(--mut)}
+  .dr-nav{display:flex;flex-direction:column;gap:2px}
+  .dr-item{display:flex;align-items:center;gap:14px;padding:11px 12px;border-radius:12px;color:var(--bone);font-size:16px;font-weight:600}
+  .dr-item svg{width:26px;height:26px;flex:0 0 auto}
+  .dr-item:hover{background:var(--s)}
+  .dr-item.on{color:var(--bone)}.dr-item.on svg{color:#e5484d}
+  .dr-item .dr-badge{margin-left:auto;background:#e5484d;color:#fff;font-size:11px;font-weight:800;min-width:19px;height:19px;border-radius:999px;display:inline-flex;align-items:center;justify-content:center;padding:0 5px}
+  .dr-sep{height:1px;background:var(--b);margin:14px 8px}
+  .dr-set{display:flex;flex-direction:column;gap:10px;padding:0 8px}
+  .dr-srow{display:flex;align-items:center;justify-content:space-between;gap:10px}
+  .dr-slabel{font-size:13px;color:var(--mut);font-weight:500}
+  .dr-foot{margin-top:auto;padding:14px 8px 4px;display:flex;flex-direction:column;gap:8px}
+  *{margin:0;box-sizing:border-box}
+  body{background:var(--ink);color:var(--bone);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif;line-height:1.45;padding:0 18px 96px}
+  .hz-main{max-width:680px;margin:0 auto}
+  a{color:inherit}
+  .top{display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--b);padding:12px 0 9px;position:sticky;top:0;background:var(--ink);z-index:5}
+  .mark{display:flex;align-items:center;text-decoration:none;color:var(--bone)}.mark svg{display:block}
+  h1{font-size:30px;font-weight:800;letter-spacing:.4px;margin:22px 0 2px;text-transform:uppercase}
+  h2{font-size:12px;letter-spacing:2px;text-transform:uppercase;font-weight:800;margin:26px 0 10px;border-bottom:1px solid var(--b);padding-bottom:6px}
+  .mut{color:var(--mut)}
+  .rec{font-variant-numeric:tabular-nums}
+  .big{font-size:40px;font-weight:800;letter-spacing:1px;font-variant-numeric:tabular-nums;margin:6px 0}
+  ul{list-style:none}
+  li{display:flex;align-items:center;gap:10px;padding:11px 0;border-bottom:1px solid var(--b);font-size:14px}
+  li .hl{flex:1}
+  .dt{color:var(--mut);font-size:12px;white-space:nowrap}
+  .tag{font-size:10.5px;font-weight:800;letter-spacing:1px;border:1.5px solid var(--bone);border-radius:6px;padding:1px 7px;white-space:nowrap}
+  .tag.mutd{color:var(--mut);border-color:var(--b);font-weight:700}
+  .tag.win,.tag.ok{background:var(--bone);color:var(--ink)}
+  .card{background:var(--s);border:1px solid var(--b);border-radius:12px;padding:14px 16px;margin:10px 0}
+  .post{font-size:15px}
+  table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums;font-size:14px}
+  th,td{text-align:right;padding:7px 4px;border-bottom:1px solid var(--b)}
+  th:nth-child(2),td.t{text-align:left}
+  th{font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--mut)}
+  td.pts{font-weight:800}
+  tr.me{background:var(--bone);color:var(--ink)}
+  form{display:inline}
+  button{font:inherit;font-weight:800;letter-spacing:.5px;cursor:pointer;background:var(--bone);color:var(--ink);border:1.5px solid var(--bone);border-radius:999px;padding:9px 16px;font-size:14px}
+  button.ghost{background:transparent;color:var(--bone)}
+  .btn{display:inline-block;background:var(--bone);color:var(--ink);font-weight:800;border:1.5px solid var(--bone);border-radius:999px;padding:9px 16px;font-size:14px}
+  .btn.ghost{background:transparent;color:var(--bone)}
+  .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:12px 0}
+  .prov{margin-top:28px;color:var(--mut);font-size:11px;border-top:1px solid var(--b);padding-top:12px}
+  .backx{display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:999px;border:1.5px solid var(--b);color:var(--bone);font-size:22px;line-height:1;text-decoration:none;padding-bottom:2px}.backx:hover{border-color:var(--bone)}
+</style></head><body class="deskrail">
+  <aside class="drail">
+    <a class="dr-logo" href="/" aria-label="Horda"><svg width="26" height="26" viewBox="2 47 166 141" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Horda"><path fill="currentColor" fill-rule="evenodd" d="M12,100 L68,80 L84,60 L120,55 L140,58 L156,74 L158,104 L150,132 L140,160 L128,176 L106,180 L84,152 L62,120 Z M98,82 L110,76 L113,80 L101,86 Z"/></svg><b>Horda</b></a>
+    <form class="dr-search" method="get" action="/"><input name="region" value="" placeholder="Search city or sport" autocomplete="off" aria-label="Search city or sport"></form>
+    <nav class="dr-nav" aria-label="Primary">
+      <a class="dr-item" href="/"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m15.2 8.8-2 4.4-4.4 2 2-4.4 4.4-2Z"/></svg><span>Explore</span></a>
+      <a class="dr-item" href="/signup"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.4"/><path d="M3.5 20c0-3.4 2.7-5.6 5.5-5.6S14.5 16.6 14.5 20"/><path d="M17 8.5v5M14.5 11h5"/></svg><span>Following</span></a>
+      
+      <a class="dr-item" href="/create"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="3.5" width="17" height="17" rx="5"/><path d="M12 8v8M8 12h8"/></svg><span>Create event</span></a>
+      <a class="dr-item" href="/settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="3.6"/><path d="M5.5 20c0-3.7 2.9-6.2 6.5-6.2S18.5 16.3 18.5 20"/></svg><span>Profile</span></a>
+    </nav>
+    <div class="dr-sep"></div>
+    <div class="dr-set"><div class="dr-srow"><span class="dr-slabel">Language</span><span class="lgtog" role="group" aria-label="Language"><a class="lgp" href="/set-lang?l=de&next=%2F" aria-label="Deutsch">DE</a><a class="lgp on" href="/set-lang?l=en&next=%2F" aria-label="English">EN</a></span></div></div>
+    <div class="dr-foot"><a class="btn ghost" href="/login">Log in</a><a class="btn" href="/signup">Join free</a></div>
+  </aside>
+  <a class="hz-back" href="/club/6471b0d3-7f06-4786-aee4-a23389dea2ca" aria-label="Back" title="Back"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 5-7 7 7 7"/></svg></a>
+  <div class="hz-main">
+  <div style="height:40px"></div>
+  
+  <style>
+    .evgrid{display:grid;grid-template-columns:300px 1fr;gap:30px;align-items:start;margin-top:6px}
+    @media(max-width:680px){.evgrid{grid-template-columns:1fr;gap:18px}}
+    .evside{position:sticky;top:66px}
+    @media(max-width:680px){.evside{position:static}}
+    .evcover{width:100%;aspect-ratio:1/1;border-radius:16px;border:1px solid var(--b);object-fit:cover;display:block;background:var(--s)}
+    .evcover.ph{display:flex;align-items:flex-end;padding:16px;font-weight:600;letter-spacing:4px;text-transform:uppercase;color:var(--mut);background:radial-gradient(120% 120% at 70% 20%,var(--s),transparent 60%),var(--ink)}
+    .hostrow{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:16px;padding-top:14px;border-top:1px solid var(--b)}
+    .hk{font-size:11px;letter-spacing:1px;text-transform:uppercase;color:var(--mut)}
+    .hn{font-weight:600;font-size:15px}.hn a:hover{border-bottom:1px solid var(--b)}
+    .sidelinks{margin-top:14px;display:flex;flex-direction:column;gap:9px;font-size:13px;color:var(--mut)}
+    .sidelinks a:hover{color:var(--bone)}
+    .evtag{display:inline-block;margin-top:14px;font-size:12px;color:var(--mut);border:1px solid var(--b);border-radius:999px;padding:4px 12px}
+    .evtitle{font-size:30px;line-height:1.12;font-weight:600;letter-spacing:-.02em;margin:0 0 16px}
+    .ww{display:flex;gap:13px;align-items:center;padding:9px 0}
+    .ww .wi{width:42px;height:42px;flex:0 0 auto;border:1px solid var(--b);border-radius:11px;display:flex;align-items:center;justify-content:center;color:var(--bone)}
+    .ww .wi svg{width:21px;height:21px}
+    .ww .cal{flex-direction:column;gap:0;font-weight:600;line-height:1}.ww .cal .m{font-size:9px;letter-spacing:1px;color:var(--mut)}.ww .cal .d{font-size:17px}
+    .ww .wt{font-size:14.5px;font-weight:500}.ww .ws{font-size:12.5px;color:var(--mut);margin-top:1px}
+    .ww .ws a{border-bottom:1px solid var(--b)}
+    .regcard{border:1px solid var(--b);border-radius:16px;background:var(--s);padding:16px;margin:18px 0}
+    .regcard .rt{font-size:12px;letter-spacing:1.5px;text-transform:uppercase;color:var(--mut);font-weight:600;border-bottom:1px solid var(--b);padding-bottom:9px;margin-bottom:12px}
+    .regcard .rsub{font-size:13.5px;color:var(--mut);margin-bottom:12px}
+    .h3{font-size:11.5px;letter-spacing:1.5px;text-transform:uppercase;font-weight:600;color:var(--bone);margin:22px 0 9px}
+    .desc{font-size:15px;line-height:1.65;margin:8px 0 0;white-space:pre-wrap}
+    .rsvp{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0}form{display:inline}
+    .rb{display:inline-block;font:inherit;font-size:14px;font-weight:600;border:1px solid var(--b);color:var(--bone);background:transparent;border-radius:999px;padding:9px 16px;cursor:pointer;text-decoration:none}
+    .rb:hover{border-color:var(--bone)}
+    .rb.sm{font-size:12.5px;padding:6px 13px}
+    /* primary = an action to take (outlined, emphasized); on = your current selection (filled) */
+    .rb.p{background:transparent;color:var(--bone);border-color:var(--bone);font-weight:700}.rb.p:hover{background:rgba(237,233,223,.08)}
+    .rb.on{background:var(--bone);color:var(--ink);border-color:var(--bone)}
+    .rb.block{display:block;width:100%;text-align:center;padding:12px;font-size:15px}
+    .myr{font-size:14px;margin:4px 0}.admtag{font-size:10px;font-weight:600;letter-spacing:1px;text-transform:uppercase;border:1px solid var(--b);color:var(--mut);border-radius:999px;padding:3px 10px}
+    .tk{font-weight:600;margin:6px 0 10px}.tkin{background:var(--ink);border:1px solid var(--b);border-radius:999px;color:var(--bone);padding:8px 12px;font:inherit;width:120px;margin-right:6px}
+  </style>
+  <div class="poster">
+    <div style="width:100%;height:100%;background:radial-gradient(130% 130% at 70% 8%,rgba(237,233,223,.12),transparent 55%),var(--ink)"></div>
+    <div class="pcap">
+      <span class="pkick">Ticketed</span>
+      <div class="ptitle">Season launch night</div>
+      <div class="pmeta"><span>Sat 01 Aug 2026 · 19:00</span><span>Vereinsheim, FC Beispiel</span></div>
+    </div>
+  </div>
+  <div class="evgrid">
+    <aside class="evside">
+      <div class="hostrow" style="border-top:0;padding-top:0;margin-top:2px"><div><div class="hk">Hosted by</div><div class="hn"><a href="/club/6471b0d3-7f06-4786-aee4-a23389dea2ca">FC Beispiel</a></div></div><form method="post" action="/follow"><input type="hidden" name="fan_id" value="dad0f6f1-f03f-4313-bd88-64dab5a975cb"><input type="hidden" name="target_type" value="club"><input type="hidden" name="target_id" value="6471b0d3-7f06-4786-aee4-a23389dea2ca"><button class="rb sm" type="submit">Follow</button></form></div>
+      <div class="sidelinks">
+        <a href="/club/6471b0d3-7f06-4786-aee4-a23389dea2ca">Contact the host →</a>
+        <a href="/e/5d1df232-fa91-4b64-a2aa-8aa414ab1dbd/ics">＋ Add to calendar</a>
+      </div>
+      <span class="evtag"># Ticketed</span>
+    </aside>
+
+    <main class="evmain">
+      <div id="claim"><div class="card"><strong>You host this.</strong><div class="row" style="margin-top:8px"><a class="btn" href="/e/5d1df232-fa91-4b64-a2aa-8aa414ab1dbd/check-in">Open check-in →</a><a class="btn ghost" href="/manage/5d1df232-fa91-4b64-a2aa-8aa414ab1dbd">Manage &amp; attendance →</a></div></div></div>
+
+      <div class="ww"><div class="wi cal"><span class="m">AUG</span><span class="d">1</span></div>
+        <div><div class="wt">Sat 01 Aug 2026</div><div class="ws">19:00 · capacity 200</div></div></div>
+      <div class="ww"><div class="wi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><path d="M12 21c4-4.5 6-7.9 6-10.7a6 6 0 1 0-12 0C6 13.1 8 16.5 12 21Z"/><circle cx="12" cy="10.4" r="2.2"/></svg></div><div><div class="wt">Vereinsheim, FC Beispiel</div><div class="ws"><a href="https://www.google.com/maps/search/?api=1&query=Vereinsheim%2C%20FC%20Beispiel" target="_blank" rel="noopener">Open in Maps ↗</a></div></div></div>
+
+      
+      <div class="h3">Your ticket</div>
+      <div class="tk">🎟 You hold a ticket</div>
+      <div class="rsvp">
+        <form method="post" action="/ticket/gift"><input type="hidden" name="ticket_id" value="61669dce-369d-4034-a1a0-73b004b9d9da"><input type="hidden" name="event_id" value="5d1df232-fa91-4b64-a2aa-8aa414ab1dbd"><input name="to_handle" placeholder="@handle" class="tkin"><button class="rb" type="submit">Gift</button></form>
+        <form method="post" action="/ticket/list"><input type="hidden" name="ticket_id" value="61669dce-369d-4034-a1a0-73b004b9d9da"><input type="hidden" name="event_id" value="5d1df232-fa91-4b64-a2aa-8aa414ab1dbd"><input name="price" type="number" min="0" step="0.5" placeholder="resell €" class="tkin"><button class="rb" type="submit">Sell</button></form>
+      </div><div class="h3">Resale</div><div class="rsvp"><form method="post" action="/ticket/buy"><input type="hidden" name="ticket_id" value="424964d8-de01-4c50-8767-db101a999242"><input type="hidden" name="event_id" value="5d1df232-fa91-4b64-a2aa-8aa414ab1dbd"><input type="hidden" name="fan_id" value="dad0f6f1-f03f-4313-bd88-64dab5a975cb"><button class="rb p" type="submit">Buy €18 · from Rieke</button></form></div>
+
+      <div class="h3">About this event</div><p class="desc">Meet the squad for the new Kreisliga A season. Bratwurst, the new kit, and the fixture reveal.</p>
+
+      <div class="h3">Location</div><p class="desc" style="margin-bottom:8px">Vereinsheim, FC Beispiel</p><div class="rsvp"><a class="rb" href="https://www.google.com/maps/search/?api=1&query=Vereinsheim%2C%20FC%20Beispiel" target="_blank" rel="noopener">Open in Maps ↗</a></div>
+
+      <div class="h3">More</div>
+      <div class="rsvp"><button type="button" class="rb" data-t="Season launch night" aria-label="Share" onclick="(function(b){var u=location.href,t=b.getAttribute('data-t')||document.title;if(navigator.share){navigator.share({title:t,url:u}).catch(function(){})}else if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(u).then(function(){var o=b.innerHTML;b.innerHTML='Link copied ✓';setTimeout(function(){b.innerHTML=o},1600)})}else{prompt('Copy this link',u)}})(this)"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:5px"><circle cx="6" cy="12" r="2.4"/><circle cx="17.5" cy="6" r="2.4"/><circle cx="17.5" cy="18" r="2.4"/><path d="m8.2 10.9 7.1-3.8M8.2 13.1l7.1 3.8"/></svg>Share</button><a class="rb" href="/e/5d1df232-fa91-4b64-a2aa-8aa414ab1dbd/ics">＋ Add to calendar</a><a class="rb" href="/manage/5d1df232-fa91-4b64-a2aa-8aa414ab1dbd">Manage</a></div>
+      <div class="cap" style="margin-top:18px">Share on your profile</div><div class="rsvp"><form method="post" action="/feature"><input type="hidden" name="feat_kind" value="athlete"><input type="hidden" name="feat_id" value="40503217-2a37-4a90-bae0-c15e72841563"><input type="hidden" name="event_id" value="5d1df232-fa91-4b64-a2aa-8aa414ab1dbd"><button class="rb" type="submit">Feature on Rico</button></form><form method="post" action="/feature"><input type="hidden" name="feat_kind" value="team"><input type="hidden" name="feat_id" value="bde86231-4c97-4c19-970c-ef1f8453cfa0"><input type="hidden" name="event_id" value="5d1df232-fa91-4b64-a2aa-8aa414ab1dbd"><button class="rb" type="submit">Feature on FC</button></form><form method="post" action="/feature"><input type="hidden" name="feat_kind" value="association"><input type="hidden" name="feat_id" value="4939f94d-3788-4a82-9671-e6df9f9a1cd9"><input type="hidden" name="event_id" value="5d1df232-fa91-4b64-a2aa-8aa414ab1dbd"><button class="rb" type="submit">Feature on Berliner</button></form></div>
+      <div class="prov">Public event · viewing is open; attending needs a free account. Calendar export &amp; watch links are open to members.</div>
+    </main>
+  </div>
+  <div style="height:76px"></div><div class="actionbar"><div class="abin"><div class="ablabel"><div class="abt">Season launch night</div><div class="abs">0 claimed</div></div><a class="btn" href="/e/5d1df232-fa91-4b64-a2aa-8aa414ab1dbd/check-in">Check-in</a></div></div>
+  </div>
+  <nav class="bnav" aria-label="Primary"><div class="bninner">
+    <a href="/" class="" aria-label="Home" title="Home"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 10.6 12 3l9 7.6"/><path d="M5.2 9.4V20h13.6V9.4"/></svg></a>
+    <a href="/map" class="" aria-label="Explore" title="Explore"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="m20 20-3.7-3.7"/></svg></a>
+    
+    <a href="/signup" class="" aria-label="Following — your Hordas" title="Following — your Hordas"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20S3 14.6 3 8.9C3 6 5.1 4 7.7 4c1.8 0 3.3 1 4.3 2.4C13 5 14.5 4 16.3 4 18.9 4 21 6 21 8.9 21 14.6 12 20 12 20Z"/></svg></a>
+    <a href="/signup" class="" aria-label="You" title="You"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="3.6"/><path d="M5.5 20c0-3.7 2.9-6.2 6.5-6.2S18.5 16.3 18.5 20"/></svg></a>
+  </div></nav>
+</body></html>

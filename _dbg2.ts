@@ -1,0 +1,17 @@
+import { startServer } from './src/web/server.ts';
+const app = await startServer(0); const base=`http://localhost:${app.port}`;
+const enc=(o:any)=>new URLSearchParams(o);
+const post=(o:any,c?:string)=>({method:'POST' as const,redirect:'manual' as const,headers:{'content-type':'application/x-www-form-urlencoded',...(c?{cookie:c}:{})},body:enc(o)});
+const sc=await fetch(base+'/signup',post({email:'z@x.com',name:'Z',password:'secret123',next:'/onboarding/athlete'}));
+const cc=(sc.headers.get('set-cookie')||'').split(';')[0];
+const pub=await fetch(base+'/onboarding/athlete',post({name:'Zed',handle:'zed',tagline:'t',bio:'b',cover:'x',avatar:'a',banner:'b',sport:'boxing'},cc));
+const aid=(pub.headers.get('location')||'').split('/').pop()!;
+console.log('aid',aid,'pub',pub.status);
+const order=JSON.stringify([{key:'record',on:true},{key:'drops',on:false},{key:'events',on:false},{key:'media',on:false},{key:'merch',on:false},{key:'connected',on:false},{key:'nextup',on:false},{key:'results',on:false}]);
+const sv=await fetch(base+'/athlete/'+aid+'/layout',post({order},cc));
+console.log('layout POST status',sv.status,'loc',sv.headers.get('location'));
+const row=(await app.db.query<{layout:any,sport:string,account_id:string}>(`SELECT layout, sport, account_id FROM athlete WHERE id=$1`,[aid])).rows[0];
+console.log('DB layout:',JSON.stringify(row.layout),'sport',row.sport,'has_account',!!row.account_id);
+const pg=await (await fetch(base+'/athlete/'+aid,{headers:{cookie:cc}})).text();
+console.log('page has W/L/D:',pg.includes('Win / Loss / Draw'),'| has >Media<:',pg.includes('>Media<'),'| has Customize:',pg.includes('/customize'));
+await app.close();process.exit(0);

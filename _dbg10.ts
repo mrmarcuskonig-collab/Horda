@@ -1,0 +1,11 @@
+import { startServer } from './src/web/server.ts';
+const app:any = await startServer(0);
+const base=`http://localhost:${app.port}`, rico=app.ids.athletes[0].id;
+const mf = new URLSearchParams({ host_kind:'athlete', host_id:rico, title:'MF Test', starts_at:'2027-05-01T19:00', location_kind:'hybrid', location:'X', admission:'open', fmt_inperson:'1', fmt_inperson_price:'25', fmt_stream1_label:'TikTok Live', fmt_stream1_url:'https://tiktok.com/@x/live' });
+const r = await fetch(base+'/events',{method:'POST',headers:{'content-type':'application/x-www-form-urlencoded'},body:mf.toString(),redirect:'manual'});
+const id=(r.headers.get('location')||'').match(/\/e\/([^/?]+)/)[1];
+const p = await (await fetch(base+`/e/${id}?guest=1`)).text();
+console.log('formats count', (p.match(/name="format_id"/g)||[]).length, 'root?', p.includes('Root for them'), 'support fmt in db:', (await app.db.query(`SELECT count(*)::int n FROM event_format WHERE event_id=$1 AND kind='support'`,[id])).rows[0].n);
+const ag = await (await fetch(base+`/athlete/${rico}?guest=1`)).text();
+console.log('guest athlete btn join?', ag.includes('class="btn join"'), 'crowd banner?', ag.includes("'s crowd</strong>"));
+process.exit(0);

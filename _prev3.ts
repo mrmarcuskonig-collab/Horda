@@ -1,0 +1,11 @@
+import { writeFileSync } from 'node:fs';
+import { startServer } from './src/web/server.ts';
+import { createScheduledEvent } from './src/db/events_repo.ts';
+import { notify } from './src/db/notif_repo.ts';
+const app:any = await startServer(0);
+const base=`http://localhost:${app.port}`, rico=app.ids.athletes[0].id, db=app.db, fan=app.ids.fanId;
+await createScheduledEvent(db,{hostKind:'athlete',hostId:rico,title:'Fight Night — LIVE',startsAt:new Date(Date.now()-20*60000).toISOString(),location:'Berlin',admission:'open',locationKind:'hybrid'});
+await notify(db,{fanId:fan,kind:'claim_new',headline:'Alex confirmed — In person.',href:'/'});
+await notify(db,{fanId:fan,kind:'claim_new',headline:'Sarah confirmed — TikTok Live.',href:'/'});
+const t=await (await fetch(base+'/')).text(); writeFileSync('../horda-DESIGN-erkunden-loggedin.html',t); console.log('loggedin',t.length, t.includes('dr-badge')?'HAS-BADGE':'no-badge', t.includes('livepill')?'HAS-LIVE':'no-live');
+process.exit(0);

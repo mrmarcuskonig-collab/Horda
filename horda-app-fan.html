@@ -1,0 +1,165 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1"><link rel="icon" href="/favicon.svg"><title>You's Horda — Horda</title>
+<style>
+  
+  :root{color-scheme:dark;--ink:#0B0B0C;--bone:#EDE9DF;--s:rgba(237,233,223,.05);--b:rgba(237,233,223,.16);--mut:rgba(237,233,223,.6);--scrim:rgba(11,11,12,.82)}
+
+  .thm{display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:999px;border:1.5px solid var(--b);background:transparent;color:var(--bone);cursor:pointer;padding:0;flex:0 0 auto}.thm:hover{border-color:var(--bone)}.thm svg{display:block}
+  .vbadge{display:inline-flex;vertical-align:-2px;margin-left:4px;color:currentColor}.vbadge svg{display:block}
+  .bnav{position:fixed;left:0;right:0;bottom:0;z-index:40;border-top:1px solid var(--b);background:var(--scrim);backdrop-filter:blur(14px)}
+  .bninner{max-width:680px;margin:0 auto;display:flex;justify-content:space-around;align-items:center;padding:11px 6px calc(11px + env(safe-area-inset-bottom))}
+  .bnav a{flex:1;max-width:130px;display:flex;align-items:center;justify-content:center;color:var(--mut);padding:3px 0}
+  .bnav a.on{color:var(--bone)}
+  .bnav a:hover{color:var(--bone)}
+  .bnav svg{width:25px;height:25px;display:block}
+  /* Desktop: lift the bar into a vertical rail on the LEFT (Instagram pattern),
+     sitting in the left gutter so it never overlaps the centred 680px column. */
+  @media(min-width:1024px){
+    .bnav{top:0;right:auto;bottom:0;width:74px;border-top:0;border-right:1px solid var(--b);background:transparent;backdrop-filter:none}
+    .bninner{flex-direction:column;justify-content:flex-start;align-items:center;gap:8px;height:100%;max-width:none;padding:80px 0 0}
+    .bnav a{flex:0 0 auto;max-width:none;width:46px;height:46px;border-radius:13px}
+    .bnav a.on{background:var(--s)}
+    .bnav a:hover{background:var(--s)}
+  }
+  /* --- polish layer (mobile-first, IG/TikTok idiom) --- */
+  .btn,button{transition:transform .12s ease,opacity .12s ease,background .15s ease,border-color .15s ease}
+  .btn:active,button:active{transform:scale(.97)}
+  .btn:hover,button:hover{opacity:.92}
+  .card{transition:border-color .15s ease}
+  /* Poster hero: full-bleed media with a legibility scrim + overlaid title */
+  .poster{position:relative;margin:0 -18px;height:min(78vw,420px);overflow:hidden}
+  .poster>img,.poster>video{width:100%;height:100%;object-fit:cover;display:block}
+  .poster::after{content:"";position:absolute;inset:0;background:linear-gradient(to top,var(--ink) 2%,rgba(11,11,12,.35) 42%,transparent 72%)}
+  .poster .pcap{position:absolute;left:18px;right:18px;bottom:16px;z-index:2}
+  .poster .pkick{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:800;letter-spacing:1.5px;text-transform:uppercase;background:var(--bone);color:var(--ink);border-radius:999px;padding:4px 11px;margin-bottom:10px}
+  .poster .ptitle{font-size:clamp(26px,8vw,42px);font-weight:800;line-height:1.02;letter-spacing:-.01em;text-shadow:0 2px 24px rgba(0,0,0,.5)}
+  .poster .pmeta{margin-top:8px;font-size:13px;color:rgba(237,233,223,.85);display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+  .live-dot{width:8px;height:8px;border-radius:50%;background:#e5484d;box-shadow:0 0 0 4px rgba(229,72,77,.25);display:inline-block}
+  /* Sticky action bar — the persistent primary CTA (event/crowd pages) */
+  .actionbar{position:fixed;left:0;right:0;bottom:calc(54px + env(safe-area-inset-bottom));z-index:45;background:var(--scrim);backdrop-filter:blur(16px);border-top:1px solid var(--b);border-bottom:1px solid var(--b);padding:10px 16px}
+  .actionbar .abin{max-width:680px;margin:0 auto;display:flex;align-items:center;gap:12px}
+  .actionbar .ablabel{flex:1;min-width:0;line-height:1.15}
+  .actionbar .abt{font-size:14px;font-weight:800}.actionbar .abs{font-size:11.5px;color:var(--mut)}
+  .actionbar .btn,.actionbar button{padding:12px 22px;font-size:15px;white-space:nowrap}
+  @media(min-width:1024px){.actionbar{left:74px;bottom:0}}
+  /* language pill toggle (settings) */
+  .lgtog{display:inline-flex;gap:2px;border:1px solid var(--b);border-radius:999px;padding:2px;background:transparent}
+  .lgp{font-size:11.5px;font-weight:700;letter-spacing:.3px;color:var(--mut);border-radius:999px;padding:4px 11px}
+  .lgp.on{background:var(--bone);color:var(--ink)}
+  .lgp:not(.on):hover{color:var(--bone)}
+  /* TikTok-style desktop left rail (labelled). Hidden on mobile; the bottom
+     tab bar takes over there. Shown from 1024px, sitting in the left gutter. */
+  /* consistent floating back button (no page headers) — top-left, over content;
+     offset past the rail on desktop so it never overlaps the nav. */
+  .hz-back{position:fixed;top:12px;left:12px;z-index:60;display:inline-flex;align-items:center;justify-content:center;width:38px;height:38px;border-radius:999px;border:1px solid var(--b);background:var(--scrim);backdrop-filter:blur(10px);color:var(--bone);text-decoration:none;cursor:pointer;padding:0}
+  .hz-back:hover{border-color:var(--bone)}.hz-back svg{display:block}
+  .drail{display:none}
+  @media(min-width:1024px){
+    .drail{display:flex;flex-direction:column;position:fixed;left:0;top:0;bottom:0;width:236px;border-right:1px solid var(--b);background:var(--ink);padding:20px 14px 16px;z-index:50;overflow-y:auto}
+    body.deskrail{padding-left:236px}
+    body.deskrail .bnav{display:none}
+    body.deskrail .top{display:none}
+    body.deskrail .hz-back{left:250px}   /* clear the fixed rail */
+  }
+  .dr-logo{display:flex;align-items:center;gap:9px;padding:2px 8px 16px;color:var(--bone)}
+  .dr-logo b{font-size:19px;font-weight:800;letter-spacing:-.02em}
+  .dr-search{display:block;margin:0 4px 14px}
+  .dr-search input{width:100%;background:var(--s);border:1px solid var(--b);border-radius:999px;color:var(--bone);padding:9px 14px;font:inherit;font-size:13px}
+  .dr-search input:focus{outline:none;border-color:var(--bone)}.dr-search input::placeholder{color:var(--mut)}
+  .dr-nav{display:flex;flex-direction:column;gap:2px}
+  .dr-item{display:flex;align-items:center;gap:14px;padding:11px 12px;border-radius:12px;color:var(--bone);font-size:16px;font-weight:600}
+  .dr-item svg{width:26px;height:26px;flex:0 0 auto}
+  .dr-item:hover{background:var(--s)}
+  .dr-item.on{color:var(--bone)}.dr-item.on svg{color:#e5484d}
+  .dr-item .dr-badge{margin-left:auto;background:#e5484d;color:#fff;font-size:11px;font-weight:800;min-width:19px;height:19px;border-radius:999px;display:inline-flex;align-items:center;justify-content:center;padding:0 5px}
+  .dr-sep{height:1px;background:var(--b);margin:14px 8px}
+  .dr-set{display:flex;flex-direction:column;gap:10px;padding:0 8px}
+  .dr-srow{display:flex;align-items:center;justify-content:space-between;gap:10px}
+  .dr-slabel{font-size:13px;color:var(--mut);font-weight:500}
+  .dr-foot{margin-top:auto;padding:14px 8px 4px;display:flex;flex-direction:column;gap:8px}
+  *{margin:0;box-sizing:border-box}
+  body{background:var(--ink);color:var(--bone);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif;line-height:1.45;padding:0 18px 96px}
+  .hz-main{max-width:680px;margin:0 auto}
+  a{color:inherit}
+  .top{display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--b);padding:12px 0 9px;position:sticky;top:0;background:var(--ink);z-index:5}
+  .mark{display:flex;align-items:center;text-decoration:none;color:var(--bone)}.mark svg{display:block}
+  h1{font-size:30px;font-weight:800;letter-spacing:.4px;margin:22px 0 2px;text-transform:uppercase}
+  h2{font-size:12px;letter-spacing:2px;text-transform:uppercase;font-weight:800;margin:26px 0 10px;border-bottom:1px solid var(--b);padding-bottom:6px}
+  .mut{color:var(--mut)}
+  .rec{font-variant-numeric:tabular-nums}
+  .big{font-size:40px;font-weight:800;letter-spacing:1px;font-variant-numeric:tabular-nums;margin:6px 0}
+  ul{list-style:none}
+  li{display:flex;align-items:center;gap:10px;padding:11px 0;border-bottom:1px solid var(--b);font-size:14px}
+  li .hl{flex:1}
+  .dt{color:var(--mut);font-size:12px;white-space:nowrap}
+  .tag{font-size:10.5px;font-weight:800;letter-spacing:1px;border:1.5px solid var(--bone);border-radius:6px;padding:1px 7px;white-space:nowrap}
+  .tag.mutd{color:var(--mut);border-color:var(--b);font-weight:700}
+  .tag.win,.tag.ok{background:var(--bone);color:var(--ink)}
+  .card{background:var(--s);border:1px solid var(--b);border-radius:12px;padding:14px 16px;margin:10px 0}
+  .post{font-size:15px}
+  table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums;font-size:14px}
+  th,td{text-align:right;padding:7px 4px;border-bottom:1px solid var(--b)}
+  th:nth-child(2),td.t{text-align:left}
+  th{font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--mut)}
+  td.pts{font-weight:800}
+  tr.me{background:var(--bone);color:var(--ink)}
+  form{display:inline}
+  button{font:inherit;font-weight:800;letter-spacing:.5px;cursor:pointer;background:var(--bone);color:var(--ink);border:1.5px solid var(--bone);border-radius:999px;padding:9px 16px;font-size:14px}
+  button.ghost{background:transparent;color:var(--bone)}
+  .btn{display:inline-block;background:var(--bone);color:var(--ink);font-weight:800;border:1.5px solid var(--bone);border-radius:999px;padding:9px 16px;font-size:14px}
+  .btn.ghost{background:transparent;color:var(--bone)}
+  .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:12px 0}
+  .prov{margin-top:28px;color:var(--mut);font-size:11px;border-top:1px solid var(--b);padding-top:12px}
+  .backx{display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:999px;border:1.5px solid var(--b);color:var(--bone);font-size:22px;line-height:1;text-decoration:none;padding-bottom:2px}.backx:hover{border-color:var(--bone)}
+</style></head><body class="deskrail">
+  <aside class="drail">
+    <a class="dr-logo" href="/" aria-label="Horda"><svg width="26" height="26" viewBox="2 47 166 141" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Horda"><path fill="currentColor" fill-rule="evenodd" d="M12,100 L68,80 L84,60 L120,55 L140,58 L156,74 L158,104 L150,132 L140,160 L128,176 L106,180 L84,152 L62,120 Z M98,82 L110,76 L113,80 L101,86 Z"/></svg><b>Horda</b></a>
+    <form class="dr-search" method="get" action="/"><input name="region" value="" placeholder="Search city or sport" autocomplete="off" aria-label="Search city or sport"></form>
+    <nav class="dr-nav" aria-label="Primary">
+      <a class="dr-item" href="/"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m15.2 8.8-2 4.4-4.4 2 2-4.4 4.4-2Z"/></svg><span>Explore</span></a>
+      <a class="dr-item" href="/fan/dad0f6f1-f03f-4313-bd88-64dab5a975cb#hordas"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.4"/><path d="M3.5 20c0-3.4 2.7-5.6 5.5-5.6S14.5 16.6 14.5 20"/><path d="M17 8.5v5M14.5 11h5"/></svg><span>Following</span></a>
+      <a class="dr-item" href="/notifications"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9a6 6 0 0 1 12 0c0 4 1.2 5.4 1.8 6.2.3.4 0 .9-.5.9H4.7c-.5 0-.8-.5-.5-.9C4.8 14.4 6 13 6 9Z"/><path d="M10 20a2 2 0 0 0 4 0"/></svg><span>Notifications</span></a>
+      <a class="dr-item" href="/create"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="3.5" width="17" height="17" rx="5"/><path d="M12 8v8M8 12h8"/></svg><span>Create event</span></a>
+      <a class="dr-item on" href="/settings" aria-current="page"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="3.6"/><path d="M5.5 20c0-3.7 2.9-6.2 6.5-6.2S18.5 16.3 18.5 20"/></svg><span>Profile</span></a>
+    </nav>
+    <div class="dr-sep"></div>
+    <div class="dr-set"><div class="dr-srow"><span class="dr-slabel">Language</span><span class="lgtog" role="group" aria-label="Language"><a class="lgp" href="/set-lang?l=de&next=%2F" aria-label="Deutsch">DE</a><a class="lgp on" href="/set-lang?l=en&next=%2F" aria-label="English">EN</a></span></div></div>
+    <div class="dr-foot"><a class="btn" href="/fan/dad0f6f1-f03f-4313-bd88-64dab5a975cb">Your feed →</a></div>
+  </aside>
+  <a class="hz-back" href="/" aria-label="Back" title="Back"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 5-7 7 7 7"/></svg></a>
+  <div class="hz-main">
+  <div style="height:40px"></div>
+  
+    <style>
+      .doorlist{display:flex;flex-direction:column;gap:8px;margin:8px 0}
+      .doorcard{display:flex;align-items:center;gap:12px;border:1px solid var(--b);border-radius:14px;padding:13px 15px;background:var(--s);text-decoration:none;color:var(--bone)}
+      .doorcard:hover{border-color:var(--bone)}
+      .uptodate{text-align:center;color:var(--mut);font-size:12px;letter-spacing:1px;text-transform:uppercase;margin:14px 0;padding-top:12px;border-top:1px solid var(--b)}
+    </style>
+    <h1>Your Horda</h1>
+    <p class="mut">You · following 2 · <a href="/record" style="border-bottom:1px solid var(--b)">your Record →</a></p>
+    <section id="actck" class="card" style="border:1px solid var(--b);border-radius:16px;padding:16px 18px;margin:0 0 14px;background:var(--s)">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:10px">
+      <strong style="font-size:15px">Finish setting up your Horda</strong>
+      <button type="button" onclick="try{localStorage.setItem('hz_act_fan','1')}catch(e){};var e=document.getElementById('actck');if(e)e.style.display='none'" style="background:transparent;border:0;color:var(--mut);font-size:12px;cursor:pointer;padding:4px">Dismiss</button>
+    </div>
+    <div style="font-size:12px;color:var(--mut);margin:3px 0 8px">0 of 3 done</div>
+    <div style="height:6px;border-radius:999px;background:var(--ink);border:1px solid var(--b);overflow:hidden;margin-bottom:6px"><span style="display:block;height:100%;width:0%;background:var(--bone)"></span></div>
+    <a href="/" style="display:flex;align-items:center;gap:11px;padding:9px 0;border-top:1px solid var(--b);color:inherit;text-decoration:none"><span style="flex:0 0 20px;width:20px;height:20px;border-radius:50%;border:1.5px solid var(--b);display:block"></span><span style="font-size:14px;">Follow 3 crowds you love</span></a><a href="/" style="display:flex;align-items:center;gap:11px;padding:9px 0;border-top:1px solid var(--b);color:inherit;text-decoration:none"><span style="flex:0 0 20px;width:20px;height:20px;border-radius:50%;border:1.5px solid var(--b);display:block"></span><span style="font-size:14px;">Claim your first event</span></a><a href="/record" style="display:flex;align-items:center;gap:11px;padding:9px 0;border-top:1px solid var(--b);color:inherit;text-decoration:none"><span style="flex:0 0 20px;width:20px;height:20px;border-radius:50%;border:1.5px solid var(--b);display:block"></span><span style="font-size:14px;">Show up — earn your first verified presence</span></a>
+  </section>
+  <script>(function(){try{if(localStorage.getItem('hz_act_fan')==='1'){var e=document.getElementById('actck');if(e)e.style.display='none'}}catch(e){}})();</script>
+    
+    <h2>Your pages</h2><p class="mut" style="font-size:12.5px;margin:-4px 0 8px">One login — your fan feed plus the pages you run. Switch between them anytime.</p><div class="card"><div class="row" style="justify-content:space-between;margin:0"><a class="hl" href="/athlete/40503217-2a37-4a90-bae0-c15e72841563">Rico 'The Raven' Vargas <span class="tag mutd">athlete</span></a><a class="tag" href="/host/athlete/40503217-2a37-4a90-bae0-c15e72841563/new">＋ Event</a></div><div class="row" style="margin:8px 0 0;padding:9px 11px;border:1px solid var(--bone);border-radius:10px;justify-content:space-between"><span style="font-size:13px">⏱ Next: <strong>Open sparring &amp; meet — Kreuzberg BC</strong> · 24 Jun</span><a class="tag" href="/e/cfc441bf-58db-44c8-ba8c-0587247f60e4/room">Open room</a></div><ul style="list-style:none;margin:8px 0 0"><li style="display:flex;align-items:center;gap:8px;padding:5px 0;border-top:1px solid var(--b)"><a class="hl" href="/e/cfc441bf-58db-44c8-ba8c-0587247f60e4" style="flex:1">Open sparring &amp; meet — Kreuzberg BC</a><span class="dt">24 Jun</span><a class="tag mutd" href="/manage/cfc441bf-58db-44c8-ba8c-0587247f60e4">Manage</a></li><li style="display:flex;align-items:center;gap:8px;padding:5px 0;border-top:1px solid var(--b)"><a class="hl" href="/e/5d1df232-fa91-4b64-a2aa-8aa414ab1dbd" style="flex:1">Season launch night</a><span class="dt">01 Aug</span><a class="tag mutd" href="/manage/5d1df232-fa91-4b64-a2aa-8aa414ab1dbd">Manage</a></li></ul></div><div class="card"><div class="row" style="justify-content:space-between;margin:0"><a class="hl" href="/club/6471b0d3-7f06-4786-aee4-a23389dea2ca">FC Beispiel <span class="tag mutd">club</span></a><a class="tag" href="/host/club/6471b0d3-7f06-4786-aee4-a23389dea2ca/new">＋ Event</a></div><div class="row" style="margin:8px 0 0;padding:9px 11px;border:1px solid var(--bone);border-radius:10px;justify-content:space-between"><span style="font-size:13px">⏱ Next: <strong>Season launch night</strong> · 01 Aug</span><a class="tag" href="/e/5d1df232-fa91-4b64-a2aa-8aa414ab1dbd/room">Open room</a></div><ul style="list-style:none;margin:8px 0 0"><li style="display:flex;align-items:center;gap:8px;padding:5px 0;border-top:1px solid var(--b)"><a class="hl" href="/e/5d1df232-fa91-4b64-a2aa-8aa414ab1dbd" style="flex:1">Season launch night</a><span class="dt">01 Aug</span><a class="tag mutd" href="/manage/5d1df232-fa91-4b64-a2aa-8aa414ab1dbd">Manage</a></li><li style="display:flex;align-items:center;gap:8px;padding:5px 0;border-top:1px solid var(--b)"><a class="hl" href="/e/dd365242-1af3-4da8-bb83-157a05a8aa8b" style="flex:1">Kreisliga A — season opening ceremony</a><span class="dt">08 Aug</span><a class="tag mutd" href="/manage/dd365242-1af3-4da8-bb83-157a05a8aa8b">Manage</a></li></ul></div><div class="card"><div class="row" style="justify-content:space-between;margin:0"><a class="hl" href="/team/bde86231-4c97-4c19-970c-ef1f8453cfa0">FC Beispiel <span class="tag mutd">team</span></a><a class="tag" href="/host/team/bde86231-4c97-4c19-970c-ef1f8453cfa0/new">＋ Event</a></div><div class="mut" style="font-size:12px;margin:8px 0 0">No upcoming event — <a href="/host/team/bde86231-4c97-4c19-970c-ef1f8453cfa0/new" style="border-bottom:1px solid var(--b)">schedule one</a> to put it on your radar.</div><p class="mut" style="font-size:12.5px;margin:6px 0 0">No events yet.</p></div><div class="card"><div class="row" style="justify-content:space-between;margin:0"><a class="hl" href="/association/4939f94d-3788-4a82-9671-e6df9f9a1cd9">Berliner Fußball-Verband <span class="tag mutd">association</span></a><a class="tag" href="/host/association/4939f94d-3788-4a82-9671-e6df9f9a1cd9/new">＋ Event</a></div><div class="row" style="margin:8px 0 0;padding:9px 11px;border:1px solid var(--bone);border-radius:10px;justify-content:space-between"><span style="font-size:13px">⏱ Next: <strong>Kreisliga A — season opening ceremony</strong> · 08 Aug</span><a class="tag" href="/e/dd365242-1af3-4da8-bb83-157a05a8aa8b/room">Open room</a></div><ul style="list-style:none;margin:8px 0 0"><li style="display:flex;align-items:center;gap:8px;padding:5px 0;border-top:1px solid var(--b)"><a class="hl" href="/e/dd365242-1af3-4da8-bb83-157a05a8aa8b" style="flex:1">Kreisliga A — season opening ceremony</a><span class="dt">08 Aug</span><a class="tag mutd" href="/manage/dd365242-1af3-4da8-bb83-157a05a8aa8b">Manage</a></li></ul></div><div class="row"><a class="tag mutd" href="/create">＋ Create another page</a></div>
+    <h2>Your doors</h2><div class="doorlist"><a class="doorcard" href="/e/5d1df232-fa91-4b64-a2aa-8aa414ab1dbd"><div style="flex:1"><div class="hl">Season launch night</div><div class="dt">Sat 01 Aug · 19:00 · Gathering</div></div><div style="text-align:right"><span class="tag mutd">200 left</span><div style="margin-top:6px" class="tag">Claim →</div></div></a></div><div class="uptodate">You're up to date.</div><h2 id="hordas">My Hordas</h2><p class="mut" style="font-size:12.5px;margin:-4px 0 8px">Everyone you follow.</p><div class="row"><a class="tag mutd" href="/athlete/40503217-2a37-4a90-bae0-c15e72841563">Rico 'The Raven' Vargas</a> <a class="tag mutd" href="/club/6471b0d3-7f06-4786-aee4-a23389dea2ca">FC Beispiel</a></div><h2>Notifications <span class="tag ok">3 new</span></h2><ul><li><span class="tag mutd">post</span><span class="hl">Rico 'The Raven' Vargas: Full sparring footage + corner audio from today’s session. Clubhouse exclusive. 🔒</span></li><li><span class="tag mutd">post</span><span class="hl">Rico 'The Raven' Vargas: Camp diary, week 3 — game plan notes for Saturday. Supporters only.</span></li><li><span class="tag mutd">post</span><span class="hl">Rico 'The Raven' Vargas: Camp is done. June 27 I take the belt. 🐦‍⬛</span></li></ul>
+    <h2>Account</h2>
+    <div class="row"><a class="tag" href="/settings">Settings</a><a class="tag mutd" href="/logout">Log out</a></div>
+    <div class="prov">Not a stream to watch — a ranked set of doors. When you've seen them, it ends.</div>
+  </div>
+  <nav class="bnav" aria-label="Primary"><div class="bninner">
+    <a href="/" class="" aria-label="Home" title="Home"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 10.6 12 3l9 7.6"/><path d="M5.2 9.4V20h13.6V9.4"/></svg></a>
+    <a href="/map" class="" aria-label="Explore" title="Explore"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="m20 20-3.7-3.7"/></svg></a>
+    <a href="/athlete/40503217-2a37-4a90-bae0-c15e72841563/compose" class="" aria-label="Create" title="Create"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="5"/><path d="M12 8.5v7M8.5 12h7"/></svg></a>
+    <a href="/fan/dad0f6f1-f03f-4313-bd88-64dab5a975cb#hordas" class="" aria-label="Following — your Hordas" title="Following — your Hordas"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20S3 14.6 3 8.9C3 6 5.1 4 7.7 4c1.8 0 3.3 1 4.3 2.4C13 5 14.5 4 16.3 4 18.9 4 21 6 21 8.9 21 14.6 12 20 12 20Z"/></svg></a>
+    <a href="/fan/dad0f6f1-f03f-4313-bd88-64dab5a975cb" class="on" aria-label="You" title="You" aria-current="page"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="3.6"/><path d="M5.5 20c0-3.7 2.9-6.2 6.5-6.2S18.5 16.3 18.5 20"/></svg></a>
+  </div></nav>
+</body></html>

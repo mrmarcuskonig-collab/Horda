@@ -1,0 +1,14 @@
+import { startServer } from './src/web/server.ts';
+import * as fs from 'node:fs';
+const app = await startServer(0); const base = 'http://127.0.0.1:' + app.port;
+const post = (b:any,c='')=>({method:'POST',headers:{'content-type':'application/x-www-form-urlencoded',...(c?{cookie:c}:{})},body:new URLSearchParams(b).toString(),redirect:'manual' as const});
+const rico = Object.values(app.ids)[0];
+await fetch(base+'/events', post({host_kind:'athlete',host_id:rico,title:'Fight Night · Kreuzberg',starts_at:'2027-09-12T20:00',location_kind:'in_person',location:'Kreuzberg Boxing Club, Berlin',admission:'open',access_mode:'ticket'}));
+const eid = (await app.db.query<{id:string}>(`SELECT id FROM event ORDER BY created_at DESC LIMIT 1`)).rows[0].id;
+const cl = await fetch(base+`/claim/${eid}`, post({name:'Marcus Fan',contact:'m@x.co'}));
+const passUrl = cl.headers.get('location')!;
+fs.writeFileSync('/tmp/prev_ticket.html', await (await fetch(base+passUrl)).text());
+fs.writeFileSync('/tmp/prev_checkin.html', await (await fetch(base+`/e/${eid}/check-in`)).text());
+fs.writeFileSync('/tmp/prev_create.html', await (await fetch(base+`/events`)).text());
+console.log('OK', passUrl);
+process.exit(0);
