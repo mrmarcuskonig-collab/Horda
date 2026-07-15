@@ -8,20 +8,21 @@ import { getAthleteSport, setAthleteSport, getAthleteLayout, setAthleteLayout, c
 let pass = 0, fail = 0;
 const ok = (n: string, c: boolean) => { console.log(`  ${c ? 'PASS' : 'FAIL'}  ${n}`); c ? pass++ : fail++; };
 
-console.log('\n[sections · per-sport defaults]');
+console.log('\n[sections · events-first section set]');
 const box = defaultLayout('boxing');
-ok('boxing leads with the W-L-D record (on by default)', box.find(s => s.key === 'record')!.on === true);
-ok('football athlete hides the record by default', defaultLayout('football').find(s => s.key === 'record')!.on === false);
+ok('leads with Next up (events-first)', box[0].key === 'nextup');
+ok('Win/Loss/Draw + Recent results are NOT offered as sections', !SECTIONS['record'] && !SECTIONS['results'] && !box.find(s => s.key === 'record') && !box.find(s => s.key === 'results'));
+ok('the offered sections are Next up, Events, Connected', box.map(s => s.key).join(',') === 'nextup,events,connected');
 ok('every default key has catalog metadata', box.every(s => !!SECTIONS[s.key]));
 
 console.log('\n[sections · resolve saved layout]');
-const saved = [{ key: 'events', on: true }, { key: 'record', on: false }, { key: 'bogus', on: true }];
+const saved = [{ key: 'events', on: true }, { key: 'nextup', on: false }, { key: 'bogus', on: true }];
 const r = resolveLayout('boxing', saved);
 ok('saved order is respected (events first)', r[0].key === 'events');
 ok('unknown keys are dropped', !r.find(s => s.key === 'bogus'));
-ok('a section turned off stays off', r.find(s => s.key === 'record')!.on === false);
+ok('a section turned off stays off', r.find(s => s.key === 'nextup')!.on === false);
 ok('newly-available sections are appended', r.length === defaultLayout('boxing').length);
-ok('null saved → sport default', resolveLayout('boxing', null)[0].key === 'record');
+ok('null saved → default (Next up first)', resolveLayout('boxing', null)[0].key === 'nextup');
 
 console.log('\n[sections · persistence + feature requests]');
 const db = await PGliteDatabase.open();
@@ -30,7 +31,7 @@ const rico = ids.athletes[0].id;
 await setAthleteSport(db, rico, 'boxing');
 ok('athlete sport persists', (await getAthleteSport(db, rico)) === 'boxing');
 ok('layout starts null (uses default)', (await getAthleteLayout(db, rico)) === null);
-await setAthleteLayout(db, rico, [{ key: 'events', on: true }, { key: 'record', on: false }]);
+await setAthleteLayout(db, rico, [{ key: 'events', on: true }, { key: 'nextup', on: false }]);
 const got = await getAthleteLayout(db, rico);
 ok('layout saved + reloads in order', !!got && got[0].key === 'events' && got[1].on === false);
 await createFeatureRequest(db, ids.demoAccountId, 'boxing', 'athlete-page', 'A sponsors section please');

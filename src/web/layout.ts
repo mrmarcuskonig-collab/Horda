@@ -44,7 +44,7 @@ export function layout(title: string, body: string, opts: { back?: string; nav?:
   *{margin:0;box-sizing:border-box}
   body{background:var(--ink);color:var(--bone);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif;line-height:1.45;padding:0 18px 96px}
   .hz-main{max-width:680px;margin:0 auto}
-  a{color:inherit}
+  a{color:inherit;text-decoration:none}
   .top{display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--b);padding:12px 0 9px;position:sticky;top:0;background:var(--ink);z-index:5}
   .mark{display:flex;align-items:center;text-decoration:none;color:var(--bone)}.mark svg{display:block}
   h1{font-size:30px;font-weight:800;letter-spacing:.4px;margin:22px 0 2px;text-transform:uppercase}

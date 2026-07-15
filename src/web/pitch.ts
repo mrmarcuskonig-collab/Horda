@@ -121,7 +121,7 @@ export function renderPitch(kind: 'athletes' | 'clubs', guest: boolean): string 
     <div class="closeb"><h3>${esc(c.close)}</h3><a class="btn" href="${cta}">${esc(c.ctaLabel)} →</a></div>
     <p class="lead" style="font-size:13px;margin-top:18px"><a href="${c.other.href}" style="border-bottom:1px solid var(--b)">${esc(c.other.label)}</a></p>
   </div>
-  <div class="prov">Coverage of real sport — never a fan‑to‑fan venue. joinhorda.com</div>
+  <div class="prov">The events home for sports and competitive culture. joinhorda.com</div>
   ${bottomNav({ guest, fanId: null })}
 </body></html>`;
 }
@@ -222,7 +222,7 @@ function aboutShell(active: AboutPage, guest: boolean, title: string, body: stri
     <div class="right">${themeToggle()}${guest ? `<a class="btn ghost sm" href="/login">Log in</a>` : ''}<a class="btn sm" href="${createHref}">Create an event</a></div>
   </header>
   <div class="wrap">${body}</div>
-  <div class="foot"><div class="fl"><a href="/about/creators">Who it’s for</a><a href="/about/features">Features</a><a href="/about/pricing">Pricing</a><a href="/about">Overview</a></div>Coverage of real sport — never a fan‑to‑fan venue. joinhorda.com</div>
+  <div class="foot"><div class="fl"><a href="/about/creators">Who it’s for</a><a href="/about/features">Features</a><a href="/about/pricing">Pricing</a><a href="/about">Overview</a></div>The events home for sports and competitive culture. joinhorda.com</div>
   ${bottomNav({ guest, fanId: null })}
 </body></html>`;
 }

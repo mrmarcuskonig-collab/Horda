@@ -10,7 +10,7 @@ import type { Database } from '../db/index.ts';
 import { getClubPage } from '../db/repo.ts';
 import {
   getAthleteProfile, getFanHome, getFollows, getUpcomingBout, getPrediction,
-  followEntity, makePrediction, attend, getAttendance, getAffiliations, getLatestPost, setAthleteProfile, createAthlete, createPost,
+  followEntity, unfollowEntity, makePrediction, attend, getAttendance, getAffiliations, getLatestPost, setAthleteProfile, createAthlete, createPost,
 } from '../db/engagement_repo.ts';
 import {
   getBranding, setBranding, getClub, getTeamsOfClub, getTeam, getRoster,
@@ -25,7 +25,7 @@ import { signup, verifyLogin, createSession, sessionAccount, deleteSession, fanF
 import { getDiscover, REGIONS } from '../db/discover_repo.ts';
 import { renderEventPage, renderCreateEvent, renderManage, renderCheckout, renderPayouts } from './events.ts';
 import { seedDemo, type DemoIds } from './seed.ts';
-import { renderIndex, renderDiscover, renderMap, renderAthletePage, renderCustomize, renderCompose, renderFanHome, renderSignup, renderLogin, renderForgot, renderReset, renderSharePage, renderMemberWelcome, renderClaimPending, renderClaimQueue, renderOnboardFan, renderAiPrompt, renderProfilePreview, renderOnboardClaim, renderCreatorEntry, renderClaimHandle, sportsLabel, renderSettings, renderPros, renderCreatePicker, renderCreateAge, renderMagicSent } from './pages.ts';
+import { renderIndex, renderDiscover, renderMap, renderAthletePage, renderCustomize, renderCompose, renderFanHome, renderSignup, renderLogin, renderForgot, renderReset, renderSharePage, renderMemberWelcome, renderClaimPending, renderClaimQueue, renderOnboardFan, renderAiPrompt, renderProfilePreview, renderOnboardClaim, renderCreatorEntry, renderClaimHandle, sportsLabel, renderSettings, renderPros, renderCreatePicker, renderCreateAge, renderMagicSent, renderFollowing } from './pages.ts';
 import { getEmailer, resetEmail, loginEmail } from './email.ts';
 import { ogMeta } from './layout.ts';
 import { storeImage } from './storage.ts';
@@ -54,6 +54,17 @@ import { getPayoutAccount, upsertPayoutAccount, setPayoutStatus, isPayoutsEnable
 
 const payments = getPayments();
 const TAKE_RATE = 0.10;   // Horda's flat 10% platform fee on paid tickets (locked)
+
+// Default UI language for a first-time visitor (no cookie yet): German for the
+// DACH region, English everywhere else. Region comes from a CDN country header
+// when present (Cloudflare/Render/Vercel), otherwise the browser's Accept-Language.
+function defaultLangFor(headers: import('node:http').IncomingHttpHeaders): 'en' | 'de' {
+  const h = (k: string) => String(headers[k] ?? '');
+  const cc = (h('cf-ipcountry') || h('x-vercel-ip-country') || h('x-appengine-country') || h('x-country') || h('x-geo-country')).toUpperCase();
+  if (cc === 'DE' || cc === 'AT' || cc === 'CH') return 'de';
+  if (cc.length === 2 && cc !== 'XX') return 'en';           // known non-DACH country
+  return /(^|[,;\s])de\b/i.test(h('accept-language')) ? 'de' : 'en';
+}
 const emailer = getEmailer();
 
 const DEMO_FALLBACK = process.env.HORDA_DEMO !== '0';  // default on: usable without login
@@ -101,7 +112,9 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
       const path = url.pathname;
       // --- identity: resolve the session account (demo fallback keeps it usable without login) ---
       const cookies = parseCookies(req.headers.cookie);
-      const lang = normLang(cookies.hz_lang);
+      // Language: an explicit cookie wins; otherwise default by region — German for
+      // the DACH area (via CDN country header, else Accept-Language), English elsewhere.
+      const lang = (cookies.hz_lang === 'de' || cookies.hz_lang === 'en') ? cookies.hz_lang : defaultLangFor(req.headers);
       const account = (await sessionAccount(db, cookies.hz_session)) ?? (DEMO_FALLBACK ? { id: ids.demoAccountId, email: 'demo@horda.app', displayName: 'You' } : null);
       const viewer = (account ? await fanForAccount(db, account.id) : null) ?? ids.fanId;
       const viewerGuest = !account || url.searchParams.get('guest') === '1';
@@ -153,7 +166,9 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
         const { token, code } = await startLogin(db, email, { name: f.name || undefined, next: nextDest || undefined });
         const link = `${origin}/auth/verify?token=${token}`;
         const msg = loginEmail(link, code);
-        await emailer.send({ to: email, subject: msg.subject, html: msg.html, text: msg.text }).catch(() => false);
+        // Fire the email immediately and DON'T block the response on the provider —
+        // the "check your email" page renders instantly; the send happens in parallel.
+        void emailer.send({ to: email, subject: msg.subject, html: msg.html, text: msg.text }).catch(() => false);
         // Dev (no email provider): surface the link + code so the flow is usable/testable.
         return html(res, renderMagicSent({ email, next: nextDest, devLink: emailer.enabled ? null : link, devCode: emailer.enabled ? null : code }));
       }
@@ -1031,9 +1046,33 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
       // language preference (EN/DE) — per-device cookie, then back to where you were
       if (path === '/set-lang') {
         const l = url.searchParams.get('l') === 'de' ? 'de' : 'en';
-        let next = url.searchParams.get('next') || '/';
+        // Stay on the current page: prefer an explicit ?next=, else the Referer path.
+        let next = url.searchParams.get('next') || '';
+        if (!next || !next.startsWith('/')) {
+          try { const ref = new URL(req.headers.referer || '', origin); if (ref.host === new URL(origin).host) next = ref.pathname + ref.search; } catch { /* ignore */ }
+        }
         if (!next.startsWith('/')) next = '/';   // only same-origin redirects
         res.writeHead(303, { 'set-cookie': `hz_lang=${l}; Path=/; Max-Age=31536000; SameSite=Lax`, location: next }); res.end(); return;
+      }
+      // Following: everything you follow + search to add + unfollow.
+      if (path === '/following') {
+        if (viewerGuest) return redirect(res, '/login');
+        const follows = await getFollows(db, viewer);
+        const q = (url.searchParams.get('q') || '').trim();
+        let results: { kind: string; id: string; name: string; region: string | null }[] = [];
+        if (q) {
+          const like = '%' + q.toLowerCase() + '%';
+          const ath = (await db.query<any>(`SELECT id, display_name name, region FROM athlete WHERE lower(display_name) LIKE $1 ORDER BY display_name LIMIT 8`, [like])).rows.map(r => ({ kind: 'athlete', id: r.id, name: r.name, region: r.region ?? null }));
+          const cl = (await db.query<any>(`SELECT id, name, region FROM club WHERE lower(name) LIKE $1 ORDER BY name LIMIT 8`, [like])).rows.map(r => ({ kind: 'club', id: r.id, name: r.name, region: r.region ?? null }));
+          results = [...ath, ...cl];
+        }
+        return html(res, renderFollowing({ fanId: viewer, createHref: viewerCreateHref, follows, q, results }));
+      }
+      if (req.method === 'POST' && path === '/unfollow') {
+        if (viewerGuest) return redirect(res, '/login');
+        const f = await parseForm(req);
+        await unfollowEntity(db, viewer, f.target_type, f.target_id);
+        return redirect(res, req.headers.referer ?? '/following');
       }
       if (path === '/') {
         const sport = url.searchParams.get('sport') || undefined;
@@ -1043,7 +1082,11 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
         // Remember a guest's filter so, when they sign up, it becomes their feed
         // (auto-follow the sport + region they were browsing).
         if (viewerGuest && (sport || region)) res.setHeader('set-cookie', `hz_filter=${encodeURIComponent((sport || '') + '|' + (region || ''))}; Path=/; Max-Age=1800; SameSite=Lax`);
-        return html(res, renderDiscover({ guest: viewerGuest, fanId: viewer, sport, region, data, regions: REGIONS, lang, unread }));
+        // Logged-in home leads with the viewer's own feed of upcoming events from
+        // the crowds they follow (the "events I prefer").
+        const rawDoors = viewerGuest ? [] : await feedDoors(db, viewer);
+        const doors = await Promise.all(rawDoors.map(async x => ({ eventId: x.eventId, title: x.title, date: x.date, hostName: x.hostName || (x.hostKind && x.hostId ? await hostName(db, x.hostKind, x.hostId) : ''), remaining: x.remaining, mine: x.mine })));
+        return html(res, renderDiscover({ guest: viewerGuest, fanId: viewer, sport, region, data, regions: REGIONS, lang, unread, doors }));
       }
       if (path === '/map') {
         // Event map: plot public events at their host's region, cover image as the pin.

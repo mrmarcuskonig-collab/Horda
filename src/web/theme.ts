@@ -24,7 +24,7 @@ export const THM_CSS = `.thm{display:inline-flex;align-items:center;justify-cont
   .bnav{position:fixed;left:0;right:0;bottom:0;z-index:40;border-top:1px solid var(--b);background:var(--scrim);backdrop-filter:blur(14px)}
   .bninner{max-width:680px;margin:0 auto;display:flex;justify-content:space-around;align-items:center;padding:11px 6px calc(11px + env(safe-area-inset-bottom))}
   .bnav a{flex:1;max-width:130px;display:flex;align-items:center;justify-content:center;color:var(--mut);padding:3px 0}
-  .bnav a.on{color:var(--bone)}
+  .bnav a.on{color:var(--acc)}
   .bnav a:hover{color:var(--bone)}
   .bnav svg{width:25px;height:25px;display:block}
   /* Desktop: lift the bar into a vertical rail on the LEFT (Instagram pattern),
@@ -84,17 +84,18 @@ export const THM_CSS = `.thm{display:inline-flex;align-items:center;justify-cont
     body.deskrail .top{display:none}
     body.deskrail .hz-back{left:250px}   /* clear the fixed rail */
   }
-  .dr-logo{display:flex;align-items:center;gap:9px;padding:2px 8px 16px;color:var(--bone)}
+  .dr-logo{display:flex;align-items:center;gap:9px;padding:2px 8px 16px;color:var(--bone);text-decoration:none}
   .dr-logo b{font-size:19px;font-weight:800;letter-spacing:-.02em}
   .dr-search{display:block;margin:0 4px 14px}
   .dr-search input{width:100%;background:var(--s);border:1px solid var(--b);border-radius:999px;color:var(--bone);padding:9px 14px;font:inherit;font-size:13px}
   .dr-search input:focus{outline:none;border-color:var(--bone)}.dr-search input::placeholder{color:var(--mut)}
   .dr-nav{display:flex;flex-direction:column;gap:2px}
-  .dr-item{display:flex;align-items:center;gap:14px;padding:11px 12px;border-radius:12px;color:var(--bone);font-size:16px;font-weight:600}
+  .dr-item{display:flex;align-items:center;gap:14px;padding:11px 12px;border-radius:12px;color:var(--bone);font-size:16px;font-weight:600;text-decoration:none}
   .dr-item svg{width:26px;height:26px;flex:0 0 auto}
   .dr-item:hover{background:var(--s)}
-  .dr-item.on{color:var(--bone)}.dr-item.on svg{color:#e5484d}
-  .dr-item .dr-badge{margin-left:auto;background:#e5484d;color:#fff;font-size:11px;font-weight:800;min-width:19px;height:19px;border-radius:999px;display:inline-flex;align-items:center;justify-content:center;padding:0 5px}
+  /* selected nav = coral-orange accent (label + icon + badge), never underlined */
+  .dr-item.on,.dr-item.on svg{color:var(--acc)}
+  .dr-item .dr-badge{margin-left:auto;background:var(--acc);color:#fff;font-size:11px;font-weight:800;min-width:19px;height:19px;border-radius:999px;display:inline-flex;align-items:center;justify-content:center;padding:0 5px}
   .dr-sep{height:1px;background:var(--b);margin:14px 8px}
   .dr-set{display:flex;flex-direction:column;gap:10px;padding:0 8px}
   .dr-srow{display:flex;align-items:center;justify-content:space-between;gap:10px}
@@ -129,7 +130,7 @@ export function backButton(href?: string): string {
 export function deskRail(o: { guest: boolean; fanId: string | null; lang?: _Lang; unread?: number; active?: string; region?: string; sport?: string }): string {
   const lang = o.lang ?? 'en';
   const unread = o.unread ?? 0;
-  const followHref = o.guest ? '/signup' : `/fan/${o.fanId ?? ''}#hordas`;
+  const followHref = o.guest ? '/signup' : '/following';
   const item = (key: string, href: string, icon: string, label: string, badge = '') => {
     const on = o.active === key;
     return `<a class="dr-item${on ? ' on' : ''}" href="${href}"${on ? ' aria-current="page"' : ''}>${icon}<span>${label}</span>${badge}</a>`;
@@ -145,7 +146,7 @@ export function deskRail(o: { guest: boolean; fanId: string | null; lang?: _Lang
       ${item('profile', '/settings', RAIL_ICON.profile, _t(lang, 'profile'))}
     </nav>
     <div class="dr-sep"></div>
-    <div class="dr-set"><div class="dr-srow"><span class="dr-slabel">${_t(lang, 'language')}</span>${langToggle(lang, '/')}</div></div>
+    <div class="dr-set"><div class="dr-srow"><span class="dr-slabel">${_t(lang, 'language')}</span>${langToggle(lang)}</div></div>
     <div class="dr-foot">${o.guest
       ? `<a class="btn ghost" href="/login">${_t(lang, 'login')}</a><a class="btn" href="/signup">${_t(lang, 'join_free')}</a>`
       : `<a class="btn" href="/fan/${o.fanId ?? ''}">${_t(lang, 'your_feed')} →</a>`}</div>
@@ -167,11 +168,12 @@ export function shareButton(o: { title?: string; cls?: string; label?: string; u
   return `<button type="button" class="${o.cls || 'btn ghost sm'}" data-t="${t}"${u ? ` data-u="${u}"` : ''} aria-label="Share" onclick="${onclick}">${icon}${o.label || 'Share'}</button>`;
 }
 
-// Small DE/EN pill toggle. Each pill links to /set-lang, preserving the page via
-// ?next=. Persisted as a cookie server-side (no flash, works without JS).
-export function langToggle(lang: 'en' | 'de', next: string): string {
+// Small DE/EN pill toggle. Each pill links to /set-lang; the server returns to the
+// page you were on (via ?next= when known, else the Referer). Persisted as a cookie.
+export function langToggle(lang: 'en' | 'de', next?: string): string {
+  const q = next ? `&next=${encodeURIComponent(next)}` : '';
   const pill = (l: 'en' | 'de', txt: string) =>
-    `<a class="lgp${lang === l ? ' on' : ''}" href="/set-lang?l=${l}&next=${encodeURIComponent(next)}" aria-label="${l === 'de' ? 'Deutsch' : 'English'}">${txt}</a>`;
+    `<a class="lgp${lang === l ? ' on' : ''}" href="/set-lang?l=${l}${q}" aria-label="${l === 'de' ? 'Deutsch' : 'English'}">${txt}</a>`;
   return `<span class="lgtog" role="group" aria-label="Language">${pill('de', 'DE')}${pill('en', 'EN')}</span>`;
 }
 
@@ -194,7 +196,7 @@ const NAV_ICON = {
 export function bottomNav(o: { active?: string; guest: boolean; fanId: string | null; createHref?: string }): string {
   // Heart = Following / My Hordas (who you follow); Person = You / your profile.
   const you = o.guest ? '/signup' : `/fan/${o.fanId ?? ''}`;
-  const following = o.guest ? '/signup' : `/fan/${o.fanId ?? ''}#hordas`;
+  const following = o.guest ? '/signup' : '/following';
   const tab = (key: string, href: string, label: string, icon: string) =>
     `<a href="${href}" class="${o.active === key ? 'on' : ''}" aria-label="${label}" title="${label}"${o.active === key ? ' aria-current="page"' : ''}>${icon}</a>`;
   return `<nav class="bnav" aria-label="Primary"><div class="bninner">

@@ -140,7 +140,16 @@ const land = await get('/?guest=1');
 ok('start screen: broad sport menu + free location field (no hard-coded cities)', land.includes('All sports') && land.includes('Boxing') && land.includes('Basketball') && land.includes('Everywhere') && land.includes('City or country') && !land.includes('>Hamburg</a>'));
 ok('location field offers type-ahead suggestions + use-my-location', land.includes('<datalist id="loclist"') && land.includes('id="locbtn"') && land.includes('navigator.geolocation'));
 ok('start screen leads with events + map (no results section)', land.includes('Public events') && land.includes('class="fcard"') && land.includes('class="mapcard"') && !land.includes('Latest results'));
-ok('guest gets a gated "your feed" CTA', land.includes('Your Horda') && land.includes('Get your feed'));
+ok('no "create feed" activation banner (guest leads with events)', !land.includes('Get your feed') && land.includes('class="fcard"'));
+// logged-in home leads with a personalized feed, not the activation banner
+const homeIn = await get('/');
+ok('logged-in home is the personalized feed (Your events / follow prompt, no create-feed CTA)', !homeIn.includes('Get your feed') && (homeIn.includes('Your events') || homeIn.includes('Your feed is empty')));
+// filtering narrows the events (a nonsense region yields no event cards)
+const noneFiltered = await get('/?region=Nowhereville');
+ok('sport/city filter narrows the events list', !noneFiltered.includes('class="fcard"') || noneFiltered.length < land.length);
+// the Following page: list + search + unfollow
+const following = await get('/following');
+ok('Following page lists follows + search + unfollow', following.includes('>Following<') && following.includes('action="/following"') && (following.includes('/unfollow') || following.includes('not following anyone')));
 const filtered = await get(`/?sport=boxing&region=Hamburg`);
 ok('filter is applied to the landing (region reflected)', filtered.includes('Hamburg'));
 // no round photo rail; the event map is kept as a designed section; big featured EVENT cards
@@ -150,7 +159,7 @@ ok('featured cards are PUBLIC EVENTS (photo posters linking to /e/)', land.inclu
 const mapPage = await get('/map');
 ok('event map is its own page (Leaflet + CARTO), removed from landing', mapPage.includes('id="map"') && mapPage.includes('cartocdn.com') && mapPage.includes('Event map') && !land.includes('id="map"'));
 ok('map markers are avatar rings that link to the profile (no name/popup label)', mapPage.includes("className:'hz-av'") && mapPage.includes('class="mav"') && mapPage.includes('window.location.href=p.href') && !mapPage.includes('bindPopup'));
-ok('landing footer carries the superfan tagline', land.includes('The home for sports superfans'));
+ok('landing footer carries the company description', land.includes('The events home for sports and competitive culture'));
 ok('single dark arena theme: no theme boot script + no toggle on landing', !land.includes("localStorage.getItem('hz_theme')") && !land.includes('class="thm"'));
 ok('no light mode anywhere (dark-only guardrail)', !land.includes('data-theme="light"') && !(await get(`/athlete/${rico}`)).includes('data-theme="light"'));
 ok('map filters with taste too (Hamburg boxing excludes Rico everywhere)', !filtered.includes(`/athlete/${rico}`));
@@ -165,6 +174,19 @@ ok('rail carries search + language toggle + dark-mode toggle', land.includes('cl
 ok('event cards show engagement stats (going / followers / shares)', land.includes('class="estats"') && land.includes('class="est"'));
 const deLand = await (await fetch(base + '/', { headers: { cookie: 'hz_lang=de' } })).text();
 ok('German locale translates the rail (Erkunden/Gefolgt/Einstellungen)', deLand.includes('>Erkunden<') && deLand.includes('>Gefolgt<') && deLand.includes('lang="de"'));
+// language toggle returns to the current page (Referer), not home
+const setLang = await fetch(base + '/set-lang?l=de', { headers: { referer: base + '/about/features' }, redirect: 'manual' });
+ok('switching language stays on the current page (via Referer)', setLang.status === 303 && setLang.headers.get('location') === '/about/features');
+// region default: DACH country header → German even with no cookie
+const dachLand = await (await fetch(base + '/', { headers: { 'cf-ipcountry': 'AT' } })).text();
+ok('DACH visitor (no cookie) defaults to German', dachLand.includes('lang="de"') && dachLand.includes('>Erkunden<'));
+const usLand = await (await fetch(base + '/', { headers: { 'cf-ipcountry': 'US' } })).text();
+ok('non-DACH visitor (no cookie) defaults to English', usLand.includes('lang="en"') && usLand.includes('>Explore<'));
+// no underline on logo/nav; active nav item uses the accent (not underline)
+ok('logo + nav are never underlined; active nav uses the accent', !land.includes('text-decoration:underline') && land.includes('.dr-item.on,.dr-item.on svg{color:var(--acc)}'));
+// one sign-up for everyone: no creator fork on the sign-up page
+const signup = await (await fetch(base + '/signup')).text();
+ok('sign-up is one flow (no creator "Set up your page" fork)', !signup.includes('Set up your page') && signup.includes('set up an athlete or club page later'));
 // rail: notifications item for logged-in, and dark toggle moved out of the rail
 const landIn = await get('/');
 ok('rail shows Notifications for logged-in users, not for guests', landIn.includes('href="/notifications"') && landIn.includes('Notifications') && !land.includes('href="/notifications"'));

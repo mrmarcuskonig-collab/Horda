@@ -28,6 +28,9 @@ export async function setAthleteProfile(db: Database, athleteId: string, p: { ta
 export async function followEntity(db: Database, fanId: string, targetType: 'club' | 'team' | 'athlete', targetId: string): Promise<void> {
   await db.query(`INSERT INTO follow (fan_id,target_type,target_id) VALUES ($1,$2,$3) ON CONFLICT DO NOTHING`, [fanId, targetType, targetId]);
 }
+export async function unfollowEntity(db: Database, fanId: string, targetType: string, targetId: string): Promise<void> {
+  await db.query(`DELETE FROM follow WHERE fan_id=$1 AND target_type::text=$2 AND target_id=$3`, [fanId, targetType, targetId]);
+}
 
 // ---- the hub speaks: a post broadcasts to followers + notifies them ------
 export async function createPost(db: Database, authorType: 'athlete' | 'club' | 'team', authorId: string, body: string, eventId?: string, visibility: 'public' | 'members' | 'supporter' | 'clubhouse' = 'public'): Promise<string> {

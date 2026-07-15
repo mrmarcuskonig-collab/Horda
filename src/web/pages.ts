@@ -75,6 +75,7 @@ if(b){b.addEventListener('click',function(){
 
 export function renderDiscover(d: {
   guest: boolean; fanId: string | null; sport?: string; region?: string; createHref?: string; lang?: Lang; unread?: number;
+  doors?: { eventId: string; title: string; date: string | null; hostName: string; remaining: number | null; mine: boolean }[];
   data: { sports: { key: string; name: string }[]; regions?: string[];
     athletes: { id: string; name: string; region: string | null; sport: string | null; avatar: string | null; banner: string | null; verified?: boolean }[];
     clubs: { id: string; name: string; region: string | null; sport: string | null; avatar: string | null; verified?: boolean }[];
@@ -144,9 +145,12 @@ export function renderDiscover(d: {
   // access, tiers, events) — not a scores/standings product. We lead with events.
   const empty = (!d.data.athletes.length && !d.data.clubs.length) ? `<p class="mut" style="margin-top:14px">Nothing here for that filter yet — try another sport or region.</p>` : '';
 
-  const yours = d.guest
-    ? `<div class="joinb"><div><strong>Your Horda</strong><div class="bsub">Pick a few you love and your feed already knows you. Free.</div></div><a class="btn dark" href="/signup">Get your feed</a></div>`
-    : `<div class="joinb"><div><strong>Your Horda is ready</strong><div class="bsub">Your feed of everyone you follow.</div></div><a class="btn dark" href="/fan/${d.fanId}">Open feed →</a></div>`;
+  // Logged-in home leads with YOUR events — the upcoming, claimable events from the
+  // athletes & clubs you follow. Empty → a nudge to follow. (No "create feed" banner.)
+  const doors = d.doors ?? [];
+  const yourEvents = d.guest ? '' : (doors.length
+    ? `<h2>Your events <span class="h2note">from who you follow</span></h2><div class="dlist">${doors.slice(0, 10).map(ev => `<a class="dcard" href="/e/${ev.eventId}"><div class="dav">${avatarSvg(ev.hostName || '?')}</div><div class="dmeta"><div class="dt-title">${esc(ev.title)}</div><div class="dt-sub">${esc(ev.hostName || '')}${ev.date ? ' · ' + esc(ev.date) : ''}</div></div><span class="dbadge">${ev.mine ? 'Claimed' : ev.remaining != null ? `${ev.remaining} left` : 'Open'}</span></a>`).join('')}</div>`
+    : `<div class="joinb"><div><strong>Your feed is empty</strong><div class="bsub">Follow athletes &amp; clubs and their upcoming events show up here.</div></div><a class="btn" href="/following">Find people to follow →</a></div>`);
 
   // The shared desktop rail (identical to every other page).
   const deskRailHtml = deskRail({ guest: d.guest, fanId: d.fanId, lang, unread: d.unread ?? 0, active: 'explore', region: d.region, sport: d.sport });
@@ -250,13 +254,13 @@ export function renderDiscover(d: {
   ${deskRailHtml}
   <div class="wrap">
     ${sportChips}${locRow}
+    ${yourEvents}
     ${featured}
     ${mapSection}
-    ${yours}
     ${clubs}
     ${empty}
   </div>
-  <div class="prov">The home for sports superfans. One place to follow the teams, athletes &amp; leagues you back. Across every sport — and the culture around it.<br><a href="/about" style="border-bottom:1px solid var(--b)">For athletes &amp; clubs — see what you get →</a></div>
+  <div class="prov">The events home for sports and competitive culture.<br><a href="/about" style="border-bottom:1px solid var(--b)">For athletes &amp; clubs — see what you get →</a></div>
   ${bottomNav({ active: 'home', guest: d.guest, fanId: d.fanId, createHref: d.createHref })}
 </body></html>`;
 }
@@ -904,7 +908,7 @@ export function renderSettings(d: { fanId: string; fanName: string; email?: stri
     <div class="setgroup">
       <a class="setrow danger" href="/logout"><span>Log out</span></a>
     </div>
-    <div class="prov">Horda — the home for sports superfans.</div>
+    <div class="prov">Horda — the events home for sports and competitive culture.</div>
   `, { back: `/fan/${d.fanId}`, nav: { active: 'you', guest: false, fanId: d.fanId, createHref: d.createHref } });
 }
 
@@ -1030,18 +1034,49 @@ export function renderMemberWelcome(d: { name: string; tierName: string; memberN
     </div>`, { back: d.href });
 }
 
+// /following — everything you follow, with a search to find more + unfollow.
+export function renderFollowing(d: { fanId: string; createHref?: string; follows: { type: string; id: string; name: string }[]; q?: string; results?: { kind: string; id: string; name: string; region: string | null }[] }): string {
+  const inp = 'background:var(--s);border:1px solid var(--b);border-radius:12px;color:var(--bone);padding:11px 13px;font:inherit;width:100%';
+  const href = (type: string, id: string) => type === 'athlete' ? `/athlete/${id}` : `/${type}/${id}`;
+  const kindTag = (k: string) => k === 'athlete' ? 'Athlete' : k === 'club' ? 'Club' : k === 'team' ? 'Team' : k === 'association' ? 'Federation' : k;
+  const followRow = (f: { type: string; id: string; name: string }) =>
+    `<div class="frow"><a class="fmeta" href="${href(f.type, f.id)}"><span class="fav">${avatarSvg(f.name)}</span><span><span class="fnm">${esc(f.name)}</span><span class="fk">${esc(kindTag(f.type))}</span></span></a>
+      <form method="post" action="/unfollow"><input type="hidden" name="target_type" value="${esc(f.type)}"><input type="hidden" name="target_id" value="${esc(f.id)}"><button class="btn ghost sm" type="submit">Unfollow</button></form></div>`;
+  const resultRow = (r: { kind: string; id: string; name: string; region: string | null }) => {
+    const already = d.follows.some(f => f.type === r.kind && f.id === r.id);
+    return `<div class="frow"><a class="fmeta" href="${href(r.kind, r.id)}"><span class="fav">${avatarSvg(r.name)}</span><span><span class="fnm">${esc(r.name)}</span><span class="fk">${esc(kindTag(r.kind))}${r.region ? ' · ' + esc(r.region) : ''}</span></span></a>
+      ${already ? `<span class="fk" style="color:var(--acc)">Following</span>` : `<form method="post" action="/follow"><input type="hidden" name="fan_id" value="${d.fanId}"><input type="hidden" name="target_type" value="${esc(r.kind)}"><input type="hidden" name="target_id" value="${esc(r.id)}"><button class="btn sm" type="submit">Follow</button></form>`}</div>`;
+  };
+  const body = `
+    <style>
+      .frow{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 0;border-bottom:1px solid var(--b)}
+      .fmeta{display:flex;align-items:center;gap:12px;min-width:0;flex:1}
+      .fav{width:42px;height:42px;border-radius:50%;overflow:hidden;border:1px solid var(--b);flex:0 0 auto}.fav svg{width:100%;height:100%;display:block}
+      .fnm{display:block;font-weight:600;font-size:14.5px}.fk{display:block;color:var(--mut);font-size:12px;margin-top:1px}
+      .fsearch{display:flex;gap:8px;margin:14px 0 6px}
+    </style>
+    <h1>Following</h1>
+    <p class="mut">The athletes, clubs &amp; federations you back — their events fill your home feed.</p>
+    <form class="fsearch" method="get" action="/following"><input name="q" value="${esc(d.q ?? '')}" placeholder="Search athletes, clubs, federations…" style="${inp}" autocomplete="off"><button class="btn" type="submit">Search</button></form>
+    ${d.q ? `<h2 class="mut" style="font-size:12px;letter-spacing:1.5px;text-transform:uppercase;margin:18px 0 6px">Results for “${esc(d.q)}”</h2>${(d.results && d.results.length) ? d.results.map(resultRow).join('') : '<p class="mut" style="margin-top:8px">No match — try another name.</p>'}` : ''}
+    <h2 class="mut" style="font-size:12px;letter-spacing:1.5px;text-transform:uppercase;margin:22px 0 6px">You follow · ${d.follows.length}</h2>
+    ${d.follows.length ? d.follows.map(followRow).join('') : '<p class="mut" style="margin-top:8px">You’re not following anyone yet. Search above, or <a href="/" style="border-bottom:1px solid var(--b)">explore events</a>.</p>'}
+  `;
+  return layout('Following', body, { back: '/', nav: { active: 'following', guest: false, fanId: d.fanId, createHref: d.createHref } });
+}
+
 // sign-up — create a real account (browsing is open; acting needs this).
+// One sign-up for everyone (LinkedIn-style): you join as an individual; setting up
+// an athlete or club page is a choice you make later, never a fork at the door.
 export function renderSignup(next: string, follow = ''): string {
   const inp = 'display:block;width:100%;margin-top:6px;background:var(--s);border:1px solid var(--b);border-radius:10px;color:var(--bone);padding:11px;font:inherit';
-  const isCreator = next.includes('/onboarding/athlete') || next.includes('/onboarding/claim');
   return layout('Join the Horda', `
     <h1>Join the Horda</h1>
-    <p class="mut">${isCreator ? 'Enter your email — we’ll send a sign-in link, then set up your page. No password.' : 'Follow the athletes, clubs &amp; leagues you back. Enter your email and we’ll send a sign-in link. No password. Free.'}</p>
+    <p class="mut">Enter your email and we’ll send a one-tap sign-in link. No password. Free. You can set up an athlete or club page later.</p>
     ${oauthButtons(next)}
     <form method="post" action="/auth/start">
       <input type="hidden" name="next" value="${esc(next || '/')}">
       ${follow ? `<input type="hidden" name="follow" value="${esc(follow)}">` : ''}
-      ${isCreator ? '<input type="hidden" name="intent" value="pro">' : ''}
       <label class="mut" style="display:block;margin:12px 0">Name <span style="opacity:.6">(optional)</span><input style="${inp}" name="name"></label>
       <label class="mut" style="display:block;margin:12px 0">Email<input style="${inp}" type="email" name="email" required></label>
       <div class="row"><button type="submit">Email me a sign-in link</button></div>
@@ -1056,8 +1091,7 @@ export function renderSignup(next: string, follow = ''): string {
         <div class="row"><button class="ghost" type="submit">Create account</button></div>
       </form>
     </details>
-    <p class="mut" style="margin-top:14px">Already have one? <a href="/login" style="border-bottom:1px solid var(--b)">Log in</a>.</p>
-    ${isCreator ? '' : `<p class="mut" style="margin-top:10px;font-size:12.5px">An athlete, club or federation? <a href="/create" style="border-bottom:1px solid var(--b)">Set up your page →</a></p>`}`, { back: next || '/' });
+    <p class="mut" style="margin-top:14px">Already have one? <a href="/login" style="border-bottom:1px solid var(--b)">Log in</a>.</p>`, { back: next || '/' });
 }
 
 // Passwordless: after /auth/start we tell the user to check their email, and give

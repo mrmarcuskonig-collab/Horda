@@ -9,7 +9,7 @@
   .bnav{position:fixed;left:0;right:0;bottom:0;z-index:40;border-top:1px solid var(--b);background:var(--scrim);backdrop-filter:blur(14px)}
   .bninner{max-width:680px;margin:0 auto;display:flex;justify-content:space-around;align-items:center;padding:11px 6px calc(11px + env(safe-area-inset-bottom))}
   .bnav a{flex:1;max-width:130px;display:flex;align-items:center;justify-content:center;color:var(--mut);padding:3px 0}
-  .bnav a.on{color:var(--bone)}
+  .bnav a.on{color:var(--acc)}
   .bnav a:hover{color:var(--bone)}
   .bnav svg{width:25px;height:25px;display:block}
   /* Desktop: lift the bar into a vertical rail on the LEFT (Instagram pattern),
@@ -69,17 +69,18 @@
     body.deskrail .top{display:none}
     body.deskrail .hz-back{left:250px}   /* clear the fixed rail */
   }
-  .dr-logo{display:flex;align-items:center;gap:9px;padding:2px 8px 16px;color:var(--bone)}
+  .dr-logo{display:flex;align-items:center;gap:9px;padding:2px 8px 16px;color:var(--bone);text-decoration:none}
   .dr-logo b{font-size:19px;font-weight:800;letter-spacing:-.02em}
   .dr-search{display:block;margin:0 4px 14px}
   .dr-search input{width:100%;background:var(--s);border:1px solid var(--b);border-radius:999px;color:var(--bone);padding:9px 14px;font:inherit;font-size:13px}
   .dr-search input:focus{outline:none;border-color:var(--bone)}.dr-search input::placeholder{color:var(--mut)}
   .dr-nav{display:flex;flex-direction:column;gap:2px}
-  .dr-item{display:flex;align-items:center;gap:14px;padding:11px 12px;border-radius:12px;color:var(--bone);font-size:16px;font-weight:600}
+  .dr-item{display:flex;align-items:center;gap:14px;padding:11px 12px;border-radius:12px;color:var(--bone);font-size:16px;font-weight:600;text-decoration:none}
   .dr-item svg{width:26px;height:26px;flex:0 0 auto}
   .dr-item:hover{background:var(--s)}
-  .dr-item.on{color:var(--bone)}.dr-item.on svg{color:#e5484d}
-  .dr-item .dr-badge{margin-left:auto;background:#e5484d;color:#fff;font-size:11px;font-weight:800;min-width:19px;height:19px;border-radius:999px;display:inline-flex;align-items:center;justify-content:center;padding:0 5px}
+  /* selected nav = coral-orange accent (label + icon + badge), never underlined */
+  .dr-item.on,.dr-item.on svg{color:var(--acc)}
+  .dr-item .dr-badge{margin-left:auto;background:var(--acc);color:#fff;font-size:11px;font-weight:800;min-width:19px;height:19px;border-radius:999px;display:inline-flex;align-items:center;justify-content:center;padding:0 5px}
   .dr-sep{height:1px;background:var(--b);margin:14px 8px}
   .dr-set{display:flex;flex-direction:column;gap:10px;padding:0 8px}
   .dr-srow{display:flex;align-items:center;justify-content:space-between;gap:10px}
@@ -88,7 +89,7 @@
   *{margin:0;box-sizing:border-box}
   body{background:var(--ink);color:var(--bone);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif;line-height:1.45;padding:0 18px 96px}
   .hz-main{max-width:680px;margin:0 auto}
-  a{color:inherit}
+  a{color:inherit;text-decoration:none}
   .top{display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--b);padding:12px 0 9px;position:sticky;top:0;background:var(--ink);z-index:5}
   .mark{display:flex;align-items:center;text-decoration:none;color:var(--bone)}.mark svg{display:block}
   h1{font-size:30px;font-weight:800;letter-spacing:.4px;margin:22px 0 2px;text-transform:uppercase}
@@ -131,17 +132,17 @@
       <a class="dr-item" href="/settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="3.6"/><path d="M5.5 20c0-3.7 2.9-6.2 6.5-6.2S18.5 16.3 18.5 20"/></svg><span>Profile</span></a>
     </nav>
     <div class="dr-sep"></div>
-    <div class="dr-set"><div class="dr-srow"><span class="dr-slabel">Language</span><span class="lgtog" role="group" aria-label="Language"><a class="lgp" href="/set-lang?l=de&next=%2F" aria-label="Deutsch">DE</a><a class="lgp on" href="/set-lang?l=en&next=%2F" aria-label="English">EN</a></span></div></div>
+    <div class="dr-set"><div class="dr-srow"><span class="dr-slabel">Language</span><span class="lgtog" role="group" aria-label="Language"><a class="lgp" href="/set-lang?l=de" aria-label="Deutsch">DE</a><a class="lgp on" href="/set-lang?l=en" aria-label="English">EN</a></span></div></div>
     <div class="dr-foot"><a class="btn ghost" href="/login">Log in</a><a class="btn" href="/signup">Join free</a></div>
   </aside>
-  <a class="hz-back" href="/e/7ac95f3a-6ddf-476f-8d38-e32680a267e5" aria-label="Back" title="Back"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 5-7 7 7 7"/></svg></a>
+  <a class="hz-back" href="/e/a1002058-7d71-47c8-8177-64f2eb86f137" aria-label="Back" title="Back"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 5-7 7 7 7"/></svg></a>
   <div class="hz-main">
   <div style="height:40px"></div>
   
   <h1>Checkout</h1>
   <div class="card"><b>Season launch night</b><div class="mut" style="margin:6px 0">Sat 01 Aug 2026 · 19:00 · Vereinsheim, FC Beispiel</div>
     <div style="font-size:30px;font-weight:800;margin-top:10px">€15</div></div>
-  <form method="post" action="/e/7ac95f3a-6ddf-476f-8d38-e32680a267e5/pay"><input type="hidden" name="fan_id" value="189fd1e8-9108-4528-a60e-b8a380dd8573">
+  <form method="post" action="/e/a1002058-7d71-47c8-8177-64f2eb86f137/pay"><input type="hidden" name="fan_id" value="389df9a4-5a39-435c-8adb-09d948e3f5ea">
     <div class="row"><button type="submit">Pay €15 · get ticket</button></div></form>
   <p class="mut" style="margin-top:12px">Demo checkout — payments are stubbed (set STRIPE_SECRET_KEY to charge for real). The ticket + guest-list flow is already live.</p>
   </div>

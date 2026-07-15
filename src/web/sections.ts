@@ -9,28 +9,20 @@ export interface SectionPick { key: string; on: boolean }
 // Post-pivot: a Crowd page is built from EVENTS, not content. No drops, media,
 // merch, or sponsors — those are out of doctrine (§10). Sections are the factual
 // competitive surface + the claimable events.
+// Events-first doctrine: a page is its claimable events + affiliations. Result
+// stats (Win/Loss/Draw) and Recent results are NOT offered as page sections.
 export const SECTIONS: Record<string, SectionDef> = {
-  record: { key: 'record', label: 'Win / Loss / Draw', short: 'Overview', desc: 'Your fight or match record' },
   nextup: { key: 'nextup', label: 'Next up', short: 'Next up', desc: 'Your next claimable event' },
   events: { key: 'events', label: 'Events', short: 'Events', desc: 'Upcoming events you host — all claimable' },
-  results: { key: 'results', label: 'Recent results', short: 'Results', desc: 'Your latest results' },
   connected: { key: 'connected', label: 'Connected', short: 'Connected', desc: 'Links to your clubs & teams' },
 };
 
-const COMBAT = ['boxing', 'mma', 'kickboxing', 'muay_thai', 'wrestling', 'judo', 'bjj', 'karate', 'taekwondo'];
-const RACE = ['running', 'triathlon', 'cycling', 'swimming', 'athletics', 'rowing'];
-
-// Ordered availability + default-on for a sport. Record leads for combat sports;
-// race/endurance sports lead with next race + results; default is content-first.
-export function defaultLayout(sport: string | null): SectionPick[] {
-  const s = (sport || '').toLowerCase();
-  const combat = COMBAT.includes(s);
-  const race = RACE.includes(s);
+// Ordered availability + default-on. Every athlete leads with their next event,
+// then all their events, then their connections. Same set for every sport.
+export function defaultLayout(_sport: string | null): SectionPick[] {
   return [
-    { key: 'record', on: combat },                 // W-L-D: on for combat sports by default
     { key: 'nextup', on: true },
     { key: 'events', on: true },
-    { key: 'results', on: combat || race },         // recent results lead for combat + race
     { key: 'connected', on: true },
   ];
 }

@@ -61,14 +61,29 @@ export async function getDiscover(db: Database, filter: { sport?: string; region
   // "live" = happening right now (started, not yet ended) — for FOMO/urgency,
   // not streaming. Ended-window defaults to +3h when no ends_at is set. Live
   // events surface first.
+  // Events react to the sport + city chips too (not just athletes/clubs). Sport
+  // comes from the event's own sport_id, else the host's sport; region from the
+  // host's region or the event's free-text location. Filter in an outer query so
+  // the LIMIT lands on matching rows, not the first 8 of everything.
   const evRows = (await db.query<any>(
-    `SELECT e.id, e.name title, to_char(e.starts_at,'DD Mon') date, e.host_kind, e.host_id, e.admission, e.cover_url,
-            (e.starts_at IS NOT NULL AND e.starts_at <= now() AND now() < COALESCE(e.ends_at, e.starts_at + interval '3 hours')) live
-     FROM event e WHERE e.host_kind IS NOT NULL
-       -- timeline is forward-looking: drop events that have already ended
-       AND (e.starts_at IS NULL OR now() < COALESCE(e.ends_at, e.starts_at + interval '3 hours'))
-     ORDER BY (e.starts_at IS NOT NULL AND e.starts_at <= now() AND now() < COALESCE(e.ends_at, e.starts_at + interval '3 hours')) DESC, e.starts_at
-     LIMIT 8`)).rows;
+    `SELECT * FROM (
+       SELECT e.id, e.name title, to_char(e.starts_at,'DD Mon') date, e.host_kind, e.host_id, e.admission, e.cover_url, e.starts_at, e.location,
+              (e.starts_at IS NOT NULL AND e.starts_at <= now() AND now() < COALESCE(e.ends_at, e.starts_at + interval '3 hours')) live,
+              COALESCE(
+                (SELECT s.key FROM sport s WHERE s.id=e.sport_id),
+                (SELECT s.key FROM entity_sport es JOIN sport s ON s.id=es.sport_id WHERE es.entity_type='athlete' AND es.entity_id=e.host_id ORDER BY es.is_default DESC LIMIT 1),
+                (SELECT s.key FROM team t JOIN sport s ON s.id=t.sport_id WHERE t.club_id=e.host_id LIMIT 1)
+              ) evsport,
+              CASE WHEN e.host_kind='athlete' THEN (SELECT region FROM athlete WHERE id=e.host_id)
+                   WHEN e.host_kind='club' THEN (SELECT region FROM club WHERE id=e.host_id) END hostregion
+       FROM event e
+       WHERE e.host_kind IS NOT NULL
+         AND (e.starts_at IS NULL OR now() < COALESCE(e.ends_at, e.starts_at + interval '3 hours'))
+     ) q
+     WHERE ($1::text IS NULL OR q.evsport = $1)
+       AND ($2::text IS NULL OR q.location ILIKE '%'||$2||'%' OR q.hostregion ILIKE '%'||$2||'%')
+     ORDER BY q.live DESC, q.starts_at
+     LIMIT 8`, [filter.sport ?? null, reg ?? null])).rows;
   const upcoming = [];
   for (const e of evRows) {
     const s = await eventStats(db, e);
