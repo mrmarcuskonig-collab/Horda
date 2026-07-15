@@ -65,6 +65,8 @@ export async function getDiscover(db: Database, filter: { sport?: string; region
     `SELECT e.id, e.name title, to_char(e.starts_at,'DD Mon') date, e.host_kind, e.host_id, e.admission, e.cover_url,
             (e.starts_at IS NOT NULL AND e.starts_at <= now() AND now() < COALESCE(e.ends_at, e.starts_at + interval '3 hours')) live
      FROM event e WHERE e.host_kind IS NOT NULL
+       -- timeline is forward-looking: drop events that have already ended
+       AND (e.starts_at IS NULL OR now() < COALESCE(e.ends_at, e.starts_at + interval '3 hours'))
      ORDER BY (e.starts_at IS NOT NULL AND e.starts_at <= now() AND now() < COALESCE(e.ends_at, e.starts_at + interval '3 hours')) DESC, e.starts_at
      LIMIT 8`)).rows;
   const upcoming = [];

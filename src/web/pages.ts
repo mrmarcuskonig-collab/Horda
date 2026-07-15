@@ -100,14 +100,16 @@ export function renderDiscover(d: {
   const pinSvg = `<svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" d="M12 21s7-6.3 7-11a7 7 0 1 0-14 0c0 4.7 7 11 7 11Z"/><circle cx="12" cy="10" r="2.3" fill="none" stroke="currentColor" stroke-width="1.6"/></svg>`;
   const locRow = `<div class="chips locrow">${chip('Everywhere', !d.region, qp(d.sport, undefined))}<form class="locform" method="get" action="/" id="locform">${d.sport ? `<input type="hidden" name="sport" value="${esc(d.sport)}">` : ''}<span class="locwrap"><input name="region" value="${esc(d.region ?? '')}" list="loclist" placeholder="City or country" class="locin" autocomplete="off" aria-label="City or country" id="locin"><button type="button" class="locbtn" id="locbtn" title="Use my location" aria-label="Use my location">${pinSvg}</button></span><datalist id="loclist">${locOpts.map(o => `<option value="${esc(o)}"></option>`).join('')}</datalist></form>${d.region ? `<a class="chip on" href="${qp(d.sport, undefined)}" title="Clear location">${esc(d.region)} ✕</a>` : ''}</div>${LOC_SCRIPT}`;
 
-  const ringImg = (url: string | null, name: string) => url ? `<img src="${esc(url)}" alt="">` : avatarSvg(name);
-
-  // story rail — Event map + athlete faces. "Join the Horda" only for guests.
-  const rail = `<div class="rail">
-    ${d.guest ? `<a class="story" href="/signup" aria-label="Join the Horda"><span class="ring act"><svg viewBox="0 0 24 24" width="19" height="19" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.35" stroke-linecap="round" d="M12 5.75v12.5M5.75 12h12.5"/></svg></span><span class="sname">Join the Horda</span></a>` : ''}
-    <a class="story" href="/map" aria-label="Open the event map"><span class="ring act"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.35" stroke-linejoin="round" stroke-linecap="round" d="M9 4.3 3.6 6.1v13.6L9 17.9l6 1.8 5.4-1.8V4.1L15 5.9 9 4.3Z"/><path fill="none" stroke="currentColor" stroke-width="1.1" stroke-linecap="round" opacity=".8" d="M9 4.5v13.4M15 6v13.4"/></svg></span><span class="sname">Event map</span></a>
-    ${d.data.athletes.map(a => `<a class="story" href="/athlete/${a.id}"><span class="ring">${ringImg(a.avatar || a.banner, a.name)}</span><span class="sname">${esc(a.name.split(' ')[0])}</span></a>`).join('')}
-  </div>`;
+  // Event map — kept, but as a designed section (no IG-style round photo tiles).
+  const mapPin = `<svg viewBox="0 0 24 24" width="26" height="26" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" d="M12 21s7-6.3 7-11a7 7 0 1 0-14 0c0 4.7 7 11 7 11Z"/><circle cx="12" cy="10" r="2.4" fill="none" stroke="currentColor" stroke-width="1.7"/></svg>`;
+  const mapSection = `<section class="mapcard">
+    <div class="mapgrid" aria-hidden="true"></div>
+    <div class="mapcon">
+      <span class="mappin">${mapPin}</span>
+      <div class="maptx"><div class="mapt">Event map</div><div class="maps">See the matches, fight nights and meet-ups happening near you — plotted on a live map.</div></div>
+      <a class="btn" href="/map">Open the map →</a>
+    </div>
+  </section>`;
 
   // Compact numbers (1.2K) for the engagement chips — the TikTok idiom.
   const num = (n: number) => n >= 1000 ? (n / 1000).toFixed(n >= 10000 ? 0 : 1).replace(/\.0$/, '') + 'K' : String(n);
@@ -127,7 +129,7 @@ export function renderDiscover(d: {
   const featured = d.data.upcoming.length ? `<h2>${esc(tr('events_head'))}</h2><div class="feat">${d.data.upcoming.map(e => {
     const big = e.coverUrl ? `<img class="fimg" src="${esc(e.coverUrl)}" alt="">` : `<img class="fimg" src="${esc(svgDataUri(bannerSvg({ name: e.title, sport: null }, defaultThemeForSport(null), { backdrop: true })))}" alt="">`;
     const chip = e.live ? `<span class="livepill" style="top:11px;left:11px"><span class="live-dot"></span>${esc(tr('live_now'))}</span>` : `<div class="fid"><span class="fnm">${esc(admLabel(e.admission))}</span></div>`;
-    const meta = `${esc(e.host)} · ${e.live ? '<b style="color:#e5484d">happening now</b>' : esc(e.date ?? 'soon')}`;
+    const meta = `${esc(e.host)} · ${e.live ? '<b style="color:var(--acc)">happening now</b>' : esc(e.date ?? 'soon')}`;
     return `<a class="fcard${e.live ? ' islive' : ''}" href="/e/${e.id}">${big}<div class="fscrim"></div>${chip}` +
       `<div class="fcap"><div class="ftitle">${esc(e.title)}</div><div class="fmeta">${meta}</div><div class="fstats">${estats(e)}</div></div></a>`;
   }).join('')}</div>` : '';
@@ -209,8 +211,14 @@ export function renderDiscover(d: {
   .fcap .fmeta{margin-top:3px;font-size:12px;font-weight:500;text-transform:none;opacity:.92}
   .fcap .fstats{margin-top:7px}
   .fcap .fstats .est{color:rgba(237,233,223,.92)}
-  .fcard.islive{border-color:#e5484d}
-  .rail{margin-top:2px}
+  .fcard.islive{border-color:var(--acc)}
+  /* Event map section (replaces the round photo rail) */
+  .mapcard{position:relative;margin:22px 0 8px;border:1px solid var(--b);border-radius:18px;overflow:hidden;background:radial-gradient(120% 140% at 88% -20%,rgba(225,90,64,.18),transparent 55%),var(--s)}
+  .mapgrid{position:absolute;inset:0;opacity:.5;background-image:linear-gradient(var(--b) 1px,transparent 1px),linear-gradient(90deg,var(--b) 1px,transparent 1px);background-size:34px 34px;-webkit-mask-image:radial-gradient(120% 120% at 85% 10%,#000,transparent 70%);mask-image:radial-gradient(120% 120% at 85% 10%,#000,transparent 70%)}
+  .mapcon{position:relative;display:flex;align-items:center;gap:15px;padding:18px 18px}
+  .mappin{flex:0 0 auto;width:46px;height:46px;border-radius:13px;display:flex;align-items:center;justify-content:center;color:var(--acc);background:rgba(225,90,64,.12);border:1px solid rgba(225,90,64,.3)}
+  .maptx{flex:1;min-width:0}.mapt{font-weight:700;font-size:15.5px;letter-spacing:-.01em}.maps{color:var(--mut);font-size:13px;margin-top:2px;line-height:1.45}
+  @media(max-width:560px){.mapcon{flex-wrap:wrap}.mapcon .btn{flex:1 0 100%;text-align:center}}
   #map{height:360px;border-radius:18px;overflow:hidden;border:1px solid var(--b);margin:2px 0;background:var(--s)}
   .hz-pin span{display:block;width:13px;height:13px;border-radius:50%;background:var(--bone);border:2px solid var(--ink);box-shadow:0 0 0 1px var(--b)}
   .leaflet-popup-content-wrapper,.leaflet-popup-tip{background:var(--ink);color:var(--bone);border:1px solid var(--b)}
@@ -219,8 +227,8 @@ export function renderDiscover(d: {
   .ecard{flex:0 0 218px;background:var(--s);border:1px solid var(--b);border-radius:16px;overflow:hidden;transition:border-color .15s}
   .ecard:hover{border-color:var(--bone)}
   .ecover{position:relative;height:88px;background:radial-gradient(120% 120% at 70% 20%,var(--s),transparent 60%),var(--ink);border-bottom:1px solid var(--b)}
-  .ecard.islive{border-color:#e5484d}
-  .livepill{position:absolute;top:8px;left:8px;display:inline-flex;align-items:center;gap:5px;background:#e5484d;color:#fff;font-size:10px;font-weight:800;letter-spacing:1px;border-radius:999px;padding:3px 8px}
+  .ecard.islive{border-color:var(--acc)}
+  .livepill{position:absolute;top:8px;left:8px;display:inline-flex;align-items:center;gap:5px;background:var(--acc);color:#fff;font-size:10px;font-weight:800;letter-spacing:1px;border-radius:999px;padding:3px 8px}
   .livepill .live-dot{background:#fff;box-shadow:0 0 0 3px rgba(255,255,255,.3);width:6px;height:6px}
   .etitle{font-weight:500;font-size:14px;padding:11px 13px 2px}.esub{color:var(--mut);font-size:12px;padding:0 13px 8px}
   /* TikTok-style engagement chips on event cards */
@@ -242,8 +250,8 @@ export function renderDiscover(d: {
   ${deskRailHtml}
   <div class="wrap">
     ${sportChips}${locRow}
-    ${rail}
     ${featured}
+    ${mapSection}
     ${yours}
     ${clubs}
     ${empty}
@@ -1028,21 +1036,74 @@ export function renderSignup(next: string, follow = ''): string {
   const isCreator = next.includes('/onboarding/athlete') || next.includes('/onboarding/claim');
   return layout('Join the Horda', `
     <h1>Join the Horda</h1>
-    <p class="mut">${isCreator ? 'Create your free account — then we’ll set up your page.' : 'Follow the athletes, clubs &amp; leagues you back. Never miss a matchday. Free.'}</p>
+    <p class="mut">${isCreator ? 'Enter your email — we’ll send a sign-in link, then set up your page. No password.' : 'Follow the athletes, clubs &amp; leagues you back. Enter your email and we’ll send a sign-in link. No password. Free.'}</p>
     ${oauthButtons(next)}
-    <form method="post" action="/signup">
+    <form method="post" action="/auth/start">
       <input type="hidden" name="next" value="${esc(next || '/')}">
       ${follow ? `<input type="hidden" name="follow" value="${esc(follow)}">` : ''}
-      <label class="mut" style="display:block;margin:12px 0">Name<input style="${inp}" name="name" required></label>
+      ${isCreator ? '<input type="hidden" name="intent" value="pro">' : ''}
+      <label class="mut" style="display:block;margin:12px 0">Name <span style="opacity:.6">(optional)</span><input style="${inp}" name="name"></label>
       <label class="mut" style="display:block;margin:12px 0">Email<input style="${inp}" type="email" name="email" required></label>
-      <label class="mut" style="display:block;margin:12px 0">Password<input style="${inp}" type="password" name="password" required minlength="6"></label>
-      <div class="row"><button type="submit">Create account</button></div>
+      <div class="row"><button type="submit">Email me a sign-in link</button></div>
     </form>
+    <details style="margin-top:14px"><summary class="mut" style="cursor:pointer;font-size:13px">Prefer a password?</summary>
+      <form method="post" action="/signup" style="margin-top:10px">
+        <input type="hidden" name="next" value="${esc(next || '/')}">
+        ${follow ? `<input type="hidden" name="follow" value="${esc(follow)}">` : ''}
+        <label class="mut" style="display:block;margin:12px 0">Name<input style="${inp}" name="name" required></label>
+        <label class="mut" style="display:block;margin:12px 0">Email<input style="${inp}" type="email" name="email" required></label>
+        <label class="mut" style="display:block;margin:12px 0">Password<input style="${inp}" type="password" name="password" required minlength="6"></label>
+        <div class="row"><button class="ghost" type="submit">Create account</button></div>
+      </form>
+    </details>
     <p class="mut" style="margin-top:14px">Already have one? <a href="/login" style="border-bottom:1px solid var(--b)">Log in</a>.</p>
     ${isCreator ? '' : `<p class="mut" style="margin-top:10px;font-size:12.5px">An athlete, club or federation? <a href="/create" style="border-bottom:1px solid var(--b)">Set up your page →</a></p>`}`, { back: next || '/' });
 }
 
+// Passwordless: after /auth/start we tell the user to check their email, and give
+// them a box to type the 6-digit code. Dev mode surfaces the link + code inline.
+export function renderMagicSent(d: { email: string; next?: string; devLink?: string | null; devCode?: string | null; error?: boolean; expired?: boolean; badCode?: boolean }): string {
+  const inp = 'display:block;width:100%;margin-top:6px;background:var(--s);border:1px solid var(--b);border-radius:10px;color:var(--bone);padding:11px;font:inherit';
+  if (d.error) return layout('Sign in', `<h1>Enter a valid email</h1><p class="mut">We need an email address to send your sign-in link.</p><div class="row" style="margin-top:12px"><a class="btn" href="/login">Try again</a></div>`, { back: '/' });
+  if (d.expired) return layout('Link expired', `<h1>That link has expired</h1><p class="mut">Sign-in links last 15 minutes. Request a fresh one.</p><div class="row" style="margin-top:12px"><a class="btn" href="/login">Get a new link</a></div>`, { back: '/' });
+  return layout('Check your email', `
+    <h1>Check your email</h1>
+    <p class="mut">We sent a sign-in link${d.email ? ` to <b style="color:var(--bone)">${esc(d.email)}</b>` : ''}. Tap it and you're in — it expires in 15 minutes.</p>
+    <form method="post" action="/auth/code" style="margin-top:16px">
+      <input type="hidden" name="next" value="${esc(d.next || '')}">
+      <input type="hidden" name="email" value="${esc(d.email)}">
+      <label class="mut" style="display:block">Or enter the 6-digit code${d.badCode ? ' <span style="color:#ff6b6b">— that code didn\'t match</span>' : ''}<input style="${inp}" name="code" inputmode="numeric" autocomplete="one-time-code" placeholder="123456" required></label>
+      <div class="row" style="margin-top:12px"><button type="submit">Sign in</button></div>
+    </form>
+    ${d.devLink ? `<div class="card" style="margin-top:16px"><div class="mut" style="font-size:12px;text-transform:uppercase;letter-spacing:1.5px;font-weight:800">Dev mode — email not configured</div><p class="mut" style="font-size:13px;margin-top:6px">Link: <a href="${esc(d.devLink)}" style="border-bottom:1px solid var(--b);word-break:break-all">${esc(d.devLink)}</a></p>${d.devCode ? `<p class="mut" style="font-size:13px">Code: <b style="color:var(--bone);letter-spacing:3px">${esc(d.devCode)}</b></p>` : ''}</div>` : ''}
+  `, { back: '/' });
+}
+
 // the separate creator entrance (athletes self-create; clubs/federations claim)
+// Logged-in user with >1 page they can host under → pick which one hosts the event.
+export function renderCreatePicker(d: { fanId: string | null; pages: { kind: string; id: string; name: string }[] }): string {
+  const href = (p: { kind: string; id: string }) => `/host/${p.kind}/${p.id}/new`;
+  const kindLabel: Record<string, string> = { athlete: 'You', club: 'Club', team: 'Team', association: 'Federation' };
+  return layout('Create an event', `
+    <style>.cgrid{display:grid;gap:10px;margin-top:16px}.ccard{display:flex;align-items:center;justify-content:space-between;gap:12px;border:1px solid var(--b);border-radius:14px;padding:14px 16px}.ccard b{font-size:15px}.ccard .k{font-size:11px;letter-spacing:1px;text-transform:uppercase;color:var(--mut)}</style>
+    <h1>Create an event</h1>
+    <p class="mut">Who's hosting it?</p>
+    <div class="cgrid">${d.pages.map(p => `<div class="ccard"><div><div class="k">${esc(kindLabel[p.kind] ?? p.kind)}</div><b>${esc(p.name)}</b></div><a class="btn" href="${href(p)}">Host as this →</a></div>`).join('')}</div>
+  `, { back: '/', nav: { active: 'create', guest: false, fanId: d.fanId } });
+}
+// No page yet → a one-time 18+ check, then we spin up a personal host page.
+export function renderCreateAge(d: { name: string; error?: boolean }): string {
+  const inp = 'display:block;width:160px;margin-top:8px;background:var(--s);border:1px solid var(--b);border-radius:10px;color:var(--bone);padding:11px;font:inherit';
+  return layout('Create an event', `
+    <h1>Let's set you up to host</h1>
+    <p class="mut">We'll create a personal page so you can host events under your name. Hosting is for people 18 or older — just confirm your birth year once.</p>
+    ${d.error ? `<p style="color:#ff6b6b;font-size:13px">You need to be 18 or older to host events.</p>` : ''}
+    <form method="post" action="/create">
+      <label class="mut" style="font-size:13px">Birth year<input class="" style="${inp}" type="number" name="birth_year" min="1900" max="2025" placeholder="1998" required></label>
+      <div class="row" style="margin-top:14px"><button type="submit">Continue →</button></div>
+    </form>
+  `, { back: '/', nav: { active: 'create', guest: false, fanId: null } });
+}
 export function renderCreatorEntry(d: { guest: boolean }): string {
   const athleteHref = d.guest ? '/signup?next=/onboarding/athlete' : '/onboarding/athlete';
   const claimHref = d.guest ? '/signup?next=/onboarding/claim' : '/onboarding/claim';
@@ -1163,14 +1224,23 @@ export function renderLogin(next: string): string {
   const inp = 'display:block;width:100%;margin-top:6px;background:var(--s);border:1px solid var(--b);border-radius:10px;color:var(--bone);padding:11px;font:inherit';
   return layout('Log in', `
     <h1>Log in</h1>
+    <p class="mut">Enter your email — we’ll send a one-tap sign-in link. No password needed.</p>
     ${oauthButtons(next)}
-    <form method="post" action="/login">
+    <form method="post" action="/auth/start">
       <input type="hidden" name="next" value="${esc(next || '/')}">
       <label class="mut" style="display:block;margin:12px 0">Email<input style="${inp}" type="email" name="email" required></label>
-      <label class="mut" style="display:block;margin:12px 0">Password<input style="${inp}" type="password" name="password" required></label>
-      <div class="row"><button type="submit">Log in</button></div>
+      <div class="row"><button type="submit">Email me a sign-in link</button></div>
     </form>
-    <p class="mut" style="margin-top:14px">New here? <a href="/signup" style="border-bottom:1px solid var(--b)">Create an account</a>. · <a href="/forgot" style="border-bottom:1px solid var(--b)">Forgot password?</a></p>`, { back: next || '/' });
+    <details style="margin-top:14px"><summary class="mut" style="cursor:pointer;font-size:13px">Use a password instead</summary>
+      <form method="post" action="/login" style="margin-top:10px">
+        <input type="hidden" name="next" value="${esc(next || '/')}">
+        <label class="mut" style="display:block;margin:12px 0">Email<input style="${inp}" type="email" name="email" required></label>
+        <label class="mut" style="display:block;margin:12px 0">Password<input style="${inp}" type="password" name="password" required></label>
+        <div class="row"><button class="ghost" type="submit">Log in</button></div>
+      </form>
+      <p class="mut" style="margin-top:8px;font-size:12.5px"><a href="/forgot" style="border-bottom:1px solid var(--b)">Forgot password?</a></p>
+    </details>
+    <p class="mut" style="margin-top:14px">New here? <a href="/signup" style="border-bottom:1px solid var(--b)">Create an account</a>.</p>`, { back: next || '/' });
 }
 
 // --- password reset ---------------------------------------------------------

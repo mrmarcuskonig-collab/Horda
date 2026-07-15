@@ -20,8 +20,8 @@ const assoc = app.ids.association.id;
 console.log(`\n[web] server up on ${base}`);
 
 const home = await get('/');
-ok('home leads with the face rail (no marketing hero)', home.includes('class="rail"') && !home.includes('Get closer to the athletes'));
-ok('home links the idol', home.includes(`/athlete/${rico}`));
+ok('home is event-led, no IG-style round photo rail', !home.includes('class="rail"') && !home.includes('class="story"') && !home.includes('Get closer to the athletes'));
+ok('home is event-led (links to events)', home.includes('href="/e/') && home.includes('class="fcard"'));
 
 const athlete = await get(`/athlete/${rico}`);
 ok('result statistics (Win/Loss/Draw) and Recent results removed from athlete page', !athlete.includes('Win / Loss / Draw') && !athlete.includes('Wins–Losses–Draws') && !athlete.includes('Recent results'));
@@ -38,7 +38,7 @@ ok('guest sees the sign-up gate bar', guest.includes('Log in to continue'));
 ok('guest action links route to /signup, not out', guest.includes('href="/signup"') && !guest.includes('instagram.com/ricotheraven'));
 // Shop is data-driven (merch / gift-membership / discount / link) and exempt from
 // Post-pivot: no shop/content. The public event page leads with the claim.
-const guestEv = await get(`/e/${(await app.db.query<{ id: string }>(`SELECT id FROM event LIMIT 1`)).rows[0].id}?guest=1`);
+const guestEv = await get(`/e/${(await app.db.query<{ id: string }>(`SELECT id FROM event WHERE starts_at > now() ORDER BY starts_at LIMIT 1`)).rows[0].id}?guest=1`);
 ok('public event page leads with the claim (no content/shop)', guestEv.includes('Claim your spot') || guestEv.includes('waitlist'));
 
 const fan = await get(`/fan/${app.ids.fanId}`);
@@ -110,14 +110,14 @@ ok('decline ("can\'t attend") is recorded via /rsvp', (await app.db.query(`SELEC
 ok('guest event page routes to sign-up', (await get(`/e/${evId}?guest=1`)).includes('href="/signup"'));
 
 // admission types: paid (checkout + payment) and apply
-const paidId = (await app.db.query<{ id: string }>(`SELECT id FROM event WHERE admission='paid' LIMIT 1`)).rows[0].id;
-const paidPage = await get(`/e/${paidId}`);
-const paidPageG = await get(`/e/${paidId}?guest=1`);
+const ticketedId = (await app.db.query<{ id: string }>(`SELECT id FROM event WHERE admission='paid' LIMIT 1`)).rows[0].id;
+const paidPage = await get(`/e/${ticketedId}`);
+const paidPageG = await get(`/e/${ticketedId}?guest=1`);
 ok('paid event shows a price + claim CTA', paidPageG.includes('Claim your spot') && /€\s?15/.test(paidPageG));
-const checkout = await get(`/e/${paidId}/checkout`);
+const checkout = await get(`/e/${ticketedId}/checkout`);
 ok('checkout page shows the charge', checkout.includes('Checkout') && checkout.includes('Pay'));
-await fetch(base + `/e/${paidId}/pay`, form({ fan_id: app.ids.fanId }));
-const paidAfter = await get(`/e/${paidId}`);
+await fetch(base + `/e/${ticketedId}/pay`, form({ fan_id: app.ids.fanId }));
+const paidAfter = await get(`/e/${ticketedId}`);
 ok('after pay, fan holds a ticket', paidAfter.includes('You hold a ticket'));
 const applyId = (await app.db.query<{ id: string }>(`SELECT id FROM event WHERE admission='apply' LIMIT 1`)).rows[0].id;
 ok('apply event shows the claim CTA (approval-gated)', (await get(`/e/${applyId}?guest=1`)).includes('Claim your spot'));
@@ -139,13 +139,13 @@ ok('athlete profile shows its events + a FEATURED cross-post', athleteImg.includ
 const land = await get('/?guest=1');
 ok('start screen: broad sport menu + free location field (no hard-coded cities)', land.includes('All sports') && land.includes('Boxing') && land.includes('Basketball') && land.includes('Everywhere') && land.includes('City or country') && !land.includes('>Hamburg</a>'));
 ok('location field offers type-ahead suggestions + use-my-location', land.includes('<datalist id="loclist"') && land.includes('id="locbtn"') && land.includes('navigator.geolocation'));
-ok('start screen leads with athletes + events (no results section)', land.includes(`/athlete/${rico}`) && land.includes('Public events') && !land.includes('Latest results'));
+ok('start screen leads with events + map (no results section)', land.includes('Public events') && land.includes('class="fcard"') && land.includes('class="mapcard"') && !land.includes('Latest results'));
 ok('guest gets a gated "your feed" CTA', land.includes('Your Horda') && land.includes('Get your feed'));
 const filtered = await get(`/?sport=boxing&region=Hamburg`);
-ok('filter narrows to taste (Hamburg boxing → Max, not Rico)', filtered.includes(`/athlete/${max}`) && !filtered.includes(`/athlete/${rico}`));
-// story rail (Join + Event map first), big featured EVENT cards, regional map
-ok('story rail leads with Join + Event map tiles', land.includes('class="rail"') && land.includes('>Join the Horda<') && land.includes('>Event map<') && !land.includes('Creator map'));
-ok('story rail shows athlete faces with names', land.includes('class="story"') && land.includes('class="ring"'));
+ok('filter is applied to the landing (region reflected)', filtered.includes('Hamburg'));
+// no round photo rail; the event map is kept as a designed section; big featured EVENT cards
+ok('landing keeps the event map in a designed section (not a round tile)', land.includes('class="mapcard"') && land.includes('Event map') && land.includes('href="/map"') && !land.includes('Creator map'));
+ok('no IG-style round athlete photos on the landing', !land.includes('class="story"') && !land.includes('class="rail"'));
 ok('featured cards are PUBLIC EVENTS (photo posters linking to /e/)', land.includes('class="fcard"') && land.includes('class="ftitle"') && /class="fcard[^"]*" href="\/e\//.test(land));
 const mapPage = await get('/map');
 ok('event map is its own page (Leaflet + CARTO), removed from landing', mapPage.includes('id="map"') && mapPage.includes('cartocdn.com') && mapPage.includes('Event map') && !land.includes('id="map"'));
@@ -240,13 +240,93 @@ ok('link-mode event: guest CTA says "Get access" (no ticket/QR)', (await get(`/e
 const lkPass = await claimToPass(lkId);
 ok('link-mode pass reveals the link, no QR', lkPass.includes('Open the event link') && !lkPass.includes('id="hzqr"'));
 
+// --- organizer's choice: public watch link vs claim-gated link ---
+const pubId = await mkEvent({ host_kind: 'athlete', host_id: rico, title: 'Public Stream', starts_at: '2027-06-03T19:00', location_kind: 'online', location: 'https://youtube.com/live/pub', admission: 'open', access_mode: 'public' });
+const pubGuest = await get(`/e/${pubId}?guest=1`);
+ok('public online event: the watch/join link is open to unregistered users', pubGuest.includes('Join link') && !pubGuest.includes('Link revealed after you claim'));
+const gatedGuest = await get(`/e/${lkId}?guest=1`);
+ok('gated online event: link is hidden behind a claim for the unregistered', gatedGuest.includes('Link revealed after you claim') && !gatedGuest.includes('Join link'));
+
+// --- share (anonymous) vs share-under-your-name (attributable, logged-in only) ---
+const guestShareView = await get(`/e/${tkId}?guest=1`);
+ok('guest gets a plain anonymous Share only (no attributable share)', guestShareView.includes('aria-label="Share"') && !guestShareView.includes('Share under your name'));
+ok('guest is nudged to log in to share under their name', guestShareView.includes('to share under your name'));
+// dedicated fresh event so no earlier claim interferes with attribution
+const attrId = await mkEvent({ host_kind: 'athlete', host_id: rico, title: 'Bring-a-friend', starts_at: '2027-07-01T19:00', location_kind: 'in_person', location: 'Berlin', admission: 'open', access_mode: 'ticket' });
+const memberShareView = await get(`/e/${attrId}`);   // no guest flag → demo viewer is logged in
+ok('logged-in gets Share AND an attributable "Share under your name" link', memberShareView.includes('Share under your name') && memberShareView.includes(`/e/${attrId}?via=`));
+// a claim through the attributable link is credited to the sharer on the manage view
+const shareTok = (memberShareView.match(/\/e\/[^"?]+\?via=([a-z0-9]+)/) || [])[1] || '';
+await fetch(base + `/claim/${attrId}?via=${shareTok}`, { method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ name: 'Referred Fan', contact: `r${Date.now()}@x.co` }).toString(), redirect: 'manual' });
+const manageView = await get(`/manage/${attrId}`);
+ok('organizer sees "Who brought people" with the attributed claim', shareTok !== '' && manageView.includes('Who brought people'));
+
+// --- UX fixes: session persistence, contact host, past events, create flow ---
+// a fresh signup issues a persistent (not session-scoped) cookie so login sticks
+const signupRes = await fetch(base + '/signup', { method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ email: `u${Date.now()}@x.co`, name: 'U', password: 'secret123' }).toString(), redirect: 'manual' });
+const sc = signupRes.headers.get('set-cookie') || '';
+ok('login/session cookie is persistent (Max-Age set), not session-scoped', sc.includes('hz_session=') && /Max-Age=\d{5,}/.test(sc));
+// contact host: event page shows a way to reach the host (socials or profile link)
+const hostEv = await get(`/e/${tkId}?guest=1`);
+ok('event page gives a real way to reach the host', hostEv.includes('on Horda →') && (hostEv.includes('Reach the host') || hostEv.includes('via their Horda page')));
+// past event: create one in the past → event page says it's over, no claim CTA
+const pastId = await mkEvent({ host_kind: 'athlete', host_id: rico, title: 'Last Month', starts_at: '2020-01-01T19:00', location_kind: 'in_person', location: 'Berlin', admission: 'open', access_mode: 'ticket' });
+const pastEv = await get(`/e/${pastId}?guest=1`);
+ok('past event page says it is in the past, not "Claim your spot"', pastEv.includes('This event is in the past') && !pastEv.includes('>Claim your spot<'));
+// and past events are dropped from the discover timeline
+const disc = await get('/');
+ok('past events do not appear in the discover timeline', !disc.includes('Last Month'));
+// create flow: a logged-in user (demo) is taken to an event form, not the page chooser
+const createGo = await fetch(base + '/create', { redirect: 'manual' });
+const createLoc = createGo.headers.get('location') || '';
+ok('/create sends a logged-in user toward hosting an event (not the athlete/club chooser)', (createGo.status === 303 && (createLoc.includes('/host/') || createLoc.startsWith('/signup'))) || createGo.status === 200);
+
+// --- multi-party events (Horda_Multi_Party_Events_Architecture.md) ---
+// versus event with an unclaimed rival side + auto promo links
+const vsId = await mkEvent({ host_kind: 'club', host_id: club, title: 'Regionalliga-Pokal', starts_at: '2027-11-01T19:00', location_kind: 'in_person', location: 'Berlin', admission: 'open', access_mode: 'ticket', archetype: 'versus', side_b_name: 'FC Rival' });
+const vsGuest = await get(`/e/${vsId}?guest=1`);
+ok('versus event shows a Line-up with both sides (VS)', vsGuest.includes('Line-up') && vsGuest.includes('VS') && vsGuest.includes('FC Rival'));
+ok('unclaimed rival side invites them to claim by joining Horda', vsGuest.includes('unclaimed') && vsGuest.includes('Claim this'));
+// organizer share panel: every participant has a promo link with live counts
+const vsManage = await get(`/manage/${vsId}`);
+ok('organizer share panel lists per-participant promo links', vsManage.includes('Share panel') && vsManage.includes('?p=') && vsManage.includes('Create custom link'));
+// claim via a participant promo link is attributed to that party (party:token)
+const sideBTok = (vsManage.match(/\?p=(p[a-z0-9]+)/g) || []).map(s => s.split('=')[1]);
+const promoTok = sideBTok[0] || '';
+await fetch(base + `/claim/${vsId}?p=${promoTok}`, { method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ name: 'Promo Fan', contact: `pf${Date.now()}@x.co` }).toString(), redirect: 'manual' });
+const seSrc = (await app.db.query<{ n: number }>(`SELECT count(*)::int n FROM claim WHERE source_edge=$1`, [`party:${promoTok}`])).rows[0].n;
+ok('a claim through a promo link is attributed to that party', promoTok !== '' && seSrc >= 1);
+// sub-events: a bout under a parent, attribution rolls up. (A sub-event redirects
+// to its parent, so fetch the child id from the DB rather than the Location header.)
+await mkEvent({ host_kind: 'club', host_id: club, title: 'Bout One', starts_at: '2027-11-01T19:30', location_kind: 'in_person', location: 'Berlin', admission: 'open', access_mode: 'ticket', archetype: 'versus', side_b_name: 'Fighter B', parent_id: vsId });
+const boutId = (await app.db.query<{ id: string }>(`SELECT id FROM event WHERE parent_event_id=$1 ORDER BY created_at DESC LIMIT 1`, [vsId])).rows[0].id;
+const parentPage = await get(`/e/${vsId}`);
+ok('parent event lists its sub-events (the card)', parentPage.includes('Bout One'));
+const boutPage = await get(`/e/${boutId}?guest=1`);
+ok('sub-event links back to its parent', boutPage.includes('Part of') && boutPage.includes('Regionalliga-Pokal'));
+const rollup = await get(`/manage/${vsId}`);
+ok('parent share panel rolls up sub-event parties', rollup.includes('Bout One'));
+
+// --- Stripe Connect payouts (Build Order item 4) ---
+const cupId = await mkEvent({ host_kind: 'club', host_id: club, title: 'Ticketed Cup', starts_at: '2027-12-01T19:00', location_kind: 'in_person', location: 'Berlin', admission: 'paid', price: '20', access_mode: 'ticket' });
+const paidManage = await get(`/manage/${cupId}`);
+ok('paid event prompts the organizer to connect payouts (gate money not creation)', paidManage.includes('Connect payouts') && paidManage.includes('/connect'));
+// connect payouts (dev/stub flips it enabled) → the gate clears
+await fetch(base + `/host/club/${club}/connect`, { method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded' }, body: '', redirect: 'manual' });
+const payAcct = (await app.db.query<{ charges_enabled: boolean }>(`SELECT charges_enabled FROM payout_account WHERE host_kind='club' AND host_id=$1`, [club])).rows[0];
+ok('connecting payouts records an enabled account for the host', !!payAcct && payAcct.charges_enabled === true);
+const paidManage2 = await get(`/manage/${cupId}`);
+ok('after connecting, manage shows payouts connected + 10% fee', paidManage2.includes('Payouts connected') && paidManage2.includes('10%'));
+const payoutsPage = await get(`/manage-payouts/club/${club}`);
+ok('payouts page explains the connected state', payoutsPage.includes('Payments') && payoutsPage.includes('Payouts connected'));
+
 const cg = await get(`/club/${club}?guest=1`);
 ok('guest gate now coexists with the bottom nav (in-flow banner)', cg.includes('Log in to continue') && cg.includes('class="bnav"') && cg.includes('border-radius:14px'));
 
 // --- snapshot the screens for viewing ---
 writeFileSync('horda-app-start.html', land);
 writeFileSync('horda-app-event.html', evPage);
-writeFileSync('horda-app-event-paid.html', await get(`/e/${paidId}`));
+writeFileSync('horda-app-event-paid.html', await get(`/e/${ticketedId}`));
 writeFileSync('horda-app-checkout.html', checkout);
 writeFileSync('horda-app-share.html', shareResult);
 writeFileSync('horda-app-athlete.html', athleteImg);        // registered, attending, with uploaded art

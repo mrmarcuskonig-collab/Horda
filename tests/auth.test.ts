@@ -47,6 +47,35 @@ await decideClaim(app.db, claimId, { id: app.ids.demoAccountId, email: 'demo@hor
 const after = await authed(`/club/${club}`);
 ok('after admin verification, the club shows the owner edit panel', after.includes('Edit profile (owner)'));
 
+console.log('\n[auth · passwordless magic link + OTP (Build Order item 1)]');
+const post = (o: Record<string, string>) => ({ method: 'POST', redirect: 'manual' as const, headers: { 'content-type': 'application/x-www-form-urlencoded' }, body: enc(o) });
+// signup/login pages are now email-first (magic link primary)
+const loginPage = await fetch(base + '/login').then(r => r.text());
+ok('login is email-first (magic link primary, password is a fallback)', loginPage.includes('/auth/start') && loginPage.includes('sign-in link') && loginPage.includes('Use a password instead'));
+// start a magic link for a brand-new email → dev mode surfaces link + code
+const mlEmail = 'magic_' + Date.now() + '@horda.app';
+const startPage = await fetch(base + '/auth/start', post({ email: mlEmail })).then(r => r.text());
+const mlTok = (startPage.match(/\/auth\/verify\?token=([a-f0-9-]+)/) || [])[1] || '';
+const mlCode = (startPage.match(/Code: <b[^>]*>(\d{6})/) || [])[1] || '';
+ok('magic-link start emails a link + a 6-digit code (dev-surfaced)', mlTok !== '' && /^\d{6}$/.test(mlCode));
+const noAcctYet = (await app.db.query<{ n: number }>(`SELECT count(*)::int n FROM account WHERE email=$1`, [mlEmail])).rows[0].n;
+ok('no account is created until the link/code is used', noAcctYet === 0);
+// verify via the magic link → creates a passwordless Fan account + session
+const verifyRes = await fetch(base + '/auth/verify?token=' + mlTok, { redirect: 'manual' });
+ok('magic link signs in (session cookie) + routes a new user to onboarding', (verifyRes.headers.get('set-cookie') || '').includes('hz_session=') && (verifyRes.headers.get('location') || '') === '/onboarding/fan');
+const newAcct = (await app.db.query<{ password_hash: string | null }>(`SELECT password_hash FROM account WHERE email=$1`, [mlEmail])).rows[0];
+ok('the created account is passwordless (no password hash)', !!newAcct && newAcct.password_hash === null);
+// the link is single-use
+const reuse = await fetch(base + '/auth/verify?token=' + mlTok, { redirect: 'manual' });
+ok('a magic link is single-use (reuse is rejected)', (reuse.headers.get('set-cookie') || '') === '' || !(reuse.headers.get('set-cookie') || '').includes('hz_session='));
+// OTP path for a second email
+const otpEmail = 'otp_' + Date.now() + '@horda.app';
+const otpStart = await fetch(base + '/auth/start', post({ email: otpEmail })).then(r => r.text());
+const otpCode = (otpStart.match(/Code: <b[^>]*>(\d{6})/) || [])[1] || '';
+const otpRes = await fetch(base + '/auth/code', post({ email: otpEmail, code: otpCode }));
+ok('entering the 6-digit code signs in too', otpCode !== '' && (otpRes.headers.get('set-cookie') || '').includes('hz_session='));
+ok('a wrong code is rejected', !((await fetch(base + '/auth/code', post({ email: otpEmail, code: '000000' }))).headers.get('set-cookie') || '').includes('hz_session='));
+
 console.log('\n[auth · logout]');
 const lo = await fetch(base + '/logout', { headers: { cookie }, redirect: 'manual' });
 ok('logout clears the cookie', (lo.headers.get('set-cookie') ?? '').includes('Max-Age=0'));

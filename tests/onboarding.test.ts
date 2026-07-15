@@ -26,8 +26,11 @@ ok('captures website + instagram links from the prompt', g3.links.website === 'h
 
 console.log('\n[onboarding · clean fan-first sign-up + separate creator entrance]');
 ok('sign-up is fan-clean (no role chooser)', !(await (await fetch(base + '/signup')).text()).includes("I'm here to"));
-const create = await (await fetch(base + '/create?guest=1')).text();
+const create = await (await fetch(base + '/onboarding?guest=1')).text();
 ok('creator entrance offers both paths (guest → sign up first)', create.includes('Create my page') && create.includes('Claim our page') && create.includes('/signup?next=/onboarding/athlete'));
+// /create is now the event-first action, not the page chooser: guests are sent to sign up
+const createGuest = await fetch(base + '/create?guest=1', { redirect: 'manual' });
+ok('/create routes guests to sign up (then straight to hosting)', createGuest.status === 303 && (createGuest.headers.get('location') || '').startsWith('/signup'));
 const sa = await fetch(base + '/signup', post({ email: 'a@x.com', name: 'A', password: 'secret123', next: '/onboarding/athlete' }));
 ok('creator entry (athlete) → athlete onboarding', sa.status === 303 && sa.headers.get('location') === '/onboarding/athlete');
 const sf = await fetch(base + '/signup', post({ email: 'f@x.com', name: 'F', password: 'secret123' }));
@@ -60,13 +63,13 @@ ok('claim search finds the club + offers Claim', cs.includes('FC Beispiel') && c
 console.log('\n[onboarding · /about marketing site (4 pages + nav)]');
 const about = await (await fetch(base + '/about')).text();
 ok('/about main: nav links to the three pages', about.includes('href="/about/creators"') && about.includes('href="/about/features"') && about.includes('href="/about/pricing"'));
-ok('/about main: inspirational hero + pillars (no detail dump)', about.includes('Build the home') && about.includes('class="pillar"') && about.includes('superfans'));
+ok('/about main: attributed-reach hero + pillars + worked example', about.includes('Know exactly which fans and tickets you drove') && about.includes('class="pillar"') && about.includes('A worked example') && about.includes('ticket buyers'));
 const cr = await (await fetch(base + '/about/creators')).text();
-ok('/about/creators: athletes + clubs + federations + CTAs', cr.includes('id="athletes"') && cr.includes('id="clubs"') && cr.includes('id="federations"') && cr.includes('/onboarding/athlete') && cr.includes('/onboarding/claim'));
+ok('/about/creators: clubs + athletes + federations + fans + CTAs', cr.includes('id="clubs"') && cr.includes('id="athletes"') && cr.includes('id="federations"') && cr.includes('id="fans"') && cr.includes('/onboarding/athlete') && cr.includes('/onboarding/claim'));
 const ft = await (await fetch(base + '/about/features')).text();
-ok('/about/features: feature set + how it works', ft.includes('Everything you need') && ft.includes('Members') && ft.includes('How it works'));
+ok('/about/features: outcome-led + fight-night walkthrough', ft.includes('Sell tickets. Scan them in') && ft.includes('A fight night, end to end') && ft.includes('promo link'));
 const pr = await (await fetch(base + '/about/pricing')).text();
-ok('/about/pricing: tiers + fair-by-design + earn-free', pr.includes('Clubhouse') && pr.includes('No surprise hikes') && pr.includes('earn Superfan status for free'));
+ok('/about/pricing: ticketing-led (free events, flat 10%, attribution free)', pr.includes('flat 10%') && pr.includes('Free events') && pr.includes('Attribution') && !pr.includes('Clubhouse'));
 ok('nav active state highlights the current page', cr.includes('class="navitem on"'));
 ok('old /athletes + /clubs redirect into /about/creators', (await fetch(base + '/athletes', { redirect: 'manual' })).headers.get('location') === '/about/creators' && (await fetch(base + '/clubs', { redirect: 'manual' })).headers.get('location') === '/about/creators');
 

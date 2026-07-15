@@ -129,6 +129,10 @@ export async function applySchema(db: Database, migrationsDir = 'db/migrations')
         '0032': () => relExists('public.event_format'),
         '0033': () => relExists('public.entity_link'),
         '0034': () => colExists('event', 'access_mode'),
+        '0035': () => relExists('public.event_share'),
+        '0036': () => colExists('event', 'parent_event_id'),
+        '0037': () => relExists('public.login_token'),
+        '0038': () => relExists('public.payout_account'),
       };
       for (const f of files) {
         const probe = present[f.slice(0, 4)];

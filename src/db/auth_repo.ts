@@ -39,6 +39,54 @@ export async function upsertOauthAccount(db: Database, email: string, name: stri
   const fan = (await db.query<{ id: string }>(`INSERT INTO fan (account_id,handle,display_name) VALUES ($1,$2,$3) RETURNING id`, [acc.id, e.split('@')[0], name || e])).rows[0];
   return { accountId: acc.id, fanId: fan.id };
 }
+// Find an account by email or create a passwordless Fan one (used by OAuth +
+// magic-link). Returns whether it was newly created so the caller can route a
+// first-time user into onboarding.
+export async function findOrCreateAccountByEmail(db: Database, email: string, name?: string): Promise<{ accountId: string; fanId: string | null; isNew: boolean }> {
+  const e = email.toLowerCase().trim();
+  const exist = (await db.query<{ id: string }>(`SELECT id FROM account WHERE email=$1`, [e])).rows[0];
+  if (exist) {
+    const fan = (await db.query<{ id: string }>(`SELECT id FROM fan WHERE account_id=$1 LIMIT 1`, [exist.id])).rows[0];
+    return { accountId: exist.id, fanId: fan?.id ?? null, isNew: false };
+  }
+  const acc = (await db.query<{ id: string }>(`INSERT INTO account (email,display_name,role) VALUES ($1,$2,'fan') RETURNING id`, [e, name || e])).rows[0];
+  const fan = (await db.query<{ id: string }>(`INSERT INTO fan (account_id,handle,display_name) VALUES ($1,$2,$3) RETURNING id`, [acc.id, e.split('@')[0], name || e])).rows[0];
+  return { accountId: acc.id, fanId: fan.id, isNew: true };
+}
+
+// --- passwordless sign-in (magic link + OTP) -------------------------------
+// Mint a single-use login token for an email. Returns the RAW magic-link token
+// (only its hash is stored) and a 6-digit code. 15-minute expiry. No account
+// need exist yet — consumeLogin creates one on first use (Fan by default).
+export async function startLogin(db: Database, email: string, o: { name?: string; next?: string; ttlMs?: number } = {}): Promise<{ token: string; code: string }> {
+  const e = email.toLowerCase().trim();
+  const token = randomUUID() + randomUUID();
+  const code = String(Math.floor(100000 + Math.random() * 900000));
+  const expires = new Date(Date.now() + (o.ttlMs ?? 900_000)).toISOString();
+  await db.query(
+    `INSERT INTO login_token (email, token_hash, code, name, next, expires_at) VALUES ($1,$2,$3,$4,$5,$6)`,
+    [e, sha256(token), code, o.name ?? null, o.next ?? null, expires]);
+  return { token, code };
+}
+// Consume a login token by magic-link token OR by (email + code). Single-use,
+// unexpired. Finds-or-creates the Fan account, marks the token used, returns the
+// account + fan + isNew + the stored next-redirect.
+export async function consumeLogin(db: Database, o: { token?: string; email?: string; code?: string }): Promise<{ accountId: string; fanId: string | null; isNew: boolean; next: string | null } | null> {
+  let row: { id: string; email: string; name: string | null; next: string | null } | undefined;
+  if (o.token) {
+    row = (await db.query<any>(
+      `SELECT id, email, name, next FROM login_token WHERE token_hash=$1 AND used_at IS NULL AND expires_at > now()`, [sha256(o.token)])).rows[0];
+  } else if (o.email && o.code) {
+    row = (await db.query<any>(
+      `SELECT id, email, name, next FROM login_token WHERE lower(email)=lower($1) AND code=$2 AND used_at IS NULL AND expires_at > now()
+       ORDER BY created_at DESC LIMIT 1`, [o.email.trim(), o.code.trim()])).rows[0];
+  }
+  if (!row) return null;
+  await db.query(`UPDATE login_token SET used_at=now() WHERE id=$1`, [row.id]);
+  const acc = await findOrCreateAccountByEmail(db, row.email, row.name ?? undefined);
+  return { accountId: acc.accountId, fanId: acc.fanId, isNew: acc.isNew, next: row.next ?? null };
+}
+
 export async function accountRole(db: Database, accountId: string): Promise<string> {
   return (await db.query<{ role: string }>(`SELECT role FROM account WHERE id=$1`, [accountId])).rows[0]?.role ?? 'fan';
 }

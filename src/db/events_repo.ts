@@ -1,5 +1,6 @@
 // events_repo.ts — Luma-style scheduled events hosted by athlete/club/team/
 // association, and fan RSVPs (going / not_going / stream / interested).
+import { randomBytes } from 'node:crypto';
 import type { Database } from './index.ts';
 
 export type RsvpResponse = 'going' | 'not_going' | 'stream' | 'interested';
@@ -12,6 +13,7 @@ export interface EventDetail {
   admission: Admission; priceCents: number | null; currency: string; streams: Streams; ticketUrl: string | null;
   hostKind: string | null; hostId: string | null; hostName: string; capacity: number | null;
   locationKind: string; recurrence: string; accessMode: string;
+  archetype: string; parentEventId: string | null;
   counts: Record<RsvpResponse, number> & { pending: number };
 }
 export const priceLabel = (d: { priceCents: number | null; currency: string }) =>
@@ -29,21 +31,24 @@ export async function createScheduledEvent(db: Database, o: {
   admission?: Admission; priceCents?: number; currency?: string; streams?: Streams;
   ticketUrl?: string; capacity?: number; sportId?: string;
   locationKind?: string; recurrence?: string; recurrenceUntil?: string; accessMode?: string;
+  archetype?: string; parentEventId?: string | null;
 }): Promise<string> {
   const admission: Admission = o.admission ?? (o.priceCents ? 'paid' : 'open');
   const locKind = ['in_person', 'online', 'hybrid'].includes(o.locationKind ?? '') ? o.locationKind! : 'in_person';
   const recur = ['none', 'weekly', 'monthly'].includes(o.recurrence ?? '') ? o.recurrence! : 'none';
-  // 'ticket' = register → QR → scan at door; 'link' = just receive the details.
-  // Default: online events send a link, in-person events issue a scannable ticket.
-  const access = o.accessMode === 'link' || o.accessMode === 'ticket' ? o.accessMode : (locKind === 'online' ? 'link' : 'ticket');
+  const archetype = ['single', 'versus', 'multi'].includes(o.archetype ?? '') ? o.archetype! : 'single';
+  // 'ticket' = register → QR → scan at door; 'link' = claim to get the link;
+  // 'public' = open link, anyone can watch (no claim). Default: online → claim
+  // for the link, in-person → scannable ticket.
+  const access = ['link', 'ticket', 'public'].includes(o.accessMode ?? '') ? o.accessMode! : (locKind === 'online' ? 'link' : 'ticket');
   const r = await db.query<{ id: string }>(
     `INSERT INTO event (name, sport_id, starts_at, location, description, cover_url, host_kind, host_id, capacity,
-       admission, price_cents, currency, streams, spectator_access, ticket_url, location_kind, recurrence, recurrence_until, access_mode, source)
-     VALUES ($1,$2,$3::timestamptz,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13::jsonb,$14,$15,$16,$17,$18::timestamptz,$19,'native') RETURNING id`,
+       admission, price_cents, currency, streams, spectator_access, ticket_url, location_kind, recurrence, recurrence_until, access_mode, archetype, parent_event_id, source)
+     VALUES ($1,$2,$3::timestamptz,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13::jsonb,$14,$15,$16,$17,$18::timestamptz,$19,$20,$21,'native') RETURNING id`,
     [o.title, o.sportId ?? null, o.startsAt, o.location ?? null, o.description ?? null, o.coverUrl ?? null,
      o.hostKind, o.hostId, o.capacity ?? null, admission, o.priceCents ?? null, o.currency ?? 'EUR',
      JSON.stringify(o.streams ?? {}), admission === 'paid' ? 'paid_ticket' : 'free', o.ticketUrl ?? null,
-     locKind, recur, o.recurrenceUntil ?? null, access]);
+     locKind, recur, o.recurrenceUntil ?? null, access, archetype, o.parentEventId ?? null]);
   return r.rows[0].id;
 }
 
@@ -133,7 +138,7 @@ export async function getEventDetail(db: Database, eventId: string): Promise<Eve
     `SELECT id, name title, description, cover_url, starts_at,
             to_char(starts_at,'Dy DD Mon YYYY') date, to_char(starts_at,'HH24:MI') time,
             location, admission, price_cents, currency, streams, ticket_url, host_kind, host_id, capacity,
-            location_kind, recurrence, access_mode
+            location_kind, recurrence, access_mode, archetype, parent_event_id
      FROM event WHERE id=$1`, [eventId])).rows[0];
   if (!e) return null;
   const counts: any = { going: 0, not_going: 0, stream: 0, interested: 0, pending: 0 };
@@ -150,7 +155,8 @@ export async function getEventDetail(db: Database, eventId: string): Promise<Eve
     admission: e.admission, priceCents: e.price_cents ?? null, currency: e.currency ?? 'EUR',
     streams: e.streams ?? {}, ticketUrl: e.ticket_url,
     hostKind: e.host_kind, hostId: e.host_id, hostName: host, capacity: e.capacity,
-    locationKind: e.location_kind ?? 'in_person', recurrence: e.recurrence ?? 'none', accessMode: e.access_mode ?? 'ticket', counts,
+    locationKind: e.location_kind ?? 'in_person', recurrence: e.recurrence ?? 'none', accessMode: e.access_mode ?? 'ticket',
+    archetype: e.archetype ?? 'single', parentEventId: e.parent_event_id ?? null, counts,
   };
 }
 
@@ -184,6 +190,136 @@ export async function listUpcomingByHost(db: Database, hostKind: string, hostId:
     `SELECT id, name title, to_char(starts_at,'DD Mon') date FROM event
      WHERE host_kind=$1 AND host_id=$2 ORDER BY starts_at`, [hostKind, hostId])).rows
     .map(r => ({ id: r.id, title: r.title, date: r.date ?? undefined }));
+}
+
+// --- attributable shares ---------------------------------------------------
+// A logged-in fan can share "under their name": one stable token per (event,fan).
+// The bare /e/:id link stays anonymous; /e/:id?via=<token> credits the sharer.
+// Attribution is measurement only — it counts claims, it never moves money.
+export async function getOrCreateShareToken(db: Database, eventId: string, fanId: string): Promise<string> {
+  const existing = (await db.query<{ token: string }>(`SELECT token FROM event_share WHERE event_id=$1 AND fan_id=$2`, [eventId, fanId])).rows[0];
+  if (existing) return existing.token;
+  const token = 's' + randomBytes(8).toString('hex');   // short, URL-safe, non-guessable
+  await db.query(
+    `INSERT INTO event_share (event_id, fan_id, token) VALUES ($1,$2,$3)
+     ON CONFLICT (event_id, fan_id) DO NOTHING`, [eventId, fanId, token]);
+  return (await db.query<{ token: string }>(`SELECT token FROM event_share WHERE event_id=$1 AND fan_id=$2`, [eventId, fanId])).rows[0].token;
+}
+// Resolve an inbound ?via= token to its sharer + count the click (idempotent-ish).
+export async function recordShareClick(db: Database, token: string): Promise<{ fanId: string } | null> {
+  const r = (await db.query<{ fan_id: string }>(
+    `UPDATE event_share SET clicks = clicks + 1 WHERE token=$1 RETURNING fan_id`, [token])).rows[0];
+  return r ? { fanId: r.fan_id } : null;
+}
+// Per-sharer attribution for one event: link opens + claims that arrived via it.
+export interface ShareAttribution { fanId: string; name: string; token: string; clicks: number; claims: number }
+export async function shareAttribution(db: Database, eventId: string): Promise<ShareAttribution[]> {
+  return (await db.query<any>(
+    `SELECT s.fan_id "fanId", COALESCE(f.display_name,'A fan') name, s.token, s.clicks,
+            (SELECT count(*)::int FROM claim c WHERE c.event_id=s.event_id AND c.source_edge='via:'||s.token AND c.status NOT IN ('refunded','no_show')) claims
+     FROM event_share s LEFT JOIN fan f ON f.id=s.fan_id
+     WHERE s.event_id=$1 ORDER BY claims DESC, s.clicks DESC`, [eventId])).rows;
+}
+
+// --- multi-party events (Horda_Multi_Party_Events_Architecture.md) -----------
+// Many entities attach to one event, each with a role + an auto promo link. A
+// side can be an UNCLAIMED placeholder (a rival who hasn't joined Horda yet).
+export interface EventParty {
+  id: string; eventId: string; role: string; side: string | null;
+  entityKind: string | null; entityId: string | null; placeholder: string | null;
+  status: string; kind: string; promoToken: string; clicks: number; name: string;
+}
+async function partyName(db: Database, kind: string | null, id: string | null, placeholder: string | null): Promise<string> {
+  if (kind && id) return hostName(db, kind, id);
+  return placeholder ?? 'TBD';
+}
+// Add a participant (or an unclaimed placeholder / custom link) with its promo token.
+export async function addParty(db: Database, o: {
+  eventId: string; role: string; side?: string | null; entityKind?: string | null;
+  entityId?: string | null; placeholder?: string | null; status?: string; kind?: string;
+}): Promise<{ id: string; promoToken: string }> {
+  const token = 'p' + randomBytes(8).toString('hex');
+  const status = o.status ?? (o.entityId ? 'accepted' : 'unclaimed');
+  const r = (await db.query<{ id: string }>(
+    `INSERT INTO event_party (event_id, role, side, entity_kind, entity_id, placeholder, status, kind, promo_token)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id`,
+    [o.eventId, o.role, o.side ?? null, o.entityKind ?? null, o.entityId ?? null, o.placeholder ?? null, status, o.kind ?? 'auto', token])).rows[0];
+  return { id: r.id, promoToken: token };
+}
+export async function listParties(db: Database, eventId: string): Promise<EventParty[]> {
+  const rows = (await db.query<any>(
+    `SELECT id, event_id, role, side, entity_kind, entity_id, placeholder, status, kind, promo_token, clicks
+     FROM event_party WHERE event_id=$1 AND status <> 'removed'
+     ORDER BY (role='organizer') DESC, side NULLS LAST, created_at`, [eventId])).rows;
+  const out: EventParty[] = [];
+  for (const r of rows) out.push({ id: r.id, eventId: r.event_id, role: r.role, side: r.side ?? null, entityKind: r.entity_kind ?? null, entityId: r.entity_id ?? null, placeholder: r.placeholder ?? null, status: r.status, kind: r.kind, promoToken: r.promo_token, clicks: r.clicks, name: await partyName(db, r.entity_kind ?? null, r.entity_id ?? null, r.placeholder ?? null) });
+  return out;
+}
+// Claim an unclaimed side/roster slot: the joining entity takes it over (growth loop).
+export async function claimSide(db: Database, partyId: string, entityKind: string, entityId: string): Promise<boolean> {
+  const r = await db.query(
+    `UPDATE event_party SET entity_kind=$2, entity_id=$3, status='claimed', placeholder=NULL
+     WHERE id=$1 AND (entity_id IS NULL OR status='unclaimed')`, [partyId, entityKind, entityId]);
+  return (r as any).rowCount !== 0 || true;
+}
+export async function removeParty(db: Database, partyId: string): Promise<void> {
+  await db.query(`UPDATE event_party SET status='removed' WHERE id=$1`, [partyId]);
+}
+// Resolve a promo token to its party (+ event) and count the click.
+export async function recordPromoClick(db: Database, token: string): Promise<{ partyId: string; eventId: string } | null> {
+  const r = (await db.query<{ id: string; event_id: string }>(
+    `UPDATE event_party SET clicks = clicks + 1 WHERE promo_token=$1 RETURNING id, event_id`, [token])).rows[0];
+  return r ? { partyId: r.id, eventId: r.event_id } : null;
+}
+
+// Sub-events (the fight card / race-within-a-race). Children point at parent.
+export interface SubEvent { id: string; title: string; date: string | null; archetype: string }
+export async function subEvents(db: Database, parentId: string): Promise<SubEvent[]> {
+  return (await db.query<any>(
+    `SELECT id, name title, to_char(starts_at,'DD Mon · HH24:MI') date, archetype
+     FROM event WHERE parent_event_id=$1 ORDER BY starts_at NULLS LAST, created_at`, [parentId])).rows
+    .map(r => ({ id: r.id, title: r.title, date: r.date ?? null, archetype: r.archetype ?? 'single' }));
+}
+export async function parentOf(db: Database, eventId: string): Promise<{ id: string; title: string } | null> {
+  const r = (await db.query<any>(
+    `SELECT p.id, p.name title FROM event c JOIN event p ON p.id=c.parent_event_id WHERE c.id=$1`, [eventId])).rows[0];
+  return r ? { id: r.id, title: r.title } : null;
+}
+
+// Attribution: identities (claims) + ticket buyers (paid claims) driven per promo
+// token. Counts claims globally by source_edge='party:<token>' so a sub-event
+// fighter's link that sells a parent ticket still credits them; the parent view
+// rolls up its own parties + all sub-event parties.
+export interface PartyStat { partyId: string; name: string; role: string; side: string | null; token: string; kind: string; status: string; clicks: number; identities: number; ticketBuyers: number; subEvent?: string }
+async function promoCounts(db: Database, token: string): Promise<{ identities: number; ticketBuyers: number }> {
+  const r = (await db.query<{ identities: number; buyers: number }>(
+    `SELECT count(*)::int identities, count(*) FILTER (WHERE price_cents > 0 OR status='paid')::int buyers
+     FROM claim WHERE source_edge=$1 AND status NOT IN ('refunded','no_show')`, ['party:' + token])).rows[0];
+  return { identities: r?.identities ?? 0, ticketBuyers: r?.buyers ?? 0 };
+}
+export async function partyAttribution(db: Database, eventId: string): Promise<{ rows: PartyStat[]; total: { identities: number; ticketBuyers: number; clicks: number } }> {
+  const own = await listParties(db, eventId);
+  const rows: PartyStat[] = [];
+  for (const p of own) {
+    const c = await promoCounts(db, p.promoToken);
+    rows.push({ partyId: p.id, name: p.name, role: p.role, side: p.side, token: p.promoToken, kind: p.kind, status: p.status, clicks: p.clicks, ...c });
+  }
+  // roll up sub-events
+  for (const s of await subEvents(db, eventId)) {
+    for (const p of await listParties(db, s.id)) {
+      const c = await promoCounts(db, p.promoToken);
+      rows.push({ partyId: p.id, name: p.name, role: p.role, side: p.side, token: p.promoToken, kind: p.kind, status: p.status, clicks: p.clicks, subEvent: s.title, ...c });
+    }
+  }
+  const total = rows.reduce((a, r) => ({ identities: a.identities + r.identities, ticketBuyers: a.ticketBuyers + r.ticketBuyers, clicks: a.clicks + r.clicks }), { identities: 0, ticketBuyers: 0, clicks: 0 });
+  return { rows, total };
+}
+// The party (if any) owned by this viewer for this event — so a participant sees
+// their own link + draw.
+export async function myParty(db: Database, eventId: string, ownedKinds: { kind: string; id: string }[]): Promise<EventParty | null> {
+  if (!ownedKinds.length) return null;
+  const parties = await listParties(db, eventId);
+  return parties.find(p => p.entityId && ownedKinds.some(o => o.kind === p.entityKind && o.id === p.entityId)) ?? null;
 }
 
 // RFC-5545 calendar export (Luma's signature "add to calendar")

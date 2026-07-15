@@ -49,6 +49,21 @@ export function getEmailer(fetcher: Fetcher = fetch): Emailer {
 }
 
 // --- message templates -------------------------------------------------------
+// Passwordless sign-in: a magic link + a 6-digit code (either works). 15-min expiry.
+export function loginEmail(link: string, code: string): { subject: string; html: string; text: string } {
+  const subject = 'Your Horda sign-in link';
+  const text = `Sign in to Horda:\n${link}\n\nOr enter this code: ${code}\n\nThis expires in 15 minutes. If you didn't request it, ignore this email.`;
+  const html = `<div style="font-family:Inter,-apple-system,Segoe UI,Helvetica,Arial,sans-serif;max-width:480px;margin:0 auto;color:#0B0B0C">
+  <h2 style="font-weight:700;letter-spacing:-.01em">Sign in to Horda</h2>
+  <p style="color:#444;line-height:1.6">Tap the button to sign in — no password needed. This link expires in 15 minutes.</p>
+  <p style="margin:22px 0"><a href="${link}" style="background:#0B0B0C;color:#EDE9DF;text-decoration:none;padding:12px 22px;border-radius:999px;font-weight:600;display:inline-block">Sign in →</a></p>
+  <p style="color:#444;line-height:1.6">Or enter this code:</p>
+  <p style="font-size:28px;font-weight:800;letter-spacing:6px;margin:4px 0 18px">${code}</p>
+  <p style="color:#888;font-size:13px;line-height:1.6">If the button doesn't work, paste this link:<br><a href="${link}" style="color:#555">${link}</a></p>
+  <p style="color:#888;font-size:13px">If you didn't request this, you can safely ignore this email.</p>
+</div>`;
+  return { subject, html, text };
+}
 export function resetEmail(link: string): { subject: string; html: string; text: string } {
   const subject = 'Reset your Horda password';
   const text = `Reset your Horda password:\n${link}\n\nThis link expires in 1 hour. If you didn't request it, you can ignore this email.`;

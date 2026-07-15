@@ -4,7 +4,49 @@
 import { layout, esc } from './layout.ts';
 import { UPLOAD_SCRIPT } from './shell.ts';
 import { shareButton } from './theme.ts';
-import { type EventDetail, priceLabel } from '../db/events_repo.ts';
+import { socialIcon } from './icons.ts';
+import { type EventDetail, type EventParty, type SubEvent, priceLabel } from '../db/events_repo.ts';
+
+const hostHref2 = (kind: string | null, id: string | null) =>
+  kind === 'athlete' ? `/athlete/${id}` : kind === 'team' ? `/team/${id}` : kind === 'association' ? `/association/${id}` : `/club/${id}`;
+
+// The line-up: organizers, the two sides (versus), attending athletes + sponsors.
+// Unclaimed slots invite the rival to join Horda to claim their side + fans + tickets.
+export function renderRoster(d: {
+  eventId: string; archetype: string; parties: EventParty[]; guest: boolean;
+  canClaim: boolean; isOrganizer: boolean;
+}): string {
+  if (!d.parties.length) return '';
+  const nameEl = (p: EventParty) => p.entityId
+    ? `<a href="${hostHref2(p.entityKind, p.entityId)}">${esc(p.name)}</a>`
+    : `<span>${esc(p.name)}</span>`;
+  const claimBtn = (p: EventParty) => d.guest
+    ? `<a class="rb sm" href="/signup?next=/e/${d.eventId}">Claim this — join Horda</a>`
+    : d.canClaim
+      ? `<form method="post" action="/e/${d.eventId}/party/${p.id}/claim"><button class="rb sm p" type="submit">Claim this side</button></form>`
+      : `<span class="mut" style="font-size:12px">Unclaimed — the ${p.role === 'side' ? 'rival' : 'athlete'} claims it by joining</span>`;
+  const row = (p: EventParty) => `<div class="prow"><div class="pn">${nameEl(p)}${p.status === 'unclaimed' ? ' <span class="ptag">unclaimed</span>' : ''}</div>${p.status === 'unclaimed' ? claimBtn(p) : (d.isOrganizer ? `<form method="post" action="/e/${d.eventId}/party/${p.id}/remove"><button class="rb sm" type="submit">Remove</button></form>` : '')}</div>`;
+  const sides = d.parties.filter(p => p.role === 'side');
+  const organizers = d.parties.filter(p => p.role === 'organizer');
+  const athletes = d.parties.filter(p => p.role === 'attending_athlete');
+  const sponsors = d.parties.filter(p => p.role === 'sponsor' || p.role === 'venue');
+  const sideA = sides.find(s => s.side === 'A'); const sideB = sides.find(s => s.side === 'B');
+  const versus = (sideA || sideB)
+    ? `<div class="versus"><div class="vside">${sideA ? row(sideA) : '<div class="mut">TBD</div>'}</div><div class="vs">VS</div><div class="vside">${sideB ? row(sideB) : '<div class="mut">TBD</div>'}</div></div>`
+    : '';
+  const group = (label: string, list: EventParty[]) => list.length ? `<div class="pgrp"><div class="pgl">${label}</div>${list.map(row).join('')}</div>` : '';
+  return `<div class="h3">Line-up</div>
+    <style>
+      .versus{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:12px;margin:8px 0}
+      .versus .vside{border:1px solid var(--b);border-radius:12px;padding:12px}
+      .versus .vs{font-weight:800;color:var(--mut);font-size:13px}
+      .pgrp{margin:10px 0}.pgl{font-size:11px;letter-spacing:1px;text-transform:uppercase;color:var(--mut);margin-bottom:6px}
+      .prow{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:7px 0;border-bottom:1px solid var(--b)}
+      .prow .pn a:hover{border-bottom:1px solid var(--b)}
+      .ptag{font-size:10px;color:var(--mut);border:1px solid var(--b);border-radius:999px;padding:1px 7px;margin-left:6px}
+    </style>
+    ${versus}${group('Organiser', organizers)}${group('On the card', athletes)}${group('Partners', sponsors)}`;
+}
 
 const hostHref = (kind: string | null, id: string | null) =>
   kind === 'athlete' ? `/athlete/${id}` : kind === 'team' ? `/team/${id}` : kind === 'association' ? `/association/${id}` : `/club/${id}`;
@@ -21,8 +63,21 @@ export function renderEventPage(d: EventDetail, ctx: {
   listings?: { id: string; priceCents: number; seller: string }[];
   extraTop?: string;
   stickyCta?: string;
+  hasAccess?: boolean;       // may the viewer see the watch/join link right now?
+  shareRef?: string | null;  // this viewer's attributable ?via= token (logged-in only)
+  hostLinks?: Record<string, string>;  // host's public socials — the way to reach them
+  parties?: EventParty[];    // multi-party line-up (organizers, sides, roster)
+  subs?: SubEvent[];         // sub-events (fight card / race-within-race)
+  parent?: { id: string; title: string } | null;  // if this is a sub-event
+  canClaim?: boolean;        // viewer owns an entity that could claim an unclaimed slot
+  myPromoToken?: string | null;  // the viewer's own participant promo link (+ their draw)
+  myPromoDraw?: { identities: number; ticketBuyers: number };
 }): string {
   const my = ctx.myRsvp;
+  // How a fan reaches the host: their public socials (the real contact path, since
+  // there's no in-app DM) + a link to their Horda page.
+  const hostSocials = Object.entries(ctx.hostLinks ?? {}).filter(([, v]) => v)
+    .map(([k, v]) => `<a class="ic" aria-label="${esc(k)}" href="${esc(v)}" target="_blank" rel="noopener">${socialIcon(k)}</a>`).join('');
   const cover = d.coverUrl
     ? `<img src="${esc(d.coverUrl)}" alt="" style="width:100%;height:200px;object-fit:cover;border-radius:14px;border:1px solid var(--b)">`
     : `<div style="height:160px;border-radius:14px;border:1px solid var(--b);background:radial-gradient(120% 120% at 70% 20%,rgba(237,233,223,.10),transparent 60%),var(--ink);display:flex;align-items:flex-end;padding:14px;font-weight:800;letter-spacing:6px;text-transform:uppercase;color:rgba(237,233,223,.25)">${esc(d.hostName)}</div>`;
@@ -53,15 +108,22 @@ export function renderEventPage(d: EventDetail, ctx: {
 
   const secondary = `${respForm('not_going', "Can't go")} ${respForm('interested', 'Interested')}`;
 
-  // watch live (online) — YouTube / Twitch / Instagram / TikTok / Discord
+  // watch live (online) — YouTube / Twitch / Instagram / TikTok / Discord.
+  // Only the organizer's chosen access decides who sees the link:
+  //   public → shown to everyone (incl. logged-out); link/ticket → only after a claim.
+  const isPublicAccess = d.accessMode === 'public';
+  const canWatch = !!ctx.isHost || isPublicAccess || !!ctx.hasAccess;
   const ch = d.streams || {};
-  const watch = [
-    ch.youtube ? linkBtn('Watch on YouTube ↗', ch.youtube) : '',
-    ch.twitch ? linkBtn('Watch on Twitch ↗', ch.twitch) : '',
-    ch.instagram ? linkBtn('Watch on Instagram ↗', ch.instagram) : '',
-    ch.tiktok ? linkBtn('Watch on TikTok ↗', ch.tiktok) : '',
-    ch.discord ? linkBtn('Watch in Discord ↗', ch.discord) : '',
+  const watchLinks = [
+    ch.youtube ? `<a class="rb" href="${esc(ch.youtube)}" target="_blank" rel="noopener">Watch on YouTube ↗</a>` : '',
+    ch.twitch ? `<a class="rb" href="${esc(ch.twitch)}" target="_blank" rel="noopener">Watch on Twitch ↗</a>` : '',
+    ch.discord ? `<a class="rb" href="${esc(ch.discord)}" target="_blank" rel="noopener">Watch in Discord ↗</a>` : '',
   ].filter(Boolean).join('');
+  // Is this an online/stream event that hands out a link at all?
+  const hasStreamLink = !!(watchLinks || (d.locationKind === 'online' && d.location));
+  const watch = canWatch
+    ? watchLinks
+    : (hasStreamLink ? `<div class="lockrow">🔒 <span>Claim your spot to unlock the watch link${d.admission === 'paid' ? ` · ${priceLabel(d)}` : ' — it\'s free'}.</span> <a class="rb sm" href="#claim">Claim to watch</a></div>` : '');
 
   // ticket: hold → gift / sell; plus any resale listings
   let ticketSection = '';
@@ -81,14 +143,24 @@ export function renderEventPage(d: EventDetail, ctx: {
         : `<form method="post" action="/ticket/buy"><input type="hidden" name="ticket_id" value="${l.id}"><input type="hidden" name="event_id" value="${d.id}"><input type="hidden" name="fan_id" value="${ctx.fanId}"><button class="rb p" type="submit">Buy ${money(l.priceCents, d.currency)} · from ${esc(l.seller)}</button></form>`).join('')}</div>`
     : '';
 
-  const extras = [shareButton({ title: d.title, cls: 'rb' }), `<a class="rb" href="/e/${d.id}/ics">＋ Add to calendar</a>`];
+  // Plain Share = anonymous (bare /e/:id link). Available to everyone, logged in
+  // or not — the system can't attribute it because it doesn't know who shared.
+  const extras = [shareButton({ title: d.title, cls: 'rb', label: 'Share' }), `<a class="rb" href="/e/${d.id}/ics">＋ Add to calendar</a>`];
   if (ctx.isHost) extras.push(`<a class="rb" href="/manage/${d.id}">Manage</a>`);
 
-  // cross-post: feature this event on one of your own profiles
+  // Attributable share = only once we know who you are (logged in). We hand out a
+  // personal /e/:id?via=<token> link; every claim through it is credited to you.
+  const attributableShare = (!ctx.guest && ctx.shareRef)
+    ? `<div class="cap" style="margin-top:18px">Bring your crowd</div>
+       <div class="rsvp">${shareButton({ title: d.title, cls: 'rb p', label: 'Share under your name', url: `/e/${d.id}?via=${ctx.shareRef}` })}</div>
+       <p class="mut" style="font-size:12px;margin:2px 0 0">Claims from your link are credited to you. A plain Share above stays anonymous.</p>`
+    : (ctx.guest ? `<p class="mut" style="font-size:12px;margin:10px 0 0"><a href="/signup" style="border-bottom:1px solid var(--b)">Log in</a> to share under your name and get credit for who you bring.</p>` : '');
+
+  // cross-post: feature this event on one of your own profiles (also attributed)
   const featurable = (ctx.myEntities ?? []).filter(e => !(e.kind === d.hostKind && e.id === d.hostId));
-  const feature = (!ctx.guest && featurable.length)
-    ? `<div class="cap" style="margin-top:18px">Share on your profile</div><div class="rsvp">${featurable.map(e =>
-        `<form method="post" action="/feature"><input type="hidden" name="feat_kind" value="${e.kind}"><input type="hidden" name="feat_id" value="${e.id}"><input type="hidden" name="event_id" value="${d.id}"><button class="rb" type="submit">Feature on ${esc(e.name.split(' ')[0])}</button></form>`).join('')}</div>` : '';
+  const feature = attributableShare + ((!ctx.guest && featurable.length)
+    ? `<div class="cap" style="margin-top:18px">Feature on a page you run</div><div class="rsvp">${featurable.map(e =>
+        `<form method="post" action="/feature"><input type="hidden" name="feat_kind" value="${e.kind}"><input type="hidden" name="feat_id" value="${e.id}"><input type="hidden" name="event_id" value="${d.id}"><button class="rb" type="submit">Feature on ${esc(e.name.split(' ')[0])}</button></form>`).join('')}</div>` : '');
 
   // date chip (Luma-style calendar square) from the ISO start
   const dt = d.startsAt ? new Date(d.startsAt) : null;
@@ -119,6 +191,8 @@ export function renderEventPage(d: EventDetail, ctx: {
     .hn{font-weight:600;font-size:15px}.hn a:hover{border-bottom:1px solid var(--b)}
     .sidelinks{margin-top:14px;display:flex;flex-direction:column;gap:9px;font-size:13px;color:var(--mut)}
     .sidelinks a:hover{color:var(--bone)}
+    .hostsoc{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.hostsoc .hsl{font-size:12px;color:var(--mut)}
+    .hostsoc .ic{width:30px;height:30px;display:inline-flex;align-items:center;justify-content:center;border:1px solid var(--b);border-radius:9px;color:var(--bone)}.hostsoc .ic:hover{border-color:var(--bone)}.hostsoc .ic svg{width:16px;height:16px}
     .evtag{display:inline-block;margin-top:14px;font-size:12px;color:var(--mut);border:1px solid var(--b);border-radius:999px;padding:4px 12px}
     .evtitle{font-size:30px;line-height:1.12;font-weight:600;letter-spacing:-.02em;margin:0 0 16px}
     .ww{display:flex;gap:13px;align-items:center;padding:9px 0}
@@ -142,6 +216,7 @@ export function renderEventPage(d: EventDetail, ctx: {
     .rb.block{display:block;width:100%;text-align:center;padding:12px;font-size:15px}
     .myr{font-size:14px;margin:4px 0}.admtag{font-size:10px;font-weight:600;letter-spacing:1px;text-transform:uppercase;border:1px solid var(--b);color:var(--mut);border-radius:999px;padding:3px 10px}
     .tk{font-weight:600;margin:6px 0 10px}.tkin{background:var(--ink);border:1px solid var(--b);border-radius:999px;color:var(--bone);padding:8px 12px;font:inherit;width:120px;margin-right:6px}
+    .lockrow{display:flex;align-items:center;gap:9px;flex-wrap:wrap;font-size:13.5px;color:var(--mut);border:1px dashed var(--b);border-radius:12px;padding:11px 14px}
   </style>
   <div class="poster">
     ${d.coverUrl ? `<img src="${esc(d.coverUrl)}" alt="">` : `<div style="width:100%;height:100%;background:radial-gradient(130% 130% at 70% 8%,rgba(237,233,223,.12),transparent 55%),var(--ink)"></div>`}
@@ -155,7 +230,8 @@ export function renderEventPage(d: EventDetail, ctx: {
     <aside class="evside">
       <div class="hostrow" style="border-top:0;padding-top:0;margin-top:2px"><div><div class="hk">Hosted by</div><div class="hn"><a href="${hostHref(d.hostKind, d.hostId)}">${esc(d.hostName)}</a></div></div>${followBtn}</div>
       <div class="sidelinks">
-        <a href="${hostHref(d.hostKind, d.hostId)}">Contact the host →</a>
+        <a href="${hostHref(d.hostKind, d.hostId)}">View ${esc(d.hostName)} on Horda →</a>
+        ${hostSocials ? `<div class="hostsoc"><span class="hsl">Reach the host</span>${hostSocials}</div>` : `<span class="mut" style="font-size:12px">Reach the host via their Horda page — follow to get their updates.</span>`}
         <a href="/e/${d.id}/ics">＋ Add to calendar</a>
       </div>
       <span class="evtag"># ${esc(ADMISSION_LABEL[d.admission])}</span>
@@ -166,14 +242,23 @@ export function renderEventPage(d: EventDetail, ctx: {
 
       <div class="ww"><div class="wi cal">${dt ? `<span class="m">${mon}</span><span class="d">${day}</span>` : ICON.cal}</div>
         <div><div class="wt">${esc(d.date || 'Date TBA')}</div><div class="ws">${esc(d.time ? d.time + (dt ? '' : '') : 'Time TBA')}${d.capacity ? ` · capacity ${d.capacity}` : ''}${d.recurrence && d.recurrence !== 'none' ? ` · repeats ${esc(d.recurrence)}` : ''}</div></div></div>
-      ${d.location ? `<div class="ww"><div class="wi">${ICON.pin}</div><div><div class="wt">${d.locationKind === 'online' ? 'Online event' : esc(d.location)}</div><div class="ws">${d.locationKind === 'online' ? `<a href="${esc(d.location)}" target="_blank" rel="noopener">Join link ↗</a>` : d.locationKind === 'hybrid' ? `In person + streamed${mapsHref ? ` · <a href="${mapsHref}" target="_blank" rel="noopener">Maps ↗</a>` : ''}` : (mapsHref ? `<a href="${mapsHref}" target="_blank" rel="noopener">Open in Maps ↗</a>` : '')}</div></div></div>` : (d.locationKind === 'online' ? `<div class="ww"><div class="wi">${ICON.pin}</div><div><div class="wt">Online event</div></div></div>` : '')}
+      ${d.location ? `<div class="ww"><div class="wi">${ICON.pin}</div><div><div class="wt">${d.locationKind === 'online' ? 'Online event' : esc(d.location)}</div><div class="ws">${d.locationKind === 'online' ? (canWatch ? `<a href="${esc(d.location)}" target="_blank" rel="noopener">Join link ↗</a>` : `<span class="mut">🔒 Link revealed after you claim</span>`) : d.locationKind === 'hybrid' ? `In person + streamed${mapsHref ? ` · <a href="${mapsHref}" target="_blank" rel="noopener">Maps ↗</a>` : ''}` : (mapsHref ? `<a href="${mapsHref}" target="_blank" rel="noopener">Open in Maps ↗</a>` : '')}</div></div></div>` : (d.locationKind === 'online' ? `<div class="ww"><div class="wi">${ICON.pin}</div><div><div class="wt">Online event</div></div></div>` : '')}
 
       ${watch ? `<div class="h3">Watch live</div><div class="rsvp">${watch}</div>` : ''}
+
+      ${ctx.parent ? `<div class="lockrow" style="border-style:solid">Part of <a class="hl" href="/e/${ctx.parent.id}" style="color:var(--bone);border-bottom:1px solid var(--b)">${esc(ctx.parent.title)}</a> — one ticket covers the whole event.</div>` : ''}
+      ${renderRoster({ eventId: d.id, archetype: d.archetype, parties: ctx.parties ?? [], guest: ctx.guest, canClaim: !!ctx.canClaim, isOrganizer: !!ctx.isHost })}
+      ${ctx.myPromoToken ? `<div class="card" style="border-color:var(--bone);margin-top:10px"><strong>Your promo link.</strong> <span class="mut">Every claim through it is credited to you.</span>
+        <div class="rsvp" style="margin-top:8px">${shareButton({ title: d.title, cls: 'rb p', label: 'Copy my promo link', url: `/e/${d.id}?p=${ctx.myPromoToken}` })}</div>
+        <div class="mut" style="font-size:12.5px;margin-top:6px">You've driven <b style="color:var(--bone)">${ctx.myPromoDraw?.identities ?? 0}</b> identities · <b style="color:var(--bone)">${ctx.myPromoDraw?.ticketBuyers ?? 0}</b> ticket buyers.</div></div>` : ''}
+      ${(ctx.subs && ctx.subs.length) ? `<div class="h3">On the card${ctx.isHost ? '' : ''} · ${ctx.subs.length}</div><div class="rsvp" style="flex-direction:column;align-items:stretch">${ctx.subs.map(s => `<a class="rb" style="text-align:left" href="/e/${s.id}">${esc(s.title)}${s.date ? ` <span class="mut">· ${esc(s.date)}</span>` : ''}</a>`).join('')}</div>` : ''}
+      ${ctx.isHost && !ctx.parent ? `<div class="rsvp"><a class="rb" href="/host/${d.hostKind}/${d.hostId}/new?parent=${d.id}">＋ Add a bout / sub-event</a></div>` : ''}
+
       ${ticketSection}${resaleSection}
 
       ${d.description ? `<div class="h3">About this event</div><p class="desc">${esc(d.description)}</p>` : ''}
 
-      ${d.location ? `<div class="h3">Location</div><p class="desc" style="margin-bottom:8px">${esc(d.location)}</p><div class="rsvp">${mapsHref ? `<a class="rb" href="${mapsHref}" target="_blank" rel="noopener">Open in Maps ↗</a>` : ''}</div>` : ''}
+      ${(d.location && d.locationKind !== 'online') ? `<div class="h3">Location</div><p class="desc" style="margin-bottom:8px">${esc(d.location)}</p><div class="rsvp">${mapsHref ? `<a class="rb" href="${mapsHref}" target="_blank" rel="noopener">Open in Maps ↗</a>` : ''}</div>` : ''}
 
       <div class="h3">More</div>
       <div class="rsvp">${extras.join('')}</div>
@@ -183,6 +268,23 @@ export function renderEventPage(d: EventDetail, ctx: {
   </div>
   ${ctx.stickyCta ? `<div style="height:76px"></div>${ctx.stickyCta}` : ''}`;
   return layout(d.title, body, { back: hostHref(d.hostKind, d.hostId) });
+}
+
+// Organizer payouts (Stripe Connect). The gate for paid ticketing: connect a
+// Stripe account (KYC via Stripe) before you can collect money. 10% platform fee.
+export function renderPayouts(d: { hostKind: string; hostId: string; hostName: string; connected: boolean; payoutsEnabled: boolean; started: boolean; live: boolean }): string {
+  const connectAction = `/host/${d.hostKind}/${d.hostId}/connect`;
+  const status = d.connected
+    ? `<div class="card" style="border-color:var(--bone)"><strong>✓ Payouts connected.</strong> <span class="mut">You can sell paid tickets. Horda keeps a flat <b style="color:var(--bone)">10%</b>; the rest is paid out to your connected account.</span></div>`
+    : d.started
+      ? `<div class="card"><strong>Almost there.</strong> <span class="mut">Your Stripe onboarding isn't finished — Stripe still needs a few details before you can accept payments.</span><form method="post" action="${connectAction}" style="margin-top:8px"><button type="submit">Finish setup →</button></form></div>`
+      : `<div class="card"><strong>Connect payouts to sell paid tickets.</strong> <span class="mut">Free events need nothing. To charge for tickets, connect a Stripe account — Stripe handles identity verification; payouts land in your bank. Horda takes a flat 10%.</span><form method="post" action="${connectAction}" style="margin-top:8px"><button type="submit">Connect payouts →</button></form></div>`;
+  return layout('Payouts · ' + d.hostName, `
+    <h1>Payments &amp; payouts</h1>
+    <p class="mut">For ${esc(d.hostName)}. ${d.live ? '' : 'Demo mode — set STRIPE_SECRET_KEY for real Stripe Connect. '}Web-first checkout; card details never touch Horda.</p>
+    ${status}
+    <p class="mut" style="font-size:12.5px;margin-top:12px">Free tickets are always frictionless — this only applies where money changes hands. We gate money, not creation.</p>
+  `, { back: hostHref(d.hostKind, d.hostId) });
 }
 
 // payment step — real card payment via Stripe Checkout when configured.
@@ -199,19 +301,34 @@ export function renderCheckout(d: EventDetail, fanId: string, live = false): str
   return layout('Checkout · ' + d.title, body, { back: `/e/${d.id}` });
 }
 
-// owner: schedule an event
-export function renderCreateEvent(hostKind: string, hostId: string, hostName: string): string {
+// owner: schedule an event. `parent` set when adding a sub-event (bout / race).
+export function renderCreateEvent(hostKind: string, hostId: string, hostName: string, parent?: { id: string; title: string }): string {
   const fld = 'display:block;margin:12px 0;font-size:13px;color:var(--mut)';
   const inp = 'display:block;width:100%;margin-top:6px;background:var(--s);border:1px solid var(--b);border-radius:10px;color:var(--bone);padding:10px;font:inherit';
   const body = `
-  <h1>Schedule an event</h1>
-  <p class="mut">As ${esc(hostName)}. Choose how fans get in, and add live-watch links if it's streamed.</p>
+  <h1>${parent ? 'Add a sub-event' : 'Schedule an event'}</h1>
+  <p class="mut">${parent ? `Under <b style="color:var(--bone)">${esc(parent.title)}</b> — a bout or race-within-the-race. It gets its own sides and promo links; attribution rolls up.` : `As ${esc(hostName)}. Choose the shape, who's on the card, and how fans get in.`}</p>
   <form method="post" action="/events" onsubmit="return hzPrep(this)">
     <input type="hidden" name="host_kind" value="${esc(hostKind)}"><input type="hidden" name="host_id" value="${esc(hostId)}">
-    <label style="${fld}">Title<input style="${inp}" name="title" required placeholder="Open sparring night"></label>
+    ${parent ? `<input type="hidden" name="parent_id" value="${esc(parent.id)}">` : ''}
+    <label style="${fld}">Title<input style="${inp}" name="title" required placeholder="${parent ? 'Rico vs. Tariq' : 'Open sparring night'}"></label>
+    <label style="${fld}">Shape
+      <select id="ev_arch" name="archetype" style="${inp}" onchange="var v=this.value;document.getElementById('ev_versus').style.display=v==='versus'?'block':'none';document.getElementById('ev_roster').style.display=v==='multi'?'block':'none'">
+        <option value="single">Single — one host, open roster (a run club, a mass race)</option>
+        <option value="versus"${parent ? ' selected' : ''}>Versus — two sides (a match, a bout); both promote to their fans</option>
+        <option value="multi">Multi-participant — many attending clubs/athletes on the card</option>
+      </select></label>
+    <div id="ev_versus" style="display:${parent ? 'block' : 'none'}">
+      <label style="${fld}">Side B (the rival)<input style="${inp}" name="side_b_name" placeholder="FC Rival — they claim their side & fans by joining Horda"></label>
+      <p class="mut" style="font-size:12px;margin:-6px 0 0">You're side A. List side B even if they're not on Horda yet — they join to claim their side, their fans and their ticket share.</p>
+    </div>
+    <div id="ev_roster" style="display:none">
+      <label style="${fld}">On the card (comma-separated)<input style="${inp}" name="roster" placeholder="Rico Vargas, Tariq Bello, Otto Kahn"></label>
+      <p class="mut" style="font-size:12px;margin:-6px 0 0">Each becomes an attending slot with its own promo link; they claim it by joining.</p>
+    </div>
     <label style="${fld}">Date &amp; time<input style="${inp}" type="datetime-local" name="starts_at" required></label>
     <label style="${fld}">Where
-      <select id="ev_loc_kind" name="location_kind" style="${inp}" onchange="var s=document.getElementById('ev_access');if(this.value==='online'&&s)s.value='link';if(this.value==='in_person'&&s)s.value='ticket'">
+      <select id="ev_loc_kind" name="location_kind" style="${inp}" onchange="hzAccess(this.value)">
         <option value="in_person">In person (a venue)</option>
         <option value="online">Online (a stream / call link)</option>
         <option value="hybrid">Hybrid — in person + streamed</option>
@@ -221,9 +338,14 @@ export function renderCreateEvent(hostKind: string, hostId: string, hostName: st
     <label style="${fld}">How do people get in?
       <select id="ev_access" name="access_mode" style="${inp}">
         <option value="ticket">🎟 Ticket + QR check-in — they register, get a QR ticket, show it at the door; you scan to confirm who showed up</option>
-        <option value="link">🔗 Just a link — they receive the details / stream link, no door check-in</option>
+        <option value="link">🔒 Claim to get the link — they must claim a spot (free or paid) to unlock the stream/details; you see exactly who's in</option>
+        <option value="public">🌐 Public link — anyone can watch, no sign-up (you won't know who watched)</option>
       </select></label>
-    <p class="mut" style="font-size:12px;margin:-6px 0 0">Ticket + QR is for in-person events you'll check people into. "Just a link" is for online events or when you only need to hand out the details.</p>
+    <p class="mut" style="font-size:12px;margin:-6px 0 0">Ticket + QR is for in-person events you check people into. "Claim to get the link" gates a stream behind a free/paid claim so you capture who's coming. "Public link" is fully open.</p>
+    <script>function hzAccess(where){var s=document.getElementById('ev_access');if(!s)return;var opts=[].slice.call(s.options);function show(v,on){var o=opts.filter(function(x){return x.value===v})[0];if(o)o.hidden=!on}
+      if(where==='in_person'){show('ticket',true);show('link',false);show('public',false);s.value='ticket'}
+      else{show('ticket',false);show('link',true);show('public',true);if(s.value==='ticket')s.value='link'}}
+      hzAccess(document.getElementById('ev_loc_kind').value);</script>
     <label style="${fld}">Repeats
       <select name="recurrence" style="${inp}">
         <option value="none">One-off</option>
@@ -286,17 +408,43 @@ Round 2 · SC Berlin vs VfB | 2026-08-08 18:30 | Away"></textarea></label>
 
 // owner: manage — approvals + guest list + per-format attendance breakdown
 export function renderManage(d: EventDetail, guests: { response: string; status: string; fanId: string; name: string; handle: string | null }[],
-  formats: { id: string; kind: string; label: string; channelUrl: string | null; requiresTicket: boolean; priceCents: number | null; going: number; revenueCents: number }[] = []): string {
+  formats: { id: string; kind: string; label: string; channelUrl: string | null; requiresTicket: boolean; priceCents: number | null; going: number; revenueCents: number }[] = [],
+  attribution: { fanId: string; name: string; token: string; clicks: number; claims: number }[] = [],
+  promo?: { rows: { partyId: string; name: string; role: string; side: string | null; token: string; kind: string; status: string; clicks: number; identities: number; ticketBuyers: number; subEvent?: string }[]; total: { identities: number; ticketBuyers: number; clicks: number } },
+  payout?: { hostKind: string; hostId: string; connected: boolean }): string {
+  // Paid event → surface payout status: connect payouts (KYC) before selling.
+  const payoutBanner = (d.admission === 'paid' && payout)
+    ? (payout.connected
+        ? `<div class="card" style="border-color:var(--bone)"><strong>✓ Payouts connected.</strong> <span class="mut">Selling tickets · Horda keeps 10%.</span> <a class="rb sm" href="/manage-payouts/${payout.hostKind}/${payout.hostId}">Manage payouts</a></div>`
+        : `<div class="card"><strong>Connect payouts to sell tickets.</strong> <span class="mut">This is a paid event — connect a Stripe account (Stripe handles KYC) before you can collect money.</span><form method="post" action="/host/${payout.hostKind}/${payout.hostId}/connect" style="margin-top:8px"><button class="rb p" type="submit">Connect payouts →</button></form></div>`)
+    : '';
+  // The share panel — every participant's promo link with its live counts, the
+  // roll-up across sub-events, and a "+ create custom link". Measurement only.
+  const roleLabel: Record<string, string> = { organizer: 'Organiser', side: 'Side', attending_athlete: 'On the card', sponsor: 'Partner', venue: 'Venue', promoter: 'Custom link' };
+  const sharePanel = (promo && promo.rows.length)
+    ? `<h2>Share panel · ${promo.total.identities} identities · ${promo.total.ticketBuyers} ticket buyers</h2>
+       <p class="mut" style="font-size:12.5px">Every participant has a ready-to-share promo link. Counts roll up across sub-events. Measurement only — no payouts yet.</p>
+       <div class="promos">${promo.rows.map(r => `<div class="promo"><div class="pl"><b>${esc(r.name)}</b> <span class="prole">${esc(roleLabel[r.role] ?? r.role)}${r.side ? ' ' + r.side : ''}${r.subEvent ? ` · ${esc(r.subEvent)}` : ''}${r.status === 'unclaimed' ? ' · unclaimed' : ''}</span><div class="pc">${r.identities} identities · ${r.ticketBuyers} tickets · ${r.clicks} clicks</div></div>${shareButton({ title: d.title, cls: 'rb sm', label: 'Copy', url: `/e/${d.id}?p=${r.token}` })}</div>`).join('')}</div>
+       <form method="post" action="/e/${d.id}/promo" class="rsvp" style="margin-top:10px"><input name="label" placeholder="Custom link label (e.g. an influencer)" class="tkin" style="width:220px"><button class="rb" type="submit">＋ Create custom link</button></form>
+       <style>.promos{display:flex;flex-direction:column;gap:8px;margin:8px 0}.promo{display:flex;align-items:center;justify-content:space-between;gap:10px;border:1px solid var(--b);border-radius:12px;padding:10px 12px}.promo .prole{font-size:11px;color:var(--mut);text-transform:uppercase;letter-spacing:.5px;margin-left:6px}.promo .pc{font-size:12.5px;color:var(--mut);margin-top:3px}</style>`
+    : '';
   const money2 = (c: number) => `€${(c / 100).toFixed(2).replace(/\.00$/, '')}`;
   const totalGoing = formats.reduce((a, f) => a + f.going, 0);
   const totalRev = formats.reduce((a, f) => a + (f.requiresTicket ? f.revenueCents : 0), 0);
+  // "Who brought people" — fans who shared under their name, ranked by claims driven.
+  const movers = attribution.filter(a => a.clicks > 0 || a.claims > 0);
+  const attributionBlock = movers.length
+    ? `<h2>Who brought people · ${movers.reduce((a, m) => a + m.claims, 0)} attributed</h2>
+       <ul>${movers.map(m => `<li><span class="hl">${esc(m.name)}</span><span class="dt"><b>${m.claims}</b> claim${m.claims === 1 ? '' : 's'} · ${m.clicks} click${m.clicks === 1 ? '' : 's'}</span></li>`).join('')}</ul>
+       <p class="mut" style="font-size:12px">From fans who shared under their name. Measurement only.</p>`
+    : '';
   const formatBreakdown = formats.length
     ? `<h2>Attendance by format · ${totalGoing}</h2>
        <div class="fmtgrid">${formats.map(f => `<div class="fmtcard"><div class="fk">${f.kind === 'stream' ? '📺 ' : '📍 '}${esc(f.label)}${f.requiresTicket && f.priceCents ? ` · ${money2(f.priceCents)}` : ' · free'}</div><div class="fn">${f.going}</div><div class="fl">${f.kind === 'stream' ? 'watching' : 'attending'}${f.requiresTicket ? ` · ${money2(f.revenueCents)} sold` : ''}</div>${f.channelUrl ? `<a class="fu" href="${esc(f.channelUrl)}" target="_blank" rel="noopener">Channel ↗</a>` : ''}</div>`).join('')}</div>
        ${totalRev ? `<p class="mut" style="margin-top:6px">Tickets sold on Horda: <b>${money2(totalRev)}</b></p>` : ''}
        <style>.fmtgrid{display:grid;gap:10px;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));margin:10px 0}.fmtcard{border:1px solid var(--b);border-radius:12px;padding:12px;background:var(--s)}.fk{font-size:12.5px;font-weight:600}.fn{font-size:30px;font-weight:800;font-variant-numeric:tabular-nums;margin-top:4px}.fl{font-size:11.5px;color:var(--mut);text-transform:uppercase;letter-spacing:.5px}.fu{font-size:12px;border-bottom:1px solid var(--b);display:inline-block;margin-top:6px}</style>`
     : '';
-  return renderManageInner(d, guests, formatBreakdown);
+  return renderManageInner(d, guests, payoutBanner + sharePanel + formatBreakdown + attributionBlock);
 }
 function renderManageInner(d: EventDetail, guests: { response: string; status: string; fanId: string; name: string; handle: string | null }[], formatBreakdown: string): string {
   const pending = guests.filter(g => g.response === 'going' && g.status === 'pending');

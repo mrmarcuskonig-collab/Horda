@@ -130,10 +130,11 @@ export function renderCheckin(d: { eventId: string; title: string; claimed: numb
 // streams carry a watch link. Shown in place of the plain claim CTA when the
 // organizer has defined formats.
 export function formatPicker(d: {
-  eventId: string; guest: boolean; full: boolean; fanId?: string | null;
+  eventId: string; guest: boolean; full: boolean; fanId?: string | null; via?: string | null; promo?: string | null;
   formats: { id: string; kind: string; label: string; channelUrl: string | null; requiresTicket: boolean; priceCents: number | null; going: number }[];
   mine: { status: string; token: string; formatId: string | null } | null;
 }): string {
+  const claimAction = `/claim/${d.eventId}${d.promo ? `?p=${encodeURIComponent(d.promo)}` : d.via ? `?via=${encodeURIComponent(d.via)}` : ''}`;
   // Same logic + design as the athlete profile "Next up" block: a .card with a
   // "You're not attending yet." line and an .opts row of buttons (primary .btn for
   // in-person, .btn ghost for streams), or a bold .going note once you're in.
@@ -164,7 +165,7 @@ export function formatPicker(d: {
     ? `<div class="going">${goingNote} ✓</div>
        ${mineFmt && mineFmt.kind === 'stream' && mineFmt.channelUrl ? `<div class="opts" style="margin-top:10px"><a class="btn ghost" href="${esc(mineFmt.channelUrl)}" target="_blank" rel="noopener">Watch on ${esc(mineFmt.label)} ↗</a></div>` : ''}
        <div class="opts" style="margin-top:10px"><a class="btn" href="/pass/${esc(d.mine.token)}">View your pass →</a></div>`
-    : `<form method="post" action="/claim/${d.eventId}">${guestFields}<div class="notyet">You're not attending yet.</div><div class="opts">${d.formats.map(btnFor).join('')}</div></form>
+    : `<form method="post" action="${claimAction}">${guestFields}<div class="notyet">You're not attending yet.</div><div class="opts">${d.formats.map(btnFor).join('')}</div></form>
        <div class="opts" style="margin-top:8px">${cantAttend}</div>`;
   return `<section class="card"><h2>Attend</h2>${inner}${summary}
     <style>.notyet{color:var(--mut);margin-bottom:10px}.opts{display:flex;gap:8px;flex-wrap:wrap}.opts form{display:inline}.going{font-weight:800}.btn.fmt-primary{box-shadow:inset 0 0 0 1px var(--bone)}</style>
@@ -172,7 +173,8 @@ export function formatPicker(d: {
 }
 
 // The claim CTA block injected on the public event page — scarcity-forward.
-export function claimCta(d: { eventId: string; remaining: number | null; full: boolean; mine: { status: string; token: string } | null; guest: boolean; priceLabel: string; mode: string; accessMode?: string; standing?: { have: number; need: number } }): string {
+export function claimCta(d: { eventId: string; remaining: number | null; full: boolean; mine: { status: string; token: string } | null; guest: boolean; priceLabel: string; mode: string; accessMode?: string; via?: string | null; promo?: string | null; standing?: { have: number; need: number } }): string {
+  const claimAction = `/claim/${d.eventId}${d.promo ? `?p=${encodeURIComponent(d.promo)}` : d.via ? `?via=${encodeURIComponent(d.via)}` : ''}`;
   const isLink = d.accessMode === 'link';
   const paid = !!d.priceLabel && d.priceLabel !== 'Free';
   // Verb matches how they get in: link = "Get access", ticket = claim/get ticket.
@@ -183,7 +185,7 @@ export function claimCta(d: { eventId: string; remaining: number | null; full: b
   const spots = d.remaining == null ? '' : `<div class="mut" style="font-size:13px;margin-bottom:8px">${d.full ? 'Full — join the waitlist' : `<strong>${d.remaining}</strong> spot${d.remaining === 1 ? '' : 's'} remaining`}</div>`;
   const gate = d.mode === 'standing' && d.standing && d.standing.have < d.standing.need
     ? `<div class="card"><strong>Earned access.</strong> This one opens at ${d.standing.need} verified presences with this crowd — you have ${d.standing.have}. Show up to unlock it.</div>`
-    : `<form method="post" action="/claim/${d.eventId}">
+    : `<form method="post" action="${claimAction}">
         ${d.guest ? `<label class="mut" style="display:block;font-size:13px">Name<input name="name" required style="display:block;width:100%;margin-top:6px;background:var(--s);border:1px solid var(--b);border-radius:10px;color:var(--bone);padding:11px;font:inherit"></label><label class="mut" style="display:block;margin:8px 0 0;font-size:13px">Email or phone<input name="contact" required style="display:block;width:100%;margin-top:6px;background:var(--s);border:1px solid var(--b);border-radius:10px;color:var(--bone);padding:11px;font:inherit"></label>` : ''}
         <div class="row" style="margin-top:10px"><button type="submit" style="font-size:16px;padding:12px 22px">${verb}</button></div>
       </form>`;

@@ -9,8 +9,10 @@
 //   ... put ${themeToggle()} in the header nav ...
 
 // Single dark "arena" theme — no light mode, no toggle (design guardrail).
+// Base is a warm dark GREY (not pure black); the accent is a coral-orange used
+// for CTAs. Buttons are softly rounded (--btnr), not full pills.
 export const THEME_VARS = `
-  :root{color-scheme:dark;--ink:#0B0B0C;--bone:#EDE9DF;--s:rgba(237,233,223,.05);--b:rgba(237,233,223,.16);--mut:rgba(237,233,223,.6);--scrim:rgba(11,11,12,.82)}
+  :root{color-scheme:dark;--ink:#232020;--bone:#EDE9DF;--s:rgba(237,233,223,.05);--b:rgba(237,233,223,.16);--mut:rgba(237,233,223,.6);--scrim:rgba(26,23,23,.84);--acc:#E15A40;--acc2:#cd4c33;--accink:#1b1310;--btnr:12px}
 `;
 
 // No theme boot needed — the app is dark-only. Kept as an empty export so every
@@ -38,6 +40,14 @@ export const THM_CSS = `.thm{display:inline-flex;align-items:center;justify-cont
   .btn,button{transition:transform .12s ease,opacity .12s ease,background .15s ease,border-color .15s ease}
   .btn:active,button:active{transform:scale(.97)}
   .btn:hover,button:hover{opacity:.92}
+  /* Global button system: coral-orange CTA fill, softly rounded (not pill).
+     body-scoped so it wins over each page's local .btn; ghost/dark stay outline;
+     icon controls (.thm/.backx/.hz-back) keep their circular shape. */
+  body .btn,body .rb,body button:not(.thm):not(.backx):not(.locbtn){border-radius:var(--btnr)}
+  body .btn:not(.ghost):not(.dark){background:var(--acc);color:var(--accink);border-color:var(--acc);font-weight:800}
+  body .btn:not(.ghost):not(.dark):hover{background:var(--acc2);border-color:var(--acc2);opacity:1}
+  body .rb.p,body .btn.p{background:var(--acc);color:var(--accink);border-color:var(--acc);font-weight:800}
+  body .thm,body .backx,body .hz-back,body .locbtn{border-radius:999px}
   .card{transition:border-color .15s ease}
   /* Poster hero: full-bleed media with a legibility scrim + overlaid title */
   .poster{position:relative;margin:0 -18px;height:min(78vw,420px);overflow:hidden}
@@ -145,11 +155,16 @@ export function deskRail(o: { guest: boolean; fanId: string | null; lang?: _Lang
 // Universal Share button — native share sheet where available (mobile / social),
 // otherwise copies the current page link to the clipboard. Self-contained: the
 // URL is read from location.href at click time, so it works on any page.
-export function shareButton(o: { title?: string; cls?: string; label?: string } = {}): string {
+// A share button. By default it shares the current page URL anonymously. Pass a
+// `url` (path or absolute) to share a specific link — e.g. an attributable
+// /e/:id?via=<token> so claims get credited to the sharer.
+export function shareButton(o: { title?: string; cls?: string; label?: string; url?: string } = {}): string {
   const t = (o.title || '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]!));
+  const u = (o.url || '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]!));
   const icon = `<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:5px"><circle cx="6" cy="12" r="2.4"/><circle cx="17.5" cy="6" r="2.4"/><circle cx="17.5" cy="18" r="2.4"/><path d="m8.2 10.9 7.1-3.8M8.2 13.1l7.1 3.8"/></svg>`;
-  const onclick = `(function(b){var u=location.href,t=b.getAttribute('data-t')||document.title;if(navigator.share){navigator.share({title:t,url:u}).catch(function(){})}else if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(u).then(function(){var o=b.innerHTML;b.innerHTML='Link copied ✓';setTimeout(function(){b.innerHTML=o},1600)})}else{prompt('Copy this link',u)}})(this)`;
-  return `<button type="button" class="${o.cls || 'btn ghost sm'}" data-t="${t}" aria-label="Share" onclick="${onclick}">${icon}${o.label || 'Share'}</button>`;
+  // data-u is a path or absolute URL; resolve it against the origin at click time.
+  const onclick = `(function(b){var r=b.getAttribute('data-u'),u=r?(r.charAt(0)==='/'?location.origin+r:r):location.href,t=b.getAttribute('data-t')||document.title;if(navigator.share){navigator.share({title:t,url:u}).catch(function(){})}else if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(u).then(function(){var o=b.innerHTML;b.innerHTML='Link copied ✓';setTimeout(function(){b.innerHTML=o},1600)})}else{prompt('Copy this link',u)}})(this)`;
+  return `<button type="button" class="${o.cls || 'btn ghost sm'}" data-t="${t}"${u ? ` data-u="${u}"` : ''} aria-label="Share" onclick="${onclick}">${icon}${o.label || 'Share'}</button>`;
 }
 
 // Small DE/EN pill toggle. Each pill links to /set-lang, preserving the page via

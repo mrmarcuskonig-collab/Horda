@@ -16,12 +16,21 @@ export interface CheckoutReq {
   successUrl: string;   // must contain {CHECKOUT_SESSION_ID}
   cancelUrl: string;
   metadata: Record<string, string>;
+  // Connect destination charge: route funds to the organizer's connected account,
+  // keeping `applicationFeeCents` (Horda's 10%) on the platform.
+  applicationFeeCents?: number;
+  destinationAccount?: string;   // acct_… of the connected organizer
 }
 export interface CheckoutResult { paid: boolean; metadata: Record<string, string>; subscriptionId: string | null }
+export interface ConnectStatus { accountId: string; chargesEnabled: boolean; payoutsEnabled: boolean }
 export interface Payments {
   readonly enabled: boolean;
   createCheckout(o: CheckoutReq): Promise<{ url: string }>;
   retrieve(sessionId: string): Promise<CheckoutResult | null>;
+  // Stripe Connect (Express) — the organizer's KYC + payout account.
+  createConnectAccount(o: { email?: string; country?: string }): Promise<{ accountId: string }>;
+  accountLink(o: { accountId: string; refreshUrl: string; returnUrl: string }): Promise<{ url: string }>;
+  getAccount(accountId: string): Promise<ConnectStatus | null>;
 }
 
 type Fetcher = typeof fetch;
@@ -58,9 +67,39 @@ export class StripePayments implements Payments {
     p.set('line_items[0][price_data][product_data][name]', o.productName);
     if (o.mode === 'subscription') p.set('line_items[0][price_data][recurring][interval]', o.interval ?? 'month');
     for (const [k, v] of Object.entries(o.metadata)) p.set('metadata[' + k + ']', v);
+    // Connect destination charge: platform keeps the application fee, the rest
+    // is transferred to the organizer's connected account.
+    if (o.destinationAccount) {
+      if (o.applicationFeeCents && o.applicationFeeCents > 0) p.set('payment_intent_data[application_fee_amount]', String(o.applicationFeeCents));
+      p.set('payment_intent_data[transfer_data][destination]', o.destinationAccount);
+    }
     const body = p.toString().replace('__HZSID__', '{CHECKOUT_SESSION_ID}');
     const s = await this.api('checkout/sessions', 'POST', body);
     return { url: s.url as string };
+  }
+
+  async createConnectAccount(o: { email?: string; country?: string }): Promise<{ accountId: string }> {
+    const p = new URLSearchParams();
+    p.set('type', 'express');
+    p.set('country', o.country || 'DE');
+    if (o.email) p.set('email', o.email);
+    p.set('capabilities[card_payments][requested]', 'true');
+    p.set('capabilities[transfers][requested]', 'true');
+    const a = await this.api('accounts', 'POST', p.toString());
+    return { accountId: a.id as string };
+  }
+  async accountLink(o: { accountId: string; refreshUrl: string; returnUrl: string }): Promise<{ url: string }> {
+    const p = new URLSearchParams();
+    p.set('account', o.accountId);
+    p.set('refresh_url', o.refreshUrl);
+    p.set('return_url', o.returnUrl);
+    p.set('type', 'account_onboarding');
+    const l = await this.api('account_links', 'POST', p.toString());
+    return { url: l.url as string };
+  }
+  async getAccount(accountId: string): Promise<ConnectStatus | null> {
+    const a = await this.api('accounts/' + encodeURIComponent(accountId), 'GET');
+    return { accountId: a.id, chargesEnabled: !!a.charges_enabled, payoutsEnabled: !!a.payouts_enabled };
   }
 
   async retrieve(sessionId: string): Promise<CheckoutResult | null> {
@@ -75,6 +114,11 @@ export class StubPayments implements Payments {
   readonly enabled = false;
   async createCheckout(): Promise<{ url: string }> { throw new Error('payments not configured'); }
   async retrieve(): Promise<null> { return null; }
+  // Dev/stub Connect: mint a fake connected account that's immediately enabled, so
+  // the onboarding + gating flow is exercisable end-to-end without a Stripe key.
+  async createConnectAccount(): Promise<{ accountId: string }> { return { accountId: 'acct_dev_' + Math.random().toString(36).slice(2, 10) }; }
+  async accountLink(o: { returnUrl: string }): Promise<{ url: string }> { return { url: o.returnUrl }; }
+  async getAccount(accountId: string): Promise<ConnectStatus> { return { accountId, chargesEnabled: true, payoutsEnabled: true }; }
 }
 
 export function getPayments(fetcher: Fetcher = fetch): Payments {

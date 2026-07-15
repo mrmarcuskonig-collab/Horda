@@ -19,14 +19,14 @@ import {
 import { renderEntityProfile, tableDark } from './shell.ts';
 import { FAVICON_SVG } from './brand.ts';
 import { buildResultShare, buildFightShare, buildWeekDrop } from '../content/index.ts';
-import { createScheduledEvent, rsvp, getRsvp, getEventDetail, getGuestList, listUpcomingByHost, listProfileEvents, hostName, icsFor, approveRegistration, markPaid, featureEvent, getTicketFor, giftTicket, listTicket, getListings, buyListing, priceLabel } from '../db/events_repo.ts';
+import { createScheduledEvent, rsvp, getRsvp, getEventDetail, getGuestList, listUpcomingByHost, listProfileEvents, hostName, icsFor, approveRegistration, markPaid, featureEvent, getTicketFor, giftTicket, listTicket, getListings, buyListing, priceLabel, getOrCreateShareToken, recordShareClick, shareAttribution, addParty, listParties, claimSide, removeParty, recordPromoClick, subEvents, parentOf, partyAttribution, myParty } from '../db/events_repo.ts';
 import { getTier, getTiers, setTier, joinMembership, cancelMembershipBySub, getMembership, memberCount, recordLoyalty, loyaltyScore, isSuperfan, topSuperfans, type TierLevel } from '../db/membership_repo.ts';
-import { signup, verifyLogin, createSession, sessionAccount, deleteSession, fanForAccount, owns, ownedEntities, grantOwnership, accountRole, setOnboarded, upsertOauthAccount, createPasswordReset, resetPassword, activateCreatorLayer, setBirthYear, accountFlags, isAdultYear } from '../db/auth_repo.ts';
+import { signup, verifyLogin, createSession, sessionAccount, deleteSession, fanForAccount, owns, ownedEntities, grantOwnership, accountRole, setOnboarded, upsertOauthAccount, createPasswordReset, resetPassword, activateCreatorLayer, setBirthYear, accountFlags, isAdultYear, startLogin, consumeLogin } from '../db/auth_repo.ts';
 import { getDiscover, REGIONS } from '../db/discover_repo.ts';
-import { renderEventPage, renderCreateEvent, renderManage, renderCheckout } from './events.ts';
+import { renderEventPage, renderCreateEvent, renderManage, renderCheckout, renderPayouts } from './events.ts';
 import { seedDemo, type DemoIds } from './seed.ts';
-import { renderIndex, renderDiscover, renderMap, renderAthletePage, renderCustomize, renderCompose, renderFanHome, renderSignup, renderLogin, renderForgot, renderReset, renderSharePage, renderMemberWelcome, renderClaimPending, renderClaimQueue, renderOnboardFan, renderAiPrompt, renderProfilePreview, renderOnboardClaim, renderCreatorEntry, renderClaimHandle, sportsLabel, renderSettings, renderPros } from './pages.ts';
-import { getEmailer, resetEmail } from './email.ts';
+import { renderIndex, renderDiscover, renderMap, renderAthletePage, renderCustomize, renderCompose, renderFanHome, renderSignup, renderLogin, renderForgot, renderReset, renderSharePage, renderMemberWelcome, renderClaimPending, renderClaimQueue, renderOnboardFan, renderAiPrompt, renderProfilePreview, renderOnboardClaim, renderCreatorEntry, renderClaimHandle, sportsLabel, renderSettings, renderPros, renderCreatePicker, renderCreateAge, renderMagicSent } from './pages.ts';
+import { getEmailer, resetEmail, loginEmail } from './email.ts';
 import { ogMeta } from './layout.ts';
 import { storeImage } from './storage.ts';
 import { fanChecklist, athleteChecklist, entityChecklist, renderChecklist } from './activation.ts';
@@ -50,8 +50,10 @@ import { resolveLayout } from './sections.ts';
 import { generateProfile, getModel, coverDataUri } from './profilegen.ts';
 import { requestClaim, verifyByChannelCode, listClaimsForReviewer, decideClaim, officialDomain, isAdmin as accountIsAdmin, type ClaimKind } from '../db/claim_repo.ts';
 import { getPayments, verifyWebhook } from './payments.ts';
+import { getPayoutAccount, upsertPayoutAccount, setPayoutStatus, isPayoutsEnabled } from '../db/payouts_repo.ts';
 
 const payments = getPayments();
+const TAKE_RATE = 0.10;   // Horda's flat 10% platform fee on paid tickets (locked)
 const emailer = getEmailer();
 
 const DEMO_FALLBACK = process.env.HORDA_DEMO !== '0';  // default on: usable without login
@@ -112,6 +114,10 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
       const adminFlag = !!account && (account.id === ids.demoAccountId ? true : await accountIsAdmin(db, account.id));
       const fwdProto = (req.headers['x-forwarded-proto'] as string | undefined)?.split(',')[0];
       const origin = process.env.HORDA_URL || `${fwdProto || 'https'}://${req.headers['x-forwarded-host'] || req.headers.host || 'localhost'}`;
+      // Persistent login: 90-day cookie (not session-scoped) + Secure on https, so
+      // logging in actually sticks across browser restarts. HttpOnly + Lax as before.
+      const secure = origin.startsWith('https://');
+      const sessionCookie = (token: string) => `hz_session=${token}; Path=/; Max-Age=7776000; HttpOnly; SameSite=Lax${secure ? '; Secure' : ''}`;
 
       if (path === '/favicon.svg') { res.writeHead(200, { 'content-type': 'image/svg+xml' }); res.end(FAVICON_SVG); return; }
 
@@ -134,7 +140,37 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
         let dest = (next && next !== '/') ? next : '/onboarding/fan';
         // carry a "follow this creator" intent (from a Follow CTA) into the follow picker
         if (f.follow && (dest === '/onboarding/fan' || dest.startsWith('/onboarding/fan'))) dest = `/onboarding/fan?follow=${encodeURIComponent(f.follow)}`;
-        res.writeHead(303, { 'set-cookie': `hz_session=${token}; Path=/; HttpOnly; SameSite=Lax`, location: dest }); res.end(); return;
+        res.writeHead(303, { 'set-cookie': sessionCookie(token), location: dest }); res.end(); return;
+      }
+      // --- passwordless sign-in (magic link + OTP) — the default, per Build Order item 1 ---
+      // Enter an email → we mail a magic link + a 6-digit code. New emails create a
+      // Fan account on first use; no password wall. Password login remains a fallback.
+      if (req.method === 'POST' && path === '/auth/start') {
+        const f = await parseForm(req);
+        const email = (f.email || '').toLowerCase().trim();
+        if (!email || !email.includes('@')) return html(res, renderMagicSent({ email: '', error: true, next: f.next || '' }));
+        const nextDest = (f.next && f.next !== '/') ? f.next : (f.intent === 'pro' ? '/onboarding/athlete' : '');
+        const { token, code } = await startLogin(db, email, { name: f.name || undefined, next: nextDest || undefined });
+        const link = `${origin}/auth/verify?token=${token}`;
+        const msg = loginEmail(link, code);
+        await emailer.send({ to: email, subject: msg.subject, html: msg.html, text: msg.text }).catch(() => false);
+        // Dev (no email provider): surface the link + code so the flow is usable/testable.
+        return html(res, renderMagicSent({ email, next: nextDest, devLink: emailer.enabled ? null : link, devCode: emailer.enabled ? null : code }));
+      }
+      if (path === '/auth/verify') {
+        const r = await consumeLogin(db, { token: url.searchParams.get('token') || undefined });
+        if (!r) return html(res, renderMagicSent({ email: '', expired: true, next: '' }));
+        const token = await createSession(db, r.accountId);
+        const dest = r.next || (r.isNew ? '/onboarding/fan' : '/');
+        res.writeHead(303, { 'set-cookie': sessionCookie(token), location: dest }); res.end(); return;
+      }
+      if (req.method === 'POST' && path === '/auth/code') {
+        const f = await parseForm(req);
+        const r = await consumeLogin(db, { email: f.email || '', code: (f.code || '').replace(/\s/g, '') });
+        if (!r) return html(res, renderMagicSent({ email: f.email || '', badCode: true, next: f.next || '' }));
+        const token = await createSession(db, r.accountId);
+        const dest = (f.next && f.next !== '/') ? f.next : r.next || (r.isNew ? '/onboarding/fan' : '/');
+        res.writeHead(303, { 'set-cookie': sessionCookie(token), location: dest }); res.end(); return;
       }
       // --- onboarding (first-run) ---
       if (path === '/onboarding/fan') {
@@ -247,7 +283,7 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
         const accId = await verifyLogin(db, (f.email || '').toLowerCase().trim(), f.password || '');
         if (!accId) return html(res, renderLogin(f.next || '/'), 401);
         const token = await createSession(db, accId);
-        res.writeHead(303, { 'set-cookie': `hz_session=${token}; Path=/; HttpOnly; SameSite=Lax`, location: f.next || '/' }); res.end(); return;
+        res.writeHead(303, { 'set-cookie': sessionCookie(token), location: f.next || '/' }); res.end(); return;
       }
       if (path === '/login') return html(res, renderLogin(url.searchParams.get('next') ?? '/'));
       if (path === '/logout') {
@@ -299,7 +335,7 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
         const acc = await upsertOauthAccount(db, profile.email, profile.name);
         const token = await createSession(db, acc.accountId);
         const next = decodeURIComponent(cnext) || '/onboarding/fan';
-        res.writeHead(303, { 'set-cookie': [`hz_session=${token}; Path=/; HttpOnly; SameSite=Lax`, 'hz_oauth=; Path=/; Max-Age=0'], location: next || '/onboarding/fan' }); res.end(); return;
+        res.writeHead(303, { 'set-cookie': [sessionCookie(token), 'hz_oauth=; Path=/; Max-Age=0'], location: next || '/onboarding/fan' }); res.end(); return;
       }
       // claim verification: claiming is a REQUEST, not instant ownership.
       let claimM;
@@ -395,6 +431,7 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
           priceCents: f.price ? Math.round(Number(f.price) * 100) : undefined, streams,
           capacity: f.capacity ? Number(f.capacity) : undefined,
           locationKind: f.location_kind, accessMode: f.access_mode,
+          archetype: ['single', 'versus', 'multi'].includes(f.archetype) ? f.archetype : 'single',
         };
         // Attendance formats (multi-format): in-person (ticketed on Horda) + up to
         // two streams (e.g. TikTok Live, a media provider). Every format's
@@ -407,8 +444,22 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
         }
         const applyFormats = async (evId: string) => { let i = 0; for (const s of specs) await addFormat(db, { eventId: evId, sort: i++, ...s }); };
 
-        const id = await createScheduledEvent(db, { ...baseArgs, recurrence: f.recurrence });
+        const parentId = (f.parent_id || '').trim() || undefined;
+        const id = await createScheduledEvent(db, { ...baseArgs, recurrence: f.recurrence, parentEventId: parentId });
         await applyFormats(id);
+        // Multi-party spine: the host is always an organizer; versus events get two
+        // sides (side A = host, side B = an unclaimed rival to be claimed by joining);
+        // an optional roster of attending athletes seeds unclaimed slots. Every party
+        // auto-gets a promo link. Measurement only — no money moves.
+        await addParty(db, { eventId: id, role: 'organizer', entityKind: f.host_kind, entityId: f.host_id, status: 'accepted' });
+        if (baseArgs.archetype === 'versus') {
+          await addParty(db, { eventId: id, role: 'side', side: 'A', entityKind: f.host_kind, entityId: f.host_id, status: 'accepted' });
+          const sideB = (f.side_b_name || '').trim();
+          if (sideB) await addParty(db, { eventId: id, role: 'side', side: 'B', placeholder: sideB, status: 'unclaimed' });
+        }
+        for (const nm of (f.roster || '').split(',').map(s => s.trim()).filter(Boolean).slice(0, 20)) {
+          await addParty(db, { eventId: id, role: 'attending_athlete', placeholder: nm, status: 'unclaimed' });
+        }
         // Event Room config (Build Order #3) — extends the event, no parallel system.
         if (f.room_enabled === '1') {
           const sport = f.host_kind === 'athlete' ? await getAthleteSport(db, f.host_id) : null;
@@ -435,7 +486,7 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
           const ownerFan = await fanForAccount(db, account!.id);
           if (ownerFan) await notify(db, { fanId: ownerFan, kind: 'season_created', headline: `${made + 1} events created — your series is live.`, href: `/e/${id}`, eventId: id });
         }
-        return redirect(res, f.room_enabled === '1' ? `/e/${id}/room` : `/e/${id}`);
+        return redirect(res, f.room_enabled === '1' ? `/e/${id}/room` : parentId ? `/e/${parentId}` : `/e/${id}`);
       }
       if (req.method === 'POST' && path === '/join') {
         const f = await parseForm(req);
@@ -487,18 +538,55 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
         await featureEvent(db, f.feat_kind, f.feat_id, f.event_id);
         return redirect(res, req.headers.referer ?? `/e/${f.event_id}`);
       }
+      // --- Stripe Connect: organizer payout onboarding (Build Order item 4) ---
+      // The gate for paid ticketing. Owner-only. Creates (once) an Express account,
+      // then sends them to Stripe's hosted KYC/onboarding. Web-first, no app stores.
+      let payM;
+      if (req.method === 'POST' && (payM = path.match(/^\/host\/(athlete|club|team|association)\/([^/]+)\/connect$/))) {
+        if (!await owns(db, account?.id ?? null, payM[1], payM[2])) return redirect(res, `/e`);
+        let acct = await getPayoutAccount(db, payM[1], payM[2]);
+        if (!acct?.stripeAccountId) {
+          const created = await payments.createConnectAccount({ email: account?.email });
+          await upsertPayoutAccount(db, payM[1], payM[2], created.accountId);
+          acct = await getPayoutAccount(db, payM[1], payM[2]);
+        }
+        const ret = `${origin}/host/${payM[1]}/${payM[2]}/connect/return`;
+        const { url } = await payments.accountLink({ accountId: acct!.stripeAccountId!, refreshUrl: ret, returnUrl: ret });
+        // Stub (no Stripe key) returns immediately-enabled; sync status now so the
+        // dev/demo flow flips to "connected" without a real round-trip.
+        if (!payments.enabled) { const st = await payments.getAccount(acct!.stripeAccountId!); await setPayoutStatus(db, payM[1], payM[2], st ?? { chargesEnabled: false, payoutsEnabled: false }); }
+        return redirect(res, url);
+      }
+      if (payM = path.match(/^\/host\/(athlete|club|team|association)\/([^/]+)\/connect\/return$/)) {
+        const acct = await getPayoutAccount(db, payM[1], payM[2]);
+        if (acct?.stripeAccountId) { const st = await payments.getAccount(acct.stripeAccountId).catch(() => null); if (st) await setPayoutStatus(db, payM[1], payM[2], st); }
+        return redirect(res, `/manage-payouts/${payM[1]}/${payM[2]}`);
+      }
+      if (payM = path.match(/^\/manage-payouts\/(athlete|club|team|association)\/([^/]+)$/)) {
+        if (!await owns(db, account?.id ?? null, payM[1], payM[2])) return redirect(res, `/${payM[1]}/${payM[2]}`);
+        const acct = await getPayoutAccount(db, payM[1], payM[2]);
+        return html(res, renderPayouts({ hostKind: payM[1], hostId: payM[2], hostName: await hostName(db, payM[1], payM[2]), connected: !!acct?.chargesEnabled, payoutsEnabled: !!acct?.payoutsEnabled, started: !!acct?.stripeAccountId, live: payments.enabled }));
+      }
       let cm;
       if (req.method === 'POST' && (cm = path.match(/^\/e\/([^/]+)\/pay$/))) {
         const f = await parseForm(req);
         const evId = cm[1];
+        const d = await getEventDetail(db, evId);
+        // Paid ticketing gate: with real Stripe on, the organizer must have connected
+        // payouts (KYC) before we collect money. Free events + dev/stub are ungated.
+        const connected = (d?.hostKind && d?.hostId) ? await isPayoutsEnabled(db, d.hostKind, d.hostId) : false;
         if (payments.enabled) {
-          const d = await getEventDetail(db, evId);
+          if (!connected) return redirect(res, `/e/${evId}`);   // tickets not on sale until payouts connected
+          const feeCents = Math.round((d?.priceCents ?? 0) * TAKE_RATE);
+          const acct = (d?.hostKind && d?.hostId) ? await getPayoutAccount(db, d.hostKind, d.hostId) : null;
           const { url } = await payments.createCheckout({
             mode: 'payment', amountCents: d?.priceCents ?? 0, currency: d?.currency || 'EUR',
             productName: `Ticket · ${d?.title ?? 'Event'}`,
             successUrl: `${origin}/checkout/success?session_id={CHECKOUT_SESSION_ID}`,
             cancelUrl: `${origin}/e/${evId}`,
             metadata: { kind: 'ticket', event_id: evId, fan_id: viewer },
+            applicationFeeCents: feeCents,
+            destinationAccount: acct?.stripeAccountId ?? undefined,
           });
           return redirect(res, url);
         }
@@ -576,14 +664,19 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
           const r = await upsertOauthAccount(db, email, f.name);   // passwordless base account
           claimAcct = r.accountId; claimFan = r.fanId ?? (await fanForAccount(db, r.accountId)) ?? viewer;
           const token = await createSession(db, r.accountId);
-          res.setHeader('set-cookie', `hz_session=${token}; Path=/; HttpOnly; SameSite=Lax`);
+          res.setHeader('set-cookie', sessionCookie(token));
         }
         // price comes from the chosen format (in-person ticket) if any, else event-level.
         let priceCents: number | null = d.admission === 'paid' ? d.priceCents : null;
         let fmtLabel = '';
         if (formatId) { const fmt = await getFormat(db, formatId); if (fmt) { priceCents = fmt.requiresTicket ? (fmt.priceCents ?? null) : null; fmtLabel = fmt.label; } }
         const evRow = (await db.query<any>(`SELECT capacity, registration_mode FROM event WHERE id=$1`, [eid])).rows[0];
-        const cl = await createClaim(db, { eventId: eid, fanId: claimFan, capacity: evRow?.capacity ?? null, mode: evRow?.registration_mode ?? 'open', priceCents, sourceEdge: url.searchParams.get('via') || 'direct' });
+        // Attribution: a participant promo link (?p=) takes precedence over a fan
+        // share (?via=). source_edge is what the attribution roll-ups count.
+        const promo = url.searchParams.get('p');
+        const via = url.searchParams.get('via');
+        const sourceEdge = promo ? `party:${promo}` : via ? `via:${via}` : 'direct';
+        const cl = await createClaim(db, { eventId: eid, fanId: claimFan, capacity: evRow?.capacity ?? null, mode: evRow?.registration_mode ?? 'open', priceCents, sourceEdge });
         if (formatId) await setClaimFormat(db, cl.id, formatId);
         await track(db, 'claim_created', { ownerKind: d.hostKind ?? undefined, ownerId: d.hostId ?? undefined, fanId: claimFan, eventId: eid, props: { status: cl.status, format: fmtLabel } });
         // Notify the organizer that someone confirmed (per-format), unless self-claim.
@@ -757,6 +850,12 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
         const guest = viewerGuest;
         const d = await getEventDetail(db, em[1]);
         if (!d) return html(res, '<p>Event not found. <a href="/">Home</a></p>', 404);
+        // Attributable-share click: someone opened a fan's /e/:id?via=<token> link.
+        const viaTok = url.searchParams.get('via');
+        if (viaTok) await recordShareClick(db, viaTok).catch(() => {});
+        // Participant promo click: /e/:id?p=<token> from a side/roster/custom link.
+        const promoTok = url.searchParams.get('p');
+        if (promoTok) await recordPromoClick(db, promoTok).catch(() => {});
         const myRsvp = guest ? null : await getRsvp(db, viewer, em[1]);
         const myEntities = guest ? [] : await ownedEntities(db, account?.id ?? null);
         const myTicket = guest ? null : await getTicketFor(db, em[1], viewer);
@@ -777,8 +876,8 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
         const claimBlock = isHost
           ? `<div class="card"><strong>You host this.</strong><div class="row" style="margin-top:8px"><a class="btn" href="/e/${em[1]}/check-in">Open check-in →</a><a class="btn ghost" href="/manage/${em[1]}">Manage &amp; attendance →</a></div></div>`
           : evFormats.length
-            ? formatPicker({ eventId: em[1], guest, full: spots.full, fanId: guest ? null : viewer, formats: evFormats, mine: minePass ? { status: minePass.status, token: minePass.token, formatId: mineFormatId } : null })
-            : claimCta({ eventId: em[1], remaining: spots.remaining, full: spots.full, mine: minePass, guest, priceLabel: d.admission === 'paid' ? priceLabel(d) : 'Free', mode: evRow?.registration_mode ?? 'open', accessMode: d.accessMode, standing: { have: standHave, need: evRow?.standing_threshold ?? 0 } });
+            ? formatPicker({ eventId: em[1], guest, full: spots.full, fanId: guest ? null : viewer, via: viaTok, promo: promoTok, formats: evFormats, mine: minePass ? { status: minePass.status, token: minePass.token, formatId: mineFormatId } : null })
+            : claimCta({ eventId: em[1], remaining: spots.remaining, full: spots.full, mine: minePass, guest, priceLabel: d.admission === 'paid' ? priceLabel(d) : 'Free', mode: evRow?.registration_mode ?? 'open', accessMode: d.accessMode, via: viaTok, promo: promoTok, standing: { have: standHave, need: evRow?.standing_threshold ?? 0 } });
         // Persistent primary-action bar (the IG/TikTok pattern) — scarcity + one tap.
         const barSub = spots.remaining == null ? (d.admission === 'paid' ? priceLabel(d) : 'Free') : (spots.full ? 'Full — join the waitlist' : `${spots.remaining} spot${spots.remaining === 1 ? '' : 's'} left${d.admission === 'paid' ? ' · ' + priceLabel(d) : ''}`);
         const stickyCta = isHost
@@ -786,16 +885,74 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
           : minePass
             ? actionBar({ title: "You're in", sub: minePass.status === 'waitlisted' ? 'On the waitlist' : 'Pass ready', cta: `<a class="btn" href="/pass/${minePass.token}">View pass</a>` })
             : actionBar({ title: d.title, sub: barSub, cta: `<a class="btn" href="#claim">${spots.full ? 'Join waitlist' : 'Claim your spot'}</a>` });
-        return html(res, renderEventPage(d, { guest, fanId: guest ? null : viewer, myRsvp, isHost, myEntities, myTicket, listings, extraTop: claimBlock + roomCta, stickyCta }));
+        // Past events: the door is closed. Replace the claim rail with a clear note
+        // (the event still lives on host/co-host/sharer profiles under "Past").
+        const ended = !!d.startsAt && Date.now() >= new Date(d.startsAt).getTime() + 3 * 3600 * 1000;
+        const pastCard = `<div class="card"><strong>This event is in the past.</strong> <span class="mut">Claims are closed.${minePass ? ` You can still view your pass.` : ''}</span>${minePass ? `<div class="row" style="margin-top:8px"><a class="btn ghost" href="/pass/${minePass.token}">View your pass</a></div>` : ''}${isHost ? `<div class="row" style="margin-top:8px"><a class="btn ghost" href="/manage/${em[1]}">See who came →</a></div>` : ''}</div>`;
+        const topBlock = ended ? pastCard + roomCta : claimBlock + roomCta;
+        const barBlock = ended ? '' : stickyCta;
+        // Who may see the watch/join link: host, a public event, or anyone who claimed.
+        const hasAccess = isHost || d.accessMode === 'public' || !!mineClaim;
+        // A logged-in fan gets a personal attributable share link for this event.
+        const shareRef = guest ? null : await getOrCreateShareToken(db, em[1], viewer);
+        // Host's public socials = how a fan actually reaches them (no in-app DM yet).
+        let hostLinks: Record<string, string> = {};
+        if (d.hostKind === 'athlete' && d.hostId) hostLinks = (await getAthleteProfile(db, d.hostId).catch(() => null))?.links ?? {};
+        else if (d.hostKind && d.hostId) hostLinks = (await getBranding(db, d.hostKind, d.hostId).catch(() => null))?.links ?? {};
+        // Multi-party line-up: organizers, sides, roster + sub-events + parent link.
+        const parties = await listParties(db, em[1]);
+        const subs = await subEvents(db, em[1]);
+        const parent = d.parentEventId ? await parentOf(db, em[1]) : null;
+        const canClaim = !guest && myEntities.length > 0;
+        // A participant sees their own promo link + draw.
+        const mine = guest ? null : await myParty(db, em[1], myEntities);
+        const myPromoToken = mine?.promoToken ?? null;
+        const myPromoDraw = myPromoToken ? (await partyAttribution(db, em[1])).rows.find(r => r.token === myPromoToken) : undefined;
+        return html(res, renderEventPage(d, { guest, fanId: guest ? null : viewer, myRsvp, isHost, myEntities, myTicket, listings, extraTop: topBlock, stickyCta: barBlock, hasAccess, shareRef, hostLinks, parties, subs, parent, canClaim, myPromoToken, myPromoDraw: myPromoDraw ? { identities: myPromoDraw.identities, ticketBuyers: myPromoDraw.ticketBuyers } : undefined }));
       }
       if ((em = path.match(/^\/manage\/([^/]+)$/))) {
         const d = await getEventDetail(db, em[1]);
         if (!d) return html(res, 'Not found', 404);
         if (!await canEdit(d.hostKind ?? '', d.hostId ?? '')) return redirect(res, `/e/${em[1]}`);  // guest list is owner-only
-        return html(res, renderManage(d, await getGuestList(db, em[1]), await formatCounts(db, em[1])));
+        const payoutAcct = (d.hostKind && d.hostId) ? await getPayoutAccount(db, d.hostKind, d.hostId) : null;
+        return html(res, renderManage(d, await getGuestList(db, em[1]), await formatCounts(db, em[1]), await shareAttribution(db, em[1]), await partyAttribution(db, em[1]), (d.hostKind && d.hostId) ? { hostKind: d.hostKind, hostId: d.hostId, connected: !!payoutAcct?.chargesEnabled } : undefined));
       }
       if ((em = path.match(/^\/host\/(athlete|club|team|association)\/([^/]+)\/new$/))) {
-        return html(res, renderCreateEvent(em[1], em[2], await hostName(db, em[1], em[2])));
+        const parentId = url.searchParams.get('parent');
+        const pe = parentId ? await getEventDetail(db, parentId) : null;
+        const parent = pe ? { id: pe.id, title: pe.title } : undefined;
+        return html(res, renderCreateEvent(em[1], em[2], await hostName(db, em[1], em[2]), parent));
+      }
+      // Multi-party: claim an unclaimed side/roster slot (the two-sided growth loop).
+      const pmClaim = path.match(/^\/e\/([^/]+)\/party\/([^/]+)\/claim$/);
+      if (req.method === 'POST' && pmClaim) {
+        if (viewerGuest || !account) return redirect(res, `/signup?next=/e/${pmClaim[1]}`);
+        const f = await parseForm(req);
+        const owned = await ownedEntities(db, account.id);
+        const pick = (f.entity_kind && f.entity_id) ? owned.find(o => o.kind === f.entity_kind && o.id === f.entity_id) : owned[0];
+        if (pick) await claimSide(db, pmClaim[2], pick.kind, pick.id);
+        return redirect(res, `/e/${pmClaim[1]}`);
+      }
+      // Organizer removes a party (or a participant removes themselves).
+      const pmRemove = path.match(/^\/e\/([^/]+)\/party\/([^/]+)\/remove$/);
+      if (req.method === 'POST' && pmRemove) {
+        const d = await getEventDetail(db, pmRemove[1]);
+        if (!d) return html(res, 'Not found', 404);
+        const p = (await listParties(db, pmRemove[1])).find(x => x.id === pmRemove[2]);
+        const isOrganizer = await canEdit(d.hostKind ?? '', d.hostId ?? '');
+        const isMe = !viewerGuest && p?.entityId && (await ownedEntities(db, account!.id)).some(o => o.kind === p.entityKind && o.id === p.entityId);
+        if (isOrganizer || isMe) await removeParty(db, pmRemove[2]);
+        return redirect(res, `/e/${pmRemove[1]}`);
+      }
+      // Organizer mints a custom promo link (an influencer / media partner draw).
+      const pmPromo = path.match(/^\/e\/([^/]+)\/promo$/);
+      if (req.method === 'POST' && pmPromo) {
+        const d = await getEventDetail(db, pmPromo[1]);
+        if (!d || !await canEdit(d.hostKind ?? '', d.hostId ?? '')) return redirect(res, `/e/${pmPromo[1]}`);
+        const f = await parseForm(req);
+        const label = (f.label || '').trim() || 'Custom link';
+        await addParty(db, { eventId: pmPromo[1], role: 'promoter', placeholder: label, status: 'accepted', kind: 'custom' });
+        return redirect(res, `/manage/${pmPromo[1]}`);
       }
 
       if (req.method === 'POST' && path === '/attend') {
@@ -813,8 +970,39 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
       if (path === '/pros' || path === '/about/creators/pros') {
         return html(res, renderPros({ guest: viewerGuest, fanId: viewer }));
       }
-      if (path === '/create') {
+      // The "run a full page" entrance (athlete / club / federation) — for people
+      // who want a standing creator page, distinct from just hosting one event.
+      if (path === '/onboarding') {
         return html(res, renderCreatorEntry({ guest: viewerGuest }));
+      }
+      // Create an event — the events-first doctrine: any logged-in person can host.
+      // Owns pages → pick which hosts it; owns none → spin up a personal page (18+).
+      if (path === '/create' || (req.method === 'POST' && path === '/create')) {
+        if (viewerGuest || !account) return redirect(res, '/signup?next=/create');
+        const hostable = await ownedEntities(db, account.id);
+        // POST = they just submitted the one-time birth-year check to create a personal page.
+        if (req.method === 'POST') {
+          const f = await parseForm(req);
+          const by = Number(f.birth_year);
+          if (Number.isFinite(by)) await setBirthYear(db, account.id, by);
+          const flags = await accountFlags(db, account.id);
+          if (!isAdultYear(Number.isFinite(by) ? by : flags.birthYear)) return html(res, renderCreateAge({ name: account.displayName || 'You', error: true }));
+          const aId = await createAthlete(db, account.displayName || 'My events');
+          await db.query(`UPDATE athlete SET account_id=$1 WHERE id=$2`, [account.id, aId]);
+          await grantOwnership(db, account.id, 'athlete', aId);
+          await activateCreatorLayer(db, account.id, false);
+          return redirect(res, `/host/athlete/${aId}/new`);
+        }
+        if (hostable.length === 1) return redirect(res, `/host/${hostable[0].kind}/${hostable[0].id}/new`);
+        if (hostable.length > 1) return html(res, renderCreatePicker({ fanId: viewer, pages: hostable }));
+        // no page yet → confirm 18+ once, then auto-provision a personal host page
+        const flags = await accountFlags(db, account.id);
+        if (!isAdultYear(flags.birthYear)) return html(res, renderCreateAge({ name: account.displayName || 'You' }));
+        const aId = await createAthlete(db, account.displayName || 'My events');
+        await db.query(`UPDATE athlete SET account_id=$1 WHERE id=$2`, [account.id, aId]);
+        await grantOwnership(db, account.id, 'athlete', aId);
+        await activateCreatorLayer(db, account.id, false);
+        return redirect(res, `/host/athlete/${aId}/new`);
       }
       if (path === '/settings') {
         if (viewerGuest) return redirect(res, '/login');

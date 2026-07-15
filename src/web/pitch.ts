@@ -130,24 +130,26 @@ export function renderPitch(kind: 'athletes' | 'clubs', guest: boolean): string 
 // Patreon-style: a top nav whose items are their own pages (with dropdowns), an
 // inspirational big-type hero, FURIA-bold but on the Ink/Bone brand. Type-led —
 // no clip-art; real photography drops in later.
+// Outcome-led — every card names the result, then how. New positioning: the
+// events layer for competitive sport, with attributed reach.
 const FEATURES: Benefit[] = [
-  { t: 'Your page in a minute', d: 'Describe yourself in a sentence — AI builds a bold, on‑brand page: headline, cover, the lot. You own it instantly.' },
-  { t: 'Recurring income', d: 'Supporter and Clubhouse tiers, monthly or annual. Real, predictable support from the fans closest to you.' },
-  { t: 'Members‑only drops', d: 'Training, fight‑week, team news, behind‑the‑scenes — posted free or locked to your supporters. You choose.' },
-  { t: 'Events, streams & tickets', d: 'Schedule events, sell tickets, go live on YouTube / Twitch / Instagram / TikTok — Luma‑style, built in.' },
-  { t: 'Superfans, rewarded', d: 'Fans earn Superfan status by showing up, predicting and sharing. Loyalty you can actually see — and reward.' },
-  { t: 'Verified & yours', d: 'Claim‑verified so there are no fakes — and your audience is yours, never rented from an algorithm.' },
+  { t: 'See who drove every ticket', d: 'Every participant gets a ready‑to‑share link. When a fan claims or buys through it, it’s credited to them — “Rico drove 312 fans and 140 ticket buyers to this fight.” Reach you can finally count.' },
+  { t: 'Sell tickets — free or paid', d: 'Free tickets are one tap, tied to a real identity, no signup wall. Charge when you want: card payments via Stripe, money in your account, Horda keeps a flat 10%.' },
+  { t: 'Know who actually showed up', d: 'Every ticket carries a QR. Scan people in at the door and verified attendance is stamped on their identity — not who clicked “interested”, who was really there.' },
+  { t: 'Drag your rival onto the platform', d: 'A match has two sides. List the rival club even before they join — they join Horda to claim their side, their fans and their share of the tickets. A growth loop generic ticketing can’t have.' },
+  { t: 'Fight cards that roll up', d: 'Nest bouts or races inside one event. Each fighter shares their bout; the sale rolls up to the night. Many small rivalries, all pulling fans into one big event.' },
+  { t: 'A record of real presence', d: 'Checked‑in fans get an “I was there” stamp — a passport of where they actually showed up, and a shareable card that pulls the next fan in.' },
 ];
 
 type AboutPage = 'about' | 'creators' | 'features' | 'pricing';
 const NAV: { key: AboutPage; label: string; href: string; dd: [string, string][] }[] = [
-  { key: 'creators', label: 'Creators', href: '/about/creators', dd: [['Athletes', '/about/creators#athletes'], ['Clubs', '/about/creators#clubs'], ['Federations', '/about/creators#federations']] },
-  { key: 'features', label: 'Features', href: '/about/features', dd: [['Your page in a minute', '/about/features'], ['Recurring income', '/about/features'], ['Members‑only drops', '/about/features'], ['Events & tickets', '/about/features'], ['Superfans, rewarded', '/about/features']] },
-  { key: 'pricing', label: 'Pricing', href: '/about/pricing', dd: [['Follow — free', '/about/pricing'], ['Supporter', '/about/pricing'], ['Clubhouse', '/about/pricing'], ['Earn Superfan free', '/about/pricing']] },
+  { key: 'creators', label: 'Who it’s for', href: '/about/creators', dd: [['Clubs & organisers', '/about/creators#clubs'], ['Athletes', '/about/creators#athletes'], ['Federations', '/about/creators#federations'], ['Fans', '/about/creators#fans']] },
+  { key: 'features', label: 'What you can do', href: '/about/features', dd: [['See who drove your tickets', '/about/features'], ['Free & paid tickets', '/about/features'], ['QR check‑in', '/about/features'], ['Two‑sided events', '/about/features'], ['Fight cards & sub‑events', '/about/features'], ['Verified presence', '/about/features']] },
+  { key: 'pricing', label: 'Pricing', href: '/about/pricing', dd: [['Free events — free', '/about/pricing'], ['Paid tickets — flat 10%', '/about/pricing'], ['Attribution — always free', '/about/pricing']] },
 ];
 
 function aboutShell(active: AboutPage, guest: boolean, title: string, body: string): string {
-  const athleteHref = guest ? '/signup?next=/onboarding/athlete' : '/onboarding/athlete';
+  const createHref = '/create';   // events-first: primary CTA everywhere is "Create an event"
   const navItem = (n: typeof NAV[number]) => `<div class="navitem${active === n.key ? ' on' : ''}"><a class="topl" href="${n.href}">${esc(n.label)}</a><div class="dd">${n.dd.map(([l, h]) => `<a href="${h}">${esc(l)}</a>`).join('')}</div></div>`;
   return `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><link rel="icon" href="/favicon.svg"><title>${esc(title)} — Horda</title>${THEME_BOOT}
 <link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
@@ -217,115 +219,129 @@ function aboutShell(active: AboutPage, guest: boolean, title: string, body: stri
   <header class="mnav">
     <nav class="links">${NAV.map(navItem).join('')}</nav>
     <a class="mark" href="/" aria-label="Horda — home">${ravenMarkCurrent(30)}</a>
-    <div class="right">${themeToggle()}${guest ? `<a class="btn ghost sm" href="/login">Log in</a>` : ''}<a class="btn sm" href="${athleteHref}">Create your page</a></div>
+    <div class="right">${themeToggle()}${guest ? `<a class="btn ghost sm" href="/login">Log in</a>` : ''}<a class="btn sm" href="${createHref}">Create an event</a></div>
   </header>
   <div class="wrap">${body}</div>
-  <div class="foot"><div class="fl"><a href="/about/creators">Creators</a><a href="/about/features">Features</a><a href="/about/pricing">Pricing</a><a href="/about">Overview</a></div>Coverage of real sport — never a fan‑to‑fan venue. joinhorda.com</div>
+  <div class="foot"><div class="fl"><a href="/about/creators">Who it’s for</a><a href="/about/features">Features</a><a href="/about/pricing">Pricing</a><a href="/about">Overview</a></div>Coverage of real sport — never a fan‑to‑fan venue. joinhorda.com</div>
   ${bottomNav({ guest, fanId: null })}
 </body></html>`;
 }
 
-// MAIN /about — inspirational: what Horda can be, with routes into each page.
+// MAIN /about — leads with the differentiator (attributed reach), then the loop.
 export function renderAbout(guest: boolean): string {
-  const athleteHref = guest ? '/signup?next=/onboarding/athlete' : '/onboarding/athlete';
+  const createHref = '/create';
   const body = `
     <section class="bighero">
-      <div class="kick">The home for sports superfans</div>
-      <h1 class="hl">Build the home your fans never had.</h1>
-      <p class="lead">From a regional keeper to a running influencer — Horda turns a following into a Horda: superfans who follow, back you and show up. Drops, events, tickets and recurring income, in one place you own.</p>
-      <div class="ctarow"><a class="btn" href="${athleteHref}">Create your page →</a><a class="btn ghost" href="/about/features">See what you can do</a></div>
+      <div class="kick">The events layer for competitive sport</div>
+      <h1 class="hl">Know exactly which fans and tickets you drove.</h1>
+      <p class="lead">Horda runs your events — free or paid tickets, QR check‑in, verified presence — and measures the reach behind them. Two‑sided and roster‑based, so every club and athlete sees the fans and tickets they drove, and can get paid for it. Generic ticketing can’t tell you who brought whom. We can.</p>
+      <div class="ctarow"><a class="btn" href="${createHref}">Create an event →</a><a class="btn ghost" href="/about/features">See what you can do</a></div>
     </section>
+
+    <h2 class="sec">A worked example</h2>
+    <div class="pcard">
+      <h3>FC Kreuzberg vs. FC Rival — Regionalliga‑Pokal.</h3>
+      <p>Kreuzberg creates the match and lists FC Rival as the away side — <b style="color:var(--bone)">even though Rival isn’t on Horda yet</b>. The event goes live; both fanbases can claim tickets. To claim their side, their fans and their share of the tickets, <b style="color:var(--bone)">Rival joins Horda</b> — the event drags the rival club, and its fanbase, onto the platform. On the day you scan tickets at the gate. Afterwards you see it in numbers: <b style="color:var(--bone)">Rival’s captain drove 210 fans and 88 ticket buyers</b>; Kreuzberg drove 341 and 150. Reach, measured — and, later, paid.</p>
+      <a class="btn" href="${createHref}">Create an event →</a>
+    </div>
 
     <h2 class="sec">Start here</h2>
     <div class="pillars">
-      <a class="pillar" href="/about/creators"><div class="pn">Creators</div><p>Athletes, clubs and federations — every side of sport, one home.</p><span class="go">Who it’s for →</span></a>
-      <a class="pillar" href="/about/features"><div class="pn">Features</div><p>AI page, members‑only drops, events &amp; tickets, superfans.</p><span class="go">What you can do →</span></a>
-      <a class="pillar" href="/about/pricing"><div class="pn">Pricing</div><p>Free to start. Fair, transparent tiers. You set the price.</p><span class="go">What it costs →</span></a>
+      <a class="pillar" href="/about/creators"><div class="pn">Who it’s for</div><p>Clubs &amp; organisers, athletes, federations — and the fans who show up.</p><span class="go">See who →</span></a>
+      <a class="pillar" href="/about/features"><div class="pn">What you can do</div><p>Sell tickets, scan people in, and see exactly who drove them.</p><span class="go">The features →</span></a>
+      <a class="pillar" href="/about/pricing"><div class="pn">Pricing</div><p>Free events are free. Paid tickets: a flat 10%. Attribution always free.</p><span class="go">What it costs →</span></a>
     </div>
 
     <div class="manifesto">
-      <p class="ln"><b>The long tail of sport</b> — every league, every fighter — finally has a home.</p>
-      <p class="ln">Not rented from an algorithm. <b>An audience you own.</b></p>
-      <p class="ln">Where showing up, predicting and sharing turns fans into <b>superfans.</b></p>
+      <p class="ln">Every match has <b>two sides</b>. A tournament has <b>many</b>. Both bring their own fans.</p>
+      <p class="ln">Today an athlete’s share is <b>unmeasured, unpaid</b>. Here it’s <b>counted</b> — and later, paid.</p>
+      <p class="ln">Not who clicked “interested”. <b>Who actually showed up.</b></p>
     </div>
 
-    <div class="closeb"><h3>Your fans are already here. Give them a home.</h3><a class="btn" href="${athleteHref}">Create your page →</a></div>`;
-  return aboutShell('about', guest, 'Horda for creators', body);
+    <div class="closeb"><h3>Run your next event where the reach is measured.</h3><a class="btn" href="${createHref}">Create an event →</a></div>`;
+  return aboutShell('about', guest, 'The events layer for competitive sport', body);
 }
 
-// /about/creators — who it's for (athletes, clubs, federations)
+// /about/creators — who it's for, each with an outcome + a concrete example.
 export function renderAboutCreators(guest: boolean): string {
-  const athleteHref = guest ? '/signup?next=/onboarding/athlete' : '/onboarding/athlete';
+  const createHref = '/create';
   const claimHref = guest ? '/signup?next=/onboarding/claim' : '/onboarding/claim';
+  const athleteHref = guest ? '/signup?next=/onboarding/athlete' : '/onboarding/athlete';
   const body = `
     <section class="phero">
-      <div class="kick">Creators</div>
-      <h1 class="hl">Built for every side of sport.</h1>
-      <p class="lead">Whether you compete, run a club, or govern a league — Horda gives you one home for your fandom and the tools to make it pay.</p>
+      <div class="kick">Who it’s for</div>
+      <h1 class="hl">Everyone who makes the event happen.</h1>
+      <p class="lead">Organisers sell the tickets, athletes bring the fans, federations connect the pyramid — and fans get proof they were there. Each side gets the reach it drove.</p>
     </section>
 
-    <h2 class="sec" id="athletes">Athletes</h2>
-    <div class="pcard"><h3>Your page in a sentence.</h3><p>Describe yourself and AI builds a bold, on‑brand page — headline, cover, the lot. Post drops, set your tiers, schedule fight‑week events and meet‑ups. You own it instantly, and your fans can earn Superfan status by showing up.</p><a class="btn" href="${athleteHref}">Create my athlete page →</a></div>
+    <h2 class="sec" id="clubs">Clubs &amp; organisers</h2>
+    <div class="pcard"><h3>Sell out the night — and see who filled the seats.</h3><p>Create a match, a fight night or a run club in a minute. Issue free or paid tickets, scan people in at the door, and invite co‑organisers and the rival side. Afterwards you see the breakdown: which club, which athlete, which link drove the tickets. <b style="color:var(--bone)">Example:</b> a Kreisliga cup lists both clubs; the away club joins to claim its side; you sell 500 tickets and know exactly who brought them.</p><a class="btn" href="${createHref}">Create an event →</a> <a class="btn ghost" href="${claimHref}">Claim your club page</a></div>
 
-    <h2 class="sec" id="clubs">Clubs</h2>
-    <div class="pcard"><h3>Turn matchdays into a home.</h3><p>From a grassroots side to a national cup run: claim your page, verify you represent it, and bring fixtures, RSVPs, tickets and members‑only team news into one place your supporters actually check — and fund.</p><a class="btn" href="${claimHref}">Claim our club page →</a></div>
+    <h2 class="sec" id="athletes">Athletes &amp; creators</h2>
+    <div class="pcard"><h3>Turn your Instagram share into a measured, paid channel.</h3><p>Athletes, coaches, sports influencers — anyone with a following. Today you promote an event by posting to socials, unmeasured and unpaid. On Horda your roster link makes your draw countable: <b style="color:var(--bone)">“Rico drove 312 fans and 140 ticket buyers to this fight.”</b> That number is your leverage — hard proof of your draw when you negotiate an appearance fee, and the reason to promote here instead of just on Instagram.</p><a class="btn" href="${athleteHref}">Create your page →</a></div>
 
-    <h2 class="sec" id="federations">Federations</h2>
-    <div class="pcard"><h3>Govern the whole pyramid.</h3><p>Associations sanction leagues, clubs field teams, athletes compete — and on Horda it all connects. Verify clubs, surface competitions, and give your grassroots a home from the governing body down.</p><a class="btn" href="${claimHref}">Claim our federation page →</a></div>
+    <h2 class="sec" id="federations">Federations &amp; leagues</h2>
+    <div class="pcard"><h3>Run a whole competition, not just one event.</h3><p>Associations sanction leagues, clubs field teams, athletes compete — on Horda it connects. List your member clubs (they claim to take over — a growth loop), run a season of fixtures, and let promotion cascade: the federation promotes, its clubs amplify, their athletes amplify. Attribution rolls up the whole tree.</p><a class="btn" href="${claimHref}">Claim your federation page →</a></div>
 
-    <div class="closeb"><h3>Your fans are already here. Give them a home.</h3><a class="btn" href="${athleteHref}">Create your page →</a></div>`;
-  return aboutShell('creators', guest, 'Creators', body);
+    <h2 class="sec" id="fans">Fans</h2>
+    <div class="pcard"><h3>Prove you were actually there.</h3><p>Claim a spot with just your email — no password wall. Get a QR ticket, show it at the door, and your presence is stamped onto your <b style="color:var(--bone)">Record</b> — a passport of where you really showed up, not what you streamed. Share the “I was there” card and pull your friends into the next one.</p><a class="btn" href="/">Find an event →</a></div>
+
+    <div class="closeb"><h3>Run your next event where the reach is measured.</h3><a class="btn" href="${createHref}">Create an event →</a></div>`;
+  return aboutShell('creators', guest, 'Who it’s for', body);
 }
 
-// /about/features — what you can do
+// /about/features — what you can do, outcome-led, with a worked walkthrough.
 export function renderAboutFeatures(guest: boolean): string {
-  const athleteHref = guest ? '/signup?next=/onboarding/athlete' : '/onboarding/athlete';
+  const createHref = '/create';
   const body = `
     <section class="phero">
-      <div class="kick">Features</div>
-      <h1 class="hl">Everything you need to grow &amp; earn.</h1>
-      <p class="lead">One home for your fandom: an AI‑built page, members‑only drops, events and tickets, recurring income, and superfans you can actually see.</p>
+      <div class="kick">What you can do</div>
+      <h1 class="hl">Sell tickets. Scan them in. See who drove them.</h1>
+      <p class="lead">The full loop for competitive sport — free or paid tickets, QR check‑in, verified presence — plus the thing generic ticketing can’t do: per‑participant attribution, so you know exactly who brought whom.</p>
     </section>
 
     <h2 class="sec">What you can do</h2>
     <div class="grid">${FEATURES.map(f => `<div class="card"><h3>${esc(f.t)}</h3><p>${esc(f.d)}</p></div>`).join('')}</div>
 
-    <h2 class="sec">How it works</h2>
+    <h2 class="sec">A fight night, end to end</h2>
+    <p class="secsub">One concrete run‑through — the same model handles a Kreisliga cup or a run club.</p>
     <div class="steps">
-      <div class="step"><span class="n">1</span><p>Describe yourself, or find &amp; claim your club — AI builds your page.</p></div>
-      <div class="step"><span class="n">2</span><p>Add your tiers and post your first drop or schedule an event.</p></div>
-      <div class="step"><span class="n">3</span><p>Share it — fans follow, back you, show up, and climb to Superfan.</p></div>
+      <div class="step"><span class="n">1</span><p><b>Create the night</b> and add the card — ten bouts, each its own two sides. Every fighter gets a ready‑to‑share promo link automatically.</p></div>
+      <div class="step"><span class="n">2</span><p><b>List the rivals</b> who aren’t on Horda yet. They join to claim their side, their fans and their ticket share — the event pulls them in.</p></div>
+      <div class="step"><span class="n">3</span><p><b>Sell one ticket to the night</b> — free or paid. A fighter shares his bout; the sale rolls up to the parent event and is credited to him.</p></div>
+      <div class="step"><span class="n">4</span><p><b>Scan tickets at the door.</b> Verified presence is stamped on each fan’s identity — you know exactly who showed up.</p></div>
+      <div class="step"><span class="n">5</span><p><b>Read the reach.</b> Your share panel shows every participant’s draw — fans and ticket buyers — rolled up across all ten bouts.</p></div>
     </div>
 
-    <div class="closeb"><h3>Give your fans something to belong to.</h3><a class="btn" href="${athleteHref}">Create your page →</a></div>`;
-  return aboutShell('features', guest, 'Features', body);
+    <div class="closeb"><h3>See who drove your next sell‑out.</h3><a class="btn" href="${createHref}">Create an event →</a></div>`;
+  return aboutShell('features', guest, 'What you can do', body);
 }
 
-// /about/pricing — what it costs
+// /about/pricing — ticketing-led. Free events free; paid tickets a flat 10%.
 export function renderAboutPricing(guest: boolean): string {
-  const athleteHref = guest ? '/signup?next=/onboarding/athlete' : '/onboarding/athlete';
+  const createHref = '/create';
   const body = `
     <section class="phero">
       <div class="kick">Pricing</div>
-      <h1 class="hl">Free to start. Fair to grow.</h1>
-      <p class="lead">You set the prices — kept low and fair. Three ways for fans to back you, plus a free path to Superfan status. We only do well when you do.</p>
+      <h1 class="hl">Free events are free. Paid tickets: a flat 10%.</h1>
+      <p class="lead">No monthly fee, no lock‑in. We only make money when you sell a paid ticket — and the attribution that shows who drove your reach is always free.</p>
     </section>
 
-    <h2 class="sec">Ways fans back you</h2>
+    <h2 class="sec">What it costs</h2>
     <div class="tiers">
-      <div class="tier"><div class="nm">Follow</div><div class="pr">Free — your whole audience</div><ul><li>Public drops, events &amp; matchdays</li><li>Counts toward Superfan status</li></ul><a class="btn ghost sm" href="${athleteHref}">Start free</a></div>
-      <div class="tier"><div class="nm">Supporter</div><div class="pr">Monthly or annual — you set it</div><ul><li>Members‑only drops</li><li>Early &amp; priority tickets</li><li>The supporter badge</li></ul><a class="btn sm" href="${athleteHref}">Add a tier</a></div>
-      <div class="tier prem"><div class="nm">Clubhouse</div><div class="pr">Premium · grants Superfan</div><ul><li>Everything in Supporter</li><li>The inside circle &amp; perks</li><li>Instant Superfan status</li></ul><a class="btn sm" href="${athleteHref}">Add a tier</a></div>
+      <div class="tier"><div class="nm">Free events</div><div class="pr">€0 — always</div><ul><li>Unlimited free tickets</li><li>QR check‑in &amp; verified presence</li><li>Every participant’s promo link</li></ul><a class="btn ghost sm" href="${createHref}">Create an event</a></div>
+      <div class="tier prem"><div class="nm">Paid tickets</div><div class="pr">Flat 10% per ticket sold</div><ul><li>Card payments via Stripe</li><li>Payouts to your own account</li><li>You keep 90% of every ticket</li></ul><a class="btn sm" href="${createHref}">Sell tickets</a></div>
+      <div class="tier"><div class="nm">Attribution</div><div class="pr">Free — for everyone</div><ul><li>Per‑participant reach counts</li><li>Fans + ticket buyers driven</li><li>Roll‑ups across sub‑events</li></ul><a class="btn ghost sm" href="/about/features">How it works</a></div>
     </div>
 
     <h2 class="sec">Fair by design</h2>
     <div class="trust">
-      <div class="card"><h3>Keep more of what you earn</h3><p>A low, transparent fee — well below the big membership platforms.</p></div>
-      <div class="card"><h3>You own your audience</h3><p>Your supporters are yours, not rented from an algorithm — export them anytime.</p></div>
-      <div class="card"><h3>No surprise hikes</h3><p>We’ll never raise your rate on you. The deal you start with is the deal you keep.</p></div>
+      <div class="card"><h3>Gate money, not creation</h3><p>Free actions stay frictionless. Verification only kicks in where cash actually moves.</p></div>
+      <div class="card"><h3>Web‑first payouts</h3><p>Connect a Stripe account, money lands in your bank. We never route through app‑store fees.</p></div>
+      <div class="card"><h3>You own your crowd</h3><p>The fans and reach you build are yours — measured, exportable, never rented from an algorithm.</p></div>
     </div>
-    <p class="secsub" style="margin-top:18px">Fans can also <b style="color:var(--bone)">earn Superfan status for free</b> — by showing up, predicting and sharing. Loyalty, not just money.</p>
+    <p class="secsub" style="margin-top:18px">Appearance fees and ticket splits — paying an athlete for the reach they drove — are <b style="color:var(--bone)">coming next</b>. At launch, the reach is measured; the payments follow.</p>
 
-    <div class="closeb"><h3>Start free. Earn from day one.</h3><a class="btn" href="${athleteHref}">Create your page →</a></div>`;
+    <div class="closeb"><h3>Start free. Sell tickets when you’re ready.</h3><a class="btn" href="${createHref}">Create an event →</a></div>`;
   return aboutShell('pricing', guest, 'Pricing', body);
 }

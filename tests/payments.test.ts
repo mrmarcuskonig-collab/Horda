@@ -50,6 +50,33 @@ let subFetch: any = async (u: string) => u.includes('/checkout/sessions/')
 const got2 = await new StripePayments('sk_test_123', subFetch).retrieve('cs_2');
 ok('retrieve surfaces the subscription id', got2!.subscriptionId === 'sub_ABC');
 
+// --- Stripe Connect: destination charges + 10% platform fee (Build Order item 4) ---
+console.log('\n[payments · Stripe Connect]');
+let connUrl = '', connBody = '';
+const connFetch: any = async (u: string, init: any) => {
+  connUrl = u; connBody = init?.body ? decodeURIComponent(init.body) : '';
+  if (u.includes('/accounts/acct_')) return { ok: true, json: async () => ({ id: 'acct_X', charges_enabled: true, payouts_enabled: true }) };
+  if (u.endsWith('/accounts')) return { ok: true, json: async () => ({ id: 'acct_X' }) };
+  if (u.endsWith('/account_links')) return { ok: true, json: async () => ({ url: 'https://connect.stripe.com/setup/acct_X' }) };
+  return { ok: true, json: async () => ({ id: 'cs_9', url: 'https://checkout.stripe.com/c/pay/cs_9' }) };
+};
+const cp = new StripePayments('sk_test_123', connFetch);
+const acct = await cp.createConnectAccount({ email: 'club@x.co' });
+ok('createConnectAccount → Express account with transfers capability', acct.accountId === 'acct_X' && connUrl.endsWith('/accounts') && connBody.includes('type=express') && connBody.includes('[transfers][requested]=true'));
+const linkR = await cp.accountLink({ accountId: 'acct_X', refreshUrl: 'https://h/r', returnUrl: 'https://h/ret' });
+ok('accountLink → hosted Stripe onboarding url', linkR.url.startsWith('https://connect.stripe.com/') && connBody.includes('type=account_onboarding'));
+const st = await cp.getAccount('acct_X');
+ok('getAccount reports charges + payouts enabled', st!.chargesEnabled === true && st!.payoutsEnabled === true);
+// a paid-ticket checkout with a connected destination + 10% fee
+await cp.createCheckout({
+  mode: 'payment', amountCents: 2000, currency: 'EUR', productName: 'Ticket',
+  successUrl: 'https://h/s?session_id={CHECKOUT_SESSION_ID}', cancelUrl: 'https://h/e',
+  metadata: { kind: 'ticket' }, applicationFeeCents: 200, destinationAccount: 'acct_X',
+});
+ok('checkout routes funds to the connected account + keeps the 10% fee', connBody.includes('[application_fee_amount]=200') && connBody.includes('[transfer_data][destination]=acct_X'));
+// stub Connect: dev shortcut that flips to enabled so the flow is exercisable
+ok('stub Connect account is instantly enabled (dev)', (await stub.getAccount('acct_dev')).chargesEnabled === true);
+
 // --- webhook signature verification ---
 console.log('\n[payments · webhook signatures]');
 const secret = 'whsec_test_secret';
