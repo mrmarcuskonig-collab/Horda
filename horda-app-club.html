@@ -2,13 +2,13 @@
 <meta property="og:type" content="profile">
 <meta property="og:title" content="FC Beispiel on Horda">
 <meta property="og:description" content="Kreuzberg · gegründet 1924 · Kreisliga A">
-<meta property="og:url" content="https://localhost:38633/club/6471b0d3-7f06-4786-aee4-a23389dea2ca">
+<meta property="og:url" content="https://localhost:36303/club/36166b98-90eb-4563-b99e-1a092dd0a516">
 <meta name="twitter:card" content="summary">
 <meta name="twitter:title" content="FC Beispiel on Horda">
 <meta name="twitter:description" content="Kreuzberg · gegründet 1924 · Kreisliga A">
 <link rel="icon" href="/favicon.svg"><style>
   
-  :root{color-scheme:dark;--ink:#0B0B0C;--bone:#EDE9DF;--s:rgba(237,233,223,.05);--b:rgba(237,233,223,.16);--mut:rgba(237,233,223,.6);--scrim:rgba(11,11,12,.82)}
+  :root{color-scheme:dark;--ink:#232020;--bone:#EDE9DF;--s:rgba(237,233,223,.05);--b:rgba(237,233,223,.16);--mut:rgba(237,233,223,.6);--scrim:rgba(26,23,23,.84);--acc:#E15A40;--acc2:#cd4c33;--accink:#1b1310;--btnr:12px}
 
   .thm{display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:999px;border:1.5px solid var(--b);background:transparent;color:var(--bone);cursor:pointer;padding:0;flex:0 0 auto}.thm:hover{border-color:var(--bone)}.thm svg{display:block}
   .vbadge{display:inline-flex;vertical-align:-2px;margin-left:4px;color:currentColor}.vbadge svg{display:block}
@@ -31,6 +31,14 @@
   .btn,button{transition:transform .12s ease,opacity .12s ease,background .15s ease,border-color .15s ease}
   .btn:active,button:active{transform:scale(.97)}
   .btn:hover,button:hover{opacity:.92}
+  /* Global button system: coral-orange CTA fill, softly rounded (not pill).
+     body-scoped so it wins over each page's local .btn; ghost/dark stay outline;
+     icon controls (.thm/.backx/.hz-back) keep their circular shape. */
+  body .btn,body .rb,body button:not(.thm):not(.backx):not(.locbtn){border-radius:var(--btnr)}
+  body .btn:not(.ghost):not(.dark){background:var(--acc);color:var(--accink);border-color:var(--acc);font-weight:800}
+  body .btn:not(.ghost):not(.dark):hover{background:var(--acc2);border-color:var(--acc2);opacity:1}
+  body .rb.p,body .btn.p{background:var(--acc);color:var(--accink);border-color:var(--acc);font-weight:800}
+  body .thm,body .backx,body .hz-back,body .locbtn{border-radius:999px}
   .card{transition:border-color .15s ease}
   /* Poster hero: full-bleed media with a legibility scrim + overlaid title */
   .poster{position:relative;margin:0 -18px;height:min(78vw,420px);overflow:hidden}
@@ -146,23 +154,23 @@
     <form class="dr-search" method="get" action="/"><input name="region" value="" placeholder="Search city or sport" autocomplete="off" aria-label="Search city or sport"></form>
     <nav class="dr-nav" aria-label="Primary">
       <a class="dr-item on" href="/" aria-current="page"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m15.2 8.8-2 4.4-4.4 2 2-4.4 4.4-2Z"/></svg><span>Explore</span></a>
-      <a class="dr-item" href="/fan/dad0f6f1-f03f-4313-bd88-64dab5a975cb#hordas"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.4"/><path d="M3.5 20c0-3.4 2.7-5.6 5.5-5.6S14.5 16.6 14.5 20"/><path d="M17 8.5v5M14.5 11h5"/></svg><span>Following</span></a>
+      <a class="dr-item" href="/fan/189fd1e8-9108-4528-a60e-b8a380dd8573#hordas"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.4"/><path d="M3.5 20c0-3.4 2.7-5.6 5.5-5.6S14.5 16.6 14.5 20"/><path d="M17 8.5v5M14.5 11h5"/></svg><span>Following</span></a>
       <a class="dr-item" href="/notifications"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9a6 6 0 0 1 12 0c0 4 1.2 5.4 1.8 6.2.3.4 0 .9-.5.9H4.7c-.5 0-.8-.5-.5-.9C4.8 14.4 6 13 6 9Z"/><path d="M10 20a2 2 0 0 0 4 0"/></svg><span>Notifications</span></a>
       <a class="dr-item" href="/create"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="3.5" width="17" height="17" rx="5"/><path d="M12 8v8M8 12h8"/></svg><span>Create event</span></a>
       <a class="dr-item" href="/settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="3.6"/><path d="M5.5 20c0-3.7 2.9-6.2 6.5-6.2S18.5 16.3 18.5 20"/></svg><span>Profile</span></a>
     </nav>
     <div class="dr-sep"></div>
     <div class="dr-set"><div class="dr-srow"><span class="dr-slabel">Language</span><span class="lgtog" role="group" aria-label="Language"><a class="lgp" href="/set-lang?l=de&next=%2F" aria-label="Deutsch">DE</a><a class="lgp on" href="/set-lang?l=en&next=%2F" aria-label="English">EN</a></span></div></div>
-    <div class="dr-foot"><a class="btn" href="/fan/dad0f6f1-f03f-4313-bd88-64dab5a975cb">Your feed →</a></div>
+    <div class="dr-foot"><a class="btn" href="/fan/189fd1e8-9108-4528-a60e-b8a380dd8573">Your feed →</a></div>
   </aside>
   <a class="hz-back" href="/" aria-label="Back" title="Back"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 5-7 7 7 7"/></svg></a>
   <div class="hero">
     <div class="bg ph"><span class="kick">FC Beispiel</span></div>
-    <div class="heroin"><span class="kindtag">Club</span><h1>FC Beispiel</h1><div style="display:flex;gap:8px;flex-wrap:wrap"><a class="btn" href="#join">Join the Horda</a><button type="button" class="btn ghost" data-t="FC Beispiel" aria-label="Share" onclick="(function(b){var u=location.href,t=b.getAttribute('data-t')||document.title;if(navigator.share){navigator.share({title:t,url:u}).catch(function(){})}else if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(u).then(function(){var o=b.innerHTML;b.innerHTML='Link copied ✓';setTimeout(function(){b.innerHTML=o},1600)})}else{prompt('Copy this link',u)}})(this)"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:5px"><circle cx="6" cy="12" r="2.4"/><circle cx="17.5" cy="6" r="2.4"/><circle cx="17.5" cy="18" r="2.4"/><path d="m8.2 10.9 7.1-3.8M8.2 13.1l7.1 3.8"/></svg>Share</button></div></div>
+    <div class="heroin"><span class="kindtag">Club</span><h1>FC Beispiel</h1><div style="display:flex;gap:8px;flex-wrap:wrap"><a class="btn" href="#join">Join the Horda</a><button type="button" class="btn ghost" data-t="FC Beispiel" aria-label="Share" onclick="(function(b){var r=b.getAttribute('data-u'),u=r?(r.charAt(0)==='/'?location.origin+r:r):location.href,t=b.getAttribute('data-t')||document.title;if(navigator.share){navigator.share({title:t,url:u}).catch(function(){})}else if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(u).then(function(){var o=b.innerHTML;b.innerHTML='Link copied ✓';setTimeout(function(){b.innerHTML=o},1600)})}else{prompt('Copy this link',u)}})(this)"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:5px"><circle cx="6" cy="12" r="2.4"/><circle cx="17.5" cy="6" r="2.4"/><circle cx="17.5" cy="18" r="2.4"/><path d="m8.2 10.9 7.1-3.8M8.2 13.1l7.1 3.8"/></svg>Share</button></div></div>
   </div><nav class="tabs"><a class="tab on" href="#">Highlight</a><a class="tab" href="#">Squad</a><a class="tab" href="#">Fixtures</a><a class="tab" href="#shop">Shop ↗</a></nav>
-  <div class="grid"><main><div class="row" style="margin:0 0 10px"><a class="btn ghost" href="/onboarding/brand/club/6471b0d3-7f06-4786-aee4-a23389dea2ca">✦ AI page setup</a></div><details class="card" style="margin-bottom:16px">
+  <div class="grid"><main><div class="row" style="margin:0 0 10px"><a class="btn ghost" href="/onboarding/brand/club/36166b98-90eb-4563-b99e-1a092dd0a516">✦ AI page setup</a></div><details class="card" style="margin-bottom:16px">
     <summary style="cursor:pointer;font-weight:800;font-size:13px;letter-spacing:1.5px;text-transform:uppercase">Edit profile (owner)</summary>
-    <form method="post" action="/entity/club/6471b0d3-7f06-4786-aee4-a23389dea2ca/branding" onsubmit="return hzPrep(this)" style="margin-top:10px">
+    <form method="post" action="/entity/club/36166b98-90eb-4563-b99e-1a092dd0a516/branding" onsubmit="return hzPrep(this)" style="margin-top:10px">
       <label style="display:block;font-size:13px;color:rgba(237,233,223,.65);margin:10px 0">Crest / avatar<br><input type="file" accept="image/*" data-target="avatar" style="margin-top:6px;color:inherit"></label>
       <label style="display:block;font-size:13px;color:rgba(237,233,223,.65);margin:10px 0">Banner<br><input type="file" accept="image/*" data-target="banner" style="margin-top:6px;color:inherit"></label>
       <input type="hidden" name="avatar"><input type="hidden" name="banner">
@@ -172,8 +180,8 @@
     <p class="feednote">Open updates for everyone · members unlock the inside ones.</p>
     <div class="post"><div class="pa"><span class="dot"></span><strong>FC Beispiel</strong> <span class="vchip open">Open</span></div>
     <p>Dauerkarten für die Rückrunde sind da. Auf geht’s, Horda! 🖤</p><div class="dt">2026-07-15</div></div>
-    <a class="more" href="#posts">View more</a></section><section class="card"><h2>Next up</h2><div class="evt"><strong>FC Beispiel vs TSV Musterstadt</strong><span class="dt">2026-06-28</span></div><div class="notyet">You're not attending yet.</div><div class="opts"><form method="post" action="/attend"><input type="hidden" name="fan_id" value="dad0f6f1-f03f-4313-bd88-64dab5a975cb"><input type="hidden" name="event_id" value="3a44358a-335c-41b1-ac20-e761dbce8c1f"><input type="hidden" name="mode" value="going"><button class="btn">Join for free</button></form><a class="btn ghost" href="https://tickets.joinhorda.com/fcb" target="_blank" rel="noopener">Buy tickets</a><a class="btn ghost" href="https://stream.joinhorda.com/fcb" target="_blank" rel="noopener">Stream live</a></div>
-      <div class="row"><a class="more" style="display:inline;padding:6px 12px" href="/share/fight/3a44358a-335c-41b1-ac20-e761dbce8c1f">Share the matchday card ↗</a></div></section><section class="card"><h2>Events</h2><div class="affs"><a class="aff" href="/e/5d1df232-fa91-4b64-a2aa-8aa414ab1dbd"><span class="ai"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 9h18M8 3v4M16 3v4"/></svg></span><span class="al">Season launch night</span><span class="av">01 Aug</span></a><a class="aff" href="/e/dd365242-1af3-4da8-bb83-157a05a8aa8b"><span class="ai"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 9h18M8 3v4M16 3v4"/></svg></span><span class="al">Kreisliga A — season opening ceremony <span style="color:var(--mut)">· via Berliner Fußball-Verband</span></span><span class="av">Featured</span></a></div><div class="row"><a class="more" style="display:inline;padding:7px 12px" href="/host/club/6471b0d3-7f06-4786-aee4-a23389dea2ca/new">＋ Schedule an event</a></div></section><section class="card"><h2>Shop</h2><div class="shelf"><a class="mItem" href="#shop"><div class="mImg"></div><div class="mName">Home shirt — €55</div></a><a class="mItem" href="#shop"><div class="mImg"></div><div class="mName">Crest scarf — €25</div></a><a class="mItem" href="#shop"><div class="mImg"></div><div class="mName">Matchday cap — €22</div></a></div><a class="more" href="#shop">View more</a></section></main><aside class="side">
+    <a class="more" href="#posts">View more</a></section><section class="card"><h2>Next up</h2><div class="evt"><strong>FC Beispiel vs TSV Musterstadt</strong><span class="dt">2026-06-28</span></div><div class="notyet">You're not attending yet.</div><div class="opts"><form method="post" action="/attend"><input type="hidden" name="fan_id" value="189fd1e8-9108-4528-a60e-b8a380dd8573"><input type="hidden" name="event_id" value="bc9b2a49-02f4-4b02-b1ba-1ffd59ad5b87"><input type="hidden" name="mode" value="going"><button class="btn">Join for free</button></form><a class="btn ghost" href="https://tickets.joinhorda.com/fcb" target="_blank" rel="noopener">Buy tickets</a><a class="btn ghost" href="https://stream.joinhorda.com/fcb" target="_blank" rel="noopener">Stream live</a></div>
+      <div class="row"><a class="more" style="display:inline;padding:6px 12px" href="/share/fight/bc9b2a49-02f4-4b02-b1ba-1ffd59ad5b87">Share the matchday card ↗</a></div></section><section class="card"><h2>Events</h2><div class="affs"><a class="aff" href="/e/7ac95f3a-6ddf-476f-8d38-e32680a267e5"><span class="ai"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 9h18M8 3v4M16 3v4"/></svg></span><span class="al">Season launch night</span><span class="av">01 Aug</span></a><a class="aff" href="/e/8c00bf54-a798-4ed1-b8bc-02e5245812c4"><span class="ai"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 9h18M8 3v4M16 3v4"/></svg></span><span class="al">Kreisliga A — season opening ceremony <span style="color:var(--mut)">· via Berliner Fußball-Verband</span></span><span class="av">Featured</span></a></div><div class="row"><a class="more" style="display:inline;padding:7px 12px" href="/host/club/36166b98-90eb-4563-b99e-1a092dd0a516/new">＋ Schedule an event</a></div></section><section class="card"><h2>Shop</h2><div class="shelf"><a class="mItem" href="#shop"><div class="mImg"></div><div class="mName">Home shirt — €55</div></a><a class="mItem" href="#shop"><div class="mImg"></div><div class="mName">Crest scarf — €25</div></a><a class="mItem" href="#shop"><div class="mImg"></div><div class="mName">Matchday cap — €22</div></a></div><a class="more" href="#shop">View more</a></section></main><aside class="side">
     <div class="card sidec">
       <div class="sh"><div><div class="sn">FC Beispiel</div><div class="handle">Club · “FC Beispiel”</div>
         </div>
@@ -182,7 +190,7 @@
       <p class="about">Kreuzberg · gegründet 1924 · Kreisliga A</p>
       <div class="recline"><span class="rk">KREISLIGA A</span><span class="rv">#2</span><span class="rl">10 pts</span></div>
     </div>
-    <div class="card listc"><h2>Teams</h2><div class="affs"><a class="aff" href="/team/bde86231-4c97-4c19-970c-ef1f8453cfa0"><span class="ai"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="9" cy="8" r="3"/><circle cx="17" cy="9" r="2.3"/><path d="M3 19c0-3 2.7-5 6-5s6 2 6 5M15.5 19c0-2 1.3-3.6 3.2-3.9"/></svg></span><span class="al">FC Beispiel</span></a></div></div>
+    <div class="card listc"><h2>Teams</h2><div class="affs"><a class="aff" href="/team/642c9956-7f76-47c9-a5aa-6b844f6c7706"><span class="ai"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="9" cy="8" r="3"/><circle cx="17" cy="9" r="2.3"/><path d="M3 19c0-3 2.7-5 6-5s6 2 6 5M15.5 19c0-2 1.3-3.6 3.2-3.9"/></svg></span><span class="al">FC Beispiel</span></a></div></div>
   </aside></div>
   
   <div class="prov">Club profile · owner-controlled identity · system of record, no fan-to-fan venue. Social &amp; affiliation links are owner-chosen and point out.</div>
@@ -190,8 +198,8 @@
     <a href="/" class="" aria-label="Home" title="Home"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 10.6 12 3l9 7.6"/><path d="M5.2 9.4V20h13.6V9.4"/></svg></a>
     <a href="/map" class="" aria-label="Explore" title="Explore"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="m20 20-3.7-3.7"/></svg></a>
     
-    <a href="/fan/dad0f6f1-f03f-4313-bd88-64dab5a975cb#hordas" class="" aria-label="Following — your Hordas" title="Following — your Hordas"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20S3 14.6 3 8.9C3 6 5.1 4 7.7 4c1.8 0 3.3 1 4.3 2.4C13 5 14.5 4 16.3 4 18.9 4 21 6 21 8.9 21 14.6 12 20 12 20Z"/></svg></a>
-    <a href="/fan/dad0f6f1-f03f-4313-bd88-64dab5a975cb" class="" aria-label="You" title="You"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="3.6"/><path d="M5.5 20c0-3.7 2.9-6.2 6.5-6.2S18.5 16.3 18.5 20"/></svg></a>
+    <a href="/fan/189fd1e8-9108-4528-a60e-b8a380dd8573#hordas" class="" aria-label="Following — your Hordas" title="Following — your Hordas"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20S3 14.6 3 8.9C3 6 5.1 4 7.7 4c1.8 0 3.3 1 4.3 2.4C13 5 14.5 4 16.3 4 18.9 4 21 6 21 8.9 21 14.6 12 20 12 20Z"/></svg></a>
+    <a href="/fan/189fd1e8-9108-4528-a60e-b8a380dd8573" class="" aria-label="You" title="You"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="3.6"/><path d="M5.5 20c0-3.7 2.9-6.2 6.5-6.2S18.5 16.3 18.5 20"/></svg></a>
   </div></nav>
   <script>
 function hzPrep(f){var ins=[].slice.call(f.querySelectorAll('input[type=file]'));

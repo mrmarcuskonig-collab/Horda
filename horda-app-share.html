@@ -2,7 +2,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1"><link rel="icon" href="/favicon.svg"><title>Rico 'The Raven' Vargas def. Tariq Bello — Horda</title>
 <style>
   
-  :root{color-scheme:dark;--ink:#0B0B0C;--bone:#EDE9DF;--s:rgba(237,233,223,.05);--b:rgba(237,233,223,.16);--mut:rgba(237,233,223,.6);--scrim:rgba(11,11,12,.82)}
+  :root{color-scheme:dark;--ink:#232020;--bone:#EDE9DF;--s:rgba(237,233,223,.05);--b:rgba(237,233,223,.16);--mut:rgba(237,233,223,.6);--scrim:rgba(26,23,23,.84);--acc:#E15A40;--acc2:#cd4c33;--accink:#1b1310;--btnr:12px}
 
   .thm{display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:999px;border:1.5px solid var(--b);background:transparent;color:var(--bone);cursor:pointer;padding:0;flex:0 0 auto}.thm:hover{border-color:var(--bone)}.thm svg{display:block}
   .vbadge{display:inline-flex;vertical-align:-2px;margin-left:4px;color:currentColor}.vbadge svg{display:block}
@@ -25,6 +25,14 @@
   .btn,button{transition:transform .12s ease,opacity .12s ease,background .15s ease,border-color .15s ease}
   .btn:active,button:active{transform:scale(.97)}
   .btn:hover,button:hover{opacity:.92}
+  /* Global button system: coral-orange CTA fill, softly rounded (not pill).
+     body-scoped so it wins over each page's local .btn; ghost/dark stay outline;
+     icon controls (.thm/.backx/.hz-back) keep their circular shape. */
+  body .btn,body .rb,body button:not(.thm):not(.backx):not(.locbtn){border-radius:var(--btnr)}
+  body .btn:not(.ghost):not(.dark){background:var(--acc);color:var(--accink);border-color:var(--acc);font-weight:800}
+  body .btn:not(.ghost):not(.dark):hover{background:var(--acc2);border-color:var(--acc2);opacity:1}
+  body .rb.p,body .btn.p{background:var(--acc);color:var(--accink);border-color:var(--acc);font-weight:800}
+  body .thm,body .backx,body .hz-back,body .locbtn{border-radius:999px}
   .card{transition:border-color .15s ease}
   /* Poster hero: full-bleed media with a legibility scrim + overlaid title */
   .poster{position:relative;margin:0 -18px;height:min(78vw,420px);overflow:hidden}
@@ -104,10 +112,10 @@
   td.pts{font-weight:800}
   tr.me{background:var(--bone);color:var(--ink)}
   form{display:inline}
-  button{font:inherit;font-weight:800;letter-spacing:.5px;cursor:pointer;background:var(--bone);color:var(--ink);border:1.5px solid var(--bone);border-radius:999px;padding:9px 16px;font-size:14px}
-  button.ghost{background:transparent;color:var(--bone)}
-  .btn{display:inline-block;background:var(--bone);color:var(--ink);font-weight:800;border:1.5px solid var(--bone);border-radius:999px;padding:9px 16px;font-size:14px}
-  .btn.ghost{background:transparent;color:var(--bone)}
+  button{font:inherit;font-weight:800;letter-spacing:.5px;cursor:pointer;background:var(--acc);color:var(--accink);border:1.5px solid var(--acc);border-radius:var(--btnr);padding:9px 16px;font-size:14px}
+  button.ghost{background:transparent;color:var(--bone);border-color:var(--b)}
+  .btn{display:inline-block;background:var(--acc);color:var(--accink);font-weight:800;border:1.5px solid var(--acc);border-radius:var(--btnr);padding:9px 16px;font-size:14px}
+  .btn.ghost{background:transparent;color:var(--bone);border-color:var(--b)}
   .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:12px 0}
   .prov{margin-top:28px;color:var(--mut);font-size:11px;border-top:1px solid var(--b);padding-top:12px}
   .backx{display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:999px;border:1.5px solid var(--b);color:var(--bone);font-size:22px;line-height:1;text-decoration:none;padding-bottom:2px}.backx:hover{border-color:var(--bone)}

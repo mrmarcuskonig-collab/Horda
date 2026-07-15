@@ -2,7 +2,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1"><link rel="icon" href="/favicon.svg"><title>Checkout · Season launch night — Horda</title>
 <style>
   
-  :root{color-scheme:dark;--ink:#0B0B0C;--bone:#EDE9DF;--s:rgba(237,233,223,.05);--b:rgba(237,233,223,.16);--mut:rgba(237,233,223,.6);--scrim:rgba(11,11,12,.82)}
+  :root{color-scheme:dark;--ink:#232020;--bone:#EDE9DF;--s:rgba(237,233,223,.05);--b:rgba(237,233,223,.16);--mut:rgba(237,233,223,.6);--scrim:rgba(26,23,23,.84);--acc:#E15A40;--acc2:#cd4c33;--accink:#1b1310;--btnr:12px}
 
   .thm{display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:999px;border:1.5px solid var(--b);background:transparent;color:var(--bone);cursor:pointer;padding:0;flex:0 0 auto}.thm:hover{border-color:var(--bone)}.thm svg{display:block}
   .vbadge{display:inline-flex;vertical-align:-2px;margin-left:4px;color:currentColor}.vbadge svg{display:block}
@@ -25,6 +25,14 @@
   .btn,button{transition:transform .12s ease,opacity .12s ease,background .15s ease,border-color .15s ease}
   .btn:active,button:active{transform:scale(.97)}
   .btn:hover,button:hover{opacity:.92}
+  /* Global button system: coral-orange CTA fill, softly rounded (not pill).
+     body-scoped so it wins over each page's local .btn; ghost/dark stay outline;
+     icon controls (.thm/.backx/.hz-back) keep their circular shape. */
+  body .btn,body .rb,body button:not(.thm):not(.backx):not(.locbtn){border-radius:var(--btnr)}
+  body .btn:not(.ghost):not(.dark){background:var(--acc);color:var(--accink);border-color:var(--acc);font-weight:800}
+  body .btn:not(.ghost):not(.dark):hover{background:var(--acc2);border-color:var(--acc2);opacity:1}
+  body .rb.p,body .btn.p{background:var(--acc);color:var(--accink);border-color:var(--acc);font-weight:800}
+  body .thm,body .backx,body .hz-back,body .locbtn{border-radius:999px}
   .card{transition:border-color .15s ease}
   /* Poster hero: full-bleed media with a legibility scrim + overlaid title */
   .poster{position:relative;margin:0 -18px;height:min(78vw,420px);overflow:hidden}
@@ -104,10 +112,10 @@
   td.pts{font-weight:800}
   tr.me{background:var(--bone);color:var(--ink)}
   form{display:inline}
-  button{font:inherit;font-weight:800;letter-spacing:.5px;cursor:pointer;background:var(--bone);color:var(--ink);border:1.5px solid var(--bone);border-radius:999px;padding:9px 16px;font-size:14px}
-  button.ghost{background:transparent;color:var(--bone)}
-  .btn{display:inline-block;background:var(--bone);color:var(--ink);font-weight:800;border:1.5px solid var(--bone);border-radius:999px;padding:9px 16px;font-size:14px}
-  .btn.ghost{background:transparent;color:var(--bone)}
+  button{font:inherit;font-weight:800;letter-spacing:.5px;cursor:pointer;background:var(--acc);color:var(--accink);border:1.5px solid var(--acc);border-radius:var(--btnr);padding:9px 16px;font-size:14px}
+  button.ghost{background:transparent;color:var(--bone);border-color:var(--b)}
+  .btn{display:inline-block;background:var(--acc);color:var(--accink);font-weight:800;border:1.5px solid var(--acc);border-radius:var(--btnr);padding:9px 16px;font-size:14px}
+  .btn.ghost{background:transparent;color:var(--bone);border-color:var(--b)}
   .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:12px 0}
   .prov{margin-top:28px;color:var(--mut);font-size:11px;border-top:1px solid var(--b);padding-top:12px}
   .backx{display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:999px;border:1.5px solid var(--b);color:var(--bone);font-size:22px;line-height:1;text-decoration:none;padding-bottom:2px}.backx:hover{border-color:var(--bone)}
@@ -126,14 +134,14 @@
     <div class="dr-set"><div class="dr-srow"><span class="dr-slabel">Language</span><span class="lgtog" role="group" aria-label="Language"><a class="lgp" href="/set-lang?l=de&next=%2F" aria-label="Deutsch">DE</a><a class="lgp on" href="/set-lang?l=en&next=%2F" aria-label="English">EN</a></span></div></div>
     <div class="dr-foot"><a class="btn ghost" href="/login">Log in</a><a class="btn" href="/signup">Join free</a></div>
   </aside>
-  <a class="hz-back" href="/e/5d1df232-fa91-4b64-a2aa-8aa414ab1dbd" aria-label="Back" title="Back"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 5-7 7 7 7"/></svg></a>
+  <a class="hz-back" href="/e/7ac95f3a-6ddf-476f-8d38-e32680a267e5" aria-label="Back" title="Back"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 5-7 7 7 7"/></svg></a>
   <div class="hz-main">
   <div style="height:40px"></div>
   
   <h1>Checkout</h1>
   <div class="card"><b>Season launch night</b><div class="mut" style="margin:6px 0">Sat 01 Aug 2026 · 19:00 · Vereinsheim, FC Beispiel</div>
     <div style="font-size:30px;font-weight:800;margin-top:10px">€15</div></div>
-  <form method="post" action="/e/5d1df232-fa91-4b64-a2aa-8aa414ab1dbd/pay"><input type="hidden" name="fan_id" value="dad0f6f1-f03f-4313-bd88-64dab5a975cb">
+  <form method="post" action="/e/7ac95f3a-6ddf-476f-8d38-e32680a267e5/pay"><input type="hidden" name="fan_id" value="189fd1e8-9108-4528-a60e-b8a380dd8573">
     <div class="row"><button type="submit">Pay €15 · get ticket</button></div></form>
   <p class="mut" style="margin-top:12px">Demo checkout — payments are stubbed (set STRIPE_SECRET_KEY to charge for real). The ticket + guest-list flow is already live.</p>
   </div>

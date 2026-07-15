@@ -2,7 +2,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1"><link rel="icon" href="/favicon.svg"><title>Open sparring &amp; meet — Kreuzberg BC — Horda</title>
 <style>
   
-  :root{color-scheme:dark;--ink:#0B0B0C;--bone:#EDE9DF;--s:rgba(237,233,223,.05);--b:rgba(237,233,223,.16);--mut:rgba(237,233,223,.6);--scrim:rgba(11,11,12,.82)}
+  :root{color-scheme:dark;--ink:#232020;--bone:#EDE9DF;--s:rgba(237,233,223,.05);--b:rgba(237,233,223,.16);--mut:rgba(237,233,223,.6);--scrim:rgba(26,23,23,.84);--acc:#E15A40;--acc2:#cd4c33;--accink:#1b1310;--btnr:12px}
 
   .thm{display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:999px;border:1.5px solid var(--b);background:transparent;color:var(--bone);cursor:pointer;padding:0;flex:0 0 auto}.thm:hover{border-color:var(--bone)}.thm svg{display:block}
   .vbadge{display:inline-flex;vertical-align:-2px;margin-left:4px;color:currentColor}.vbadge svg{display:block}
@@ -25,6 +25,14 @@
   .btn,button{transition:transform .12s ease,opacity .12s ease,background .15s ease,border-color .15s ease}
   .btn:active,button:active{transform:scale(.97)}
   .btn:hover,button:hover{opacity:.92}
+  /* Global button system: coral-orange CTA fill, softly rounded (not pill).
+     body-scoped so it wins over each page's local .btn; ghost/dark stay outline;
+     icon controls (.thm/.backx/.hz-back) keep their circular shape. */
+  body .btn,body .rb,body button:not(.thm):not(.backx):not(.locbtn){border-radius:var(--btnr)}
+  body .btn:not(.ghost):not(.dark){background:var(--acc);color:var(--accink);border-color:var(--acc);font-weight:800}
+  body .btn:not(.ghost):not(.dark):hover{background:var(--acc2);border-color:var(--acc2);opacity:1}
+  body .rb.p,body .btn.p{background:var(--acc);color:var(--accink);border-color:var(--acc);font-weight:800}
+  body .thm,body .backx,body .hz-back,body .locbtn{border-radius:999px}
   .card{transition:border-color .15s ease}
   /* Poster hero: full-bleed media with a legibility scrim + overlaid title */
   .poster{position:relative;margin:0 -18px;height:min(78vw,420px);overflow:hidden}
@@ -104,10 +112,10 @@
   td.pts{font-weight:800}
   tr.me{background:var(--bone);color:var(--ink)}
   form{display:inline}
-  button{font:inherit;font-weight:800;letter-spacing:.5px;cursor:pointer;background:var(--bone);color:var(--ink);border:1.5px solid var(--bone);border-radius:999px;padding:9px 16px;font-size:14px}
-  button.ghost{background:transparent;color:var(--bone)}
-  .btn{display:inline-block;background:var(--bone);color:var(--ink);font-weight:800;border:1.5px solid var(--bone);border-radius:999px;padding:9px 16px;font-size:14px}
-  .btn.ghost{background:transparent;color:var(--bone)}
+  button{font:inherit;font-weight:800;letter-spacing:.5px;cursor:pointer;background:var(--acc);color:var(--accink);border:1.5px solid var(--acc);border-radius:var(--btnr);padding:9px 16px;font-size:14px}
+  button.ghost{background:transparent;color:var(--bone);border-color:var(--b)}
+  .btn{display:inline-block;background:var(--acc);color:var(--accink);font-weight:800;border:1.5px solid var(--acc);border-radius:var(--btnr);padding:9px 16px;font-size:14px}
+  .btn.ghost{background:transparent;color:var(--bone);border-color:var(--b)}
   .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:12px 0}
   .prov{margin-top:28px;color:var(--mut);font-size:11px;border-top:1px solid var(--b);padding-top:12px}
   .backx{display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:999px;border:1.5px solid var(--b);color:var(--bone);font-size:22px;line-height:1;text-decoration:none;padding-bottom:2px}.backx:hover{border-color:var(--bone)}
@@ -126,7 +134,7 @@
     <div class="dr-set"><div class="dr-srow"><span class="dr-slabel">Language</span><span class="lgtog" role="group" aria-label="Language"><a class="lgp" href="/set-lang?l=de&next=%2F" aria-label="Deutsch">DE</a><a class="lgp on" href="/set-lang?l=en&next=%2F" aria-label="English">EN</a></span></div></div>
     <div class="dr-foot"><a class="btn ghost" href="/login">Log in</a><a class="btn" href="/signup">Join free</a></div>
   </aside>
-  <a class="hz-back" href="/athlete/40503217-2a37-4a90-bae0-c15e72841563" aria-label="Back" title="Back"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 5-7 7 7 7"/></svg></a>
+  <a class="hz-back" href="/athlete/c9b2a1e5-0f9c-46d0-aeec-d7c563a7043a" aria-label="Back" title="Back"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 5-7 7 7 7"/></svg></a>
   <div class="hz-main">
   <div style="height:40px"></div>
   
@@ -142,6 +150,8 @@
     .hn{font-weight:600;font-size:15px}.hn a:hover{border-bottom:1px solid var(--b)}
     .sidelinks{margin-top:14px;display:flex;flex-direction:column;gap:9px;font-size:13px;color:var(--mut)}
     .sidelinks a:hover{color:var(--bone)}
+    .hostsoc{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.hostsoc .hsl{font-size:12px;color:var(--mut)}
+    .hostsoc .ic{width:30px;height:30px;display:inline-flex;align-items:center;justify-content:center;border:1px solid var(--b);border-radius:9px;color:var(--bone)}.hostsoc .ic:hover{border-color:var(--bone)}.hostsoc .ic svg{width:16px;height:16px}
     .evtag{display:inline-block;margin-top:14px;font-size:12px;color:var(--mut);border:1px solid var(--b);border-radius:999px;padding:4px 12px}
     .evtitle{font-size:30px;line-height:1.12;font-weight:600;letter-spacing:-.02em;margin:0 0 16px}
     .ww{display:flex;gap:13px;align-items:center;padding:9px 0}
@@ -165,6 +175,7 @@
     .rb.block{display:block;width:100%;text-align:center;padding:12px;font-size:15px}
     .myr{font-size:14px;margin:4px 0}.admtag{font-size:10px;font-weight:600;letter-spacing:1px;text-transform:uppercase;border:1px solid var(--b);color:var(--mut);border-radius:999px;padding:3px 10px}
     .tk{font-weight:600;margin:6px 0 10px}.tkin{background:var(--ink);border:1px solid var(--b);border-radius:999px;color:var(--bone);padding:8px 12px;font:inherit;width:120px;margin-right:6px}
+    .lockrow{display:flex;align-items:center;gap:9px;flex-wrap:wrap;font-size:13.5px;color:var(--mut);border:1px dashed var(--b);border-radius:12px;padding:11px 14px}
   </style>
   <div class="poster">
     <div style="width:100%;height:100%;background:radial-gradient(130% 130% at 70% 8%,rgba(237,233,223,.12),transparent 55%),var(--ink)"></div>
@@ -176,22 +187,30 @@
   </div>
   <div class="evgrid">
     <aside class="evside">
-      <div class="hostrow" style="border-top:0;padding-top:0;margin-top:2px"><div><div class="hk">Hosted by</div><div class="hn"><a href="/athlete/40503217-2a37-4a90-bae0-c15e72841563">Rico 'The Raven' Vargas</a></div></div><form method="post" action="/follow"><input type="hidden" name="fan_id" value="dad0f6f1-f03f-4313-bd88-64dab5a975cb"><input type="hidden" name="target_type" value="athlete"><input type="hidden" name="target_id" value="40503217-2a37-4a90-bae0-c15e72841563"><button class="rb sm" type="submit">Follow</button></form></div>
+      <div class="hostrow" style="border-top:0;padding-top:0;margin-top:2px"><div><div class="hk">Hosted by</div><div class="hn"><a href="/athlete/c9b2a1e5-0f9c-46d0-aeec-d7c563a7043a">Rico 'The Raven' Vargas</a></div></div><form method="post" action="/follow"><input type="hidden" name="fan_id" value="189fd1e8-9108-4528-a60e-b8a380dd8573"><input type="hidden" name="target_type" value="athlete"><input type="hidden" name="target_id" value="c9b2a1e5-0f9c-46d0-aeec-d7c563a7043a"><button class="rb sm" type="submit">Follow</button></form></div>
       <div class="sidelinks">
-        <a href="/athlete/40503217-2a37-4a90-bae0-c15e72841563">Contact the host →</a>
-        <a href="/e/cfc441bf-58db-44c8-ba8c-0587247f60e4/ics">＋ Add to calendar</a>
+        <a href="/athlete/c9b2a1e5-0f9c-46d0-aeec-d7c563a7043a">View Rico 'The Raven' Vargas on Horda →</a>
+        <div class="hostsoc"><span class="hsl">Reach the host</span><a class="ic" aria-label="x" href="https://x.com/ricotheraven" target="_blank" rel="noopener"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M18.2 2H21l-6.6 7.6L22 22h-6.8l-4.6-6-5.3 6H1.8l7.1-8.1L2 2h6.9l4.2 5.5L18.2 2Zm-1.2 18h1.5L7.1 3.9H5.5L17 20Z"/></svg></a><a class="ic" aria-label="tiktok" href="https://tiktok.com/@ricotheraven" target="_blank" rel="noopener"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M16.5 3c.35 2.3 1.83 4 4.5 4.3v3.1c-1.6 0-3.1-.5-4.5-1.4v6.1A6.3 6.3 0 1 1 9.8 8.9v3.2A3.1 3.1 0 1 0 13.4 15V3h3.1Z"/></svg></a><a class="ic" aria-label="website" href="https://ricovargas.box" target="_blank" rel="noopener"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M3.3 12h17.4M12 3c2.8 2.7 2.8 15.3 0 18M12 3c-2.8 2.7-2.8 15.3 0 18"/></svg></a><a class="ic" aria-label="youtube" href="https://youtube.com/@ricotheraven" target="_blank" rel="noopener"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M23 12s0-3.4-.43-5a3 3 0 0 0-2.1-2.1C18.7 4.5 12 4.5 12 4.5s-6.7 0-8.47.4A3 3 0 0 0 1.43 7C1 8.6 1 12 1 12s0 3.4.43 5a3 3 0 0 0 2.1 2.1c1.77.4 8.47.4 8.47.4s6.7 0 8.47-.4a3 3 0 0 0 2.1-2.1c.43-1.6.43-5 .43-5Z"/><path d="M10 8.7v6.6l5.5-3.3L10 8.7Z" fill="#0B0B0C"/></svg></a><a class="ic" aria-label="instagram" href="https://instagram.com/ricotheraven" target="_blank" rel="noopener"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.4" cy="6.6" r="1.1" fill="currentColor" stroke="none"/></svg></a></div>
+        <a href="/e/c9d52ceb-3bab-4254-916b-4b94ce89e44b/ics">＋ Add to calendar</a>
       </div>
       <span class="evtag"># Open · free to all</span>
     </aside>
 
     <main class="evmain">
-      <div id="claim"><div class="card"><strong>You host this.</strong><div class="row" style="margin-top:8px"><a class="btn" href="/e/cfc441bf-58db-44c8-ba8c-0587247f60e4/check-in">Open check-in →</a><a class="btn ghost" href="/manage/cfc441bf-58db-44c8-ba8c-0587247f60e4">Manage &amp; attendance →</a></div></div></div>
+      <div id="claim"><div class="card"><strong>This event is in the past.</strong> <span class="mut">Claims are closed.</span><div class="row" style="margin-top:8px"><a class="btn ghost" href="/manage/c9d52ceb-3bab-4254-916b-4b94ce89e44b">See who came →</a></div></div></div>
 
       <div class="ww"><div class="wi cal"><span class="m">JUN</span><span class="d">24</span></div>
         <div><div class="wt">Wed 24 Jun 2026</div><div class="ws">18:00 · capacity 60</div></div></div>
       <div class="ww"><div class="wi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><path d="M12 21c4-4.5 6-7.9 6-10.7a6 6 0 1 0-12 0C6 13.1 8 16.5 12 21Z"/><circle cx="12" cy="10.4" r="2.2"/></svg></div><div><div class="wt">Kreuzberg Boxing Club, Berlin</div><div class="ws"><a href="https://www.google.com/maps/search/?api=1&query=Kreuzberg%20Boxing%20Club%2C%20Berlin" target="_blank" rel="noopener">Open in Maps ↗</a></div></div></div>
 
-      <div class="h3">Watch live</div><div class="rsvp"><a class="rb" href="https://youtube.com/@ricotheraven/live">Watch on YouTube ↗</a><a class="rb" href="https://twitch.tv/ricotheraven">Watch on Twitch ↗</a></div>
+      <div class="h3">Watch live</div><div class="rsvp"><a class="rb" href="https://youtube.com/@ricotheraven/live" target="_blank" rel="noopener">Watch on YouTube ↗</a><a class="rb" href="https://twitch.tv/ricotheraven" target="_blank" rel="noopener">Watch on Twitch ↗</a></div>
+
+      
+      
+      
+      
+      <div class="rsvp"><a class="rb" href="/host/athlete/c9b2a1e5-0f9c-46d0-aeec-d7c563a7043a/new?parent=c9d52ceb-3bab-4254-916b-4b94ce89e44b">＋ Add a bout / sub-event</a></div>
+
       
 
       <div class="h3">About this event</div><p class="desc">Watch the final session before fight night, then stick around for photos. Open to all.</p>
@@ -199,12 +218,14 @@
       <div class="h3">Location</div><p class="desc" style="margin-bottom:8px">Kreuzberg Boxing Club, Berlin</p><div class="rsvp"><a class="rb" href="https://www.google.com/maps/search/?api=1&query=Kreuzberg%20Boxing%20Club%2C%20Berlin" target="_blank" rel="noopener">Open in Maps ↗</a></div>
 
       <div class="h3">More</div>
-      <div class="rsvp"><button type="button" class="rb" data-t="Open sparring &amp; meet — Kreuzberg BC" aria-label="Share" onclick="(function(b){var u=location.href,t=b.getAttribute('data-t')||document.title;if(navigator.share){navigator.share({title:t,url:u}).catch(function(){})}else if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(u).then(function(){var o=b.innerHTML;b.innerHTML='Link copied ✓';setTimeout(function(){b.innerHTML=o},1600)})}else{prompt('Copy this link',u)}})(this)"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:5px"><circle cx="6" cy="12" r="2.4"/><circle cx="17.5" cy="6" r="2.4"/><circle cx="17.5" cy="18" r="2.4"/><path d="m8.2 10.9 7.1-3.8M8.2 13.1l7.1 3.8"/></svg>Share</button><a class="rb" href="/e/cfc441bf-58db-44c8-ba8c-0587247f60e4/ics">＋ Add to calendar</a><a class="rb" href="/manage/cfc441bf-58db-44c8-ba8c-0587247f60e4">Manage</a></div>
-      <div class="cap" style="margin-top:18px">Share on your profile</div><div class="rsvp"><form method="post" action="/feature"><input type="hidden" name="feat_kind" value="club"><input type="hidden" name="feat_id" value="6471b0d3-7f06-4786-aee4-a23389dea2ca"><input type="hidden" name="event_id" value="cfc441bf-58db-44c8-ba8c-0587247f60e4"><button class="rb" type="submit">Feature on FC</button></form><form method="post" action="/feature"><input type="hidden" name="feat_kind" value="team"><input type="hidden" name="feat_id" value="bde86231-4c97-4c19-970c-ef1f8453cfa0"><input type="hidden" name="event_id" value="cfc441bf-58db-44c8-ba8c-0587247f60e4"><button class="rb" type="submit">Feature on FC</button></form><form method="post" action="/feature"><input type="hidden" name="feat_kind" value="association"><input type="hidden" name="feat_id" value="4939f94d-3788-4a82-9671-e6df9f9a1cd9"><input type="hidden" name="event_id" value="cfc441bf-58db-44c8-ba8c-0587247f60e4"><button class="rb" type="submit">Feature on Berliner</button></form></div>
+      <div class="rsvp"><button type="button" class="rb" data-t="Open sparring &amp; meet — Kreuzberg BC" aria-label="Share" onclick="(function(b){var r=b.getAttribute('data-u'),u=r?(r.charAt(0)==='/'?location.origin+r:r):location.href,t=b.getAttribute('data-t')||document.title;if(navigator.share){navigator.share({title:t,url:u}).catch(function(){})}else if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(u).then(function(){var o=b.innerHTML;b.innerHTML='Link copied ✓';setTimeout(function(){b.innerHTML=o},1600)})}else{prompt('Copy this link',u)}})(this)"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:5px"><circle cx="6" cy="12" r="2.4"/><circle cx="17.5" cy="6" r="2.4"/><circle cx="17.5" cy="18" r="2.4"/><path d="m8.2 10.9 7.1-3.8M8.2 13.1l7.1 3.8"/></svg>Share</button><a class="rb" href="/e/c9d52ceb-3bab-4254-916b-4b94ce89e44b/ics">＋ Add to calendar</a><a class="rb" href="/manage/c9d52ceb-3bab-4254-916b-4b94ce89e44b">Manage</a></div>
+      <div class="cap" style="margin-top:18px">Bring your crowd</div>
+       <div class="rsvp"><button type="button" class="rb p" data-t="Open sparring &amp; meet — Kreuzberg BC" data-u="/e/c9d52ceb-3bab-4254-916b-4b94ce89e44b?via=s97c0beb9dfb1ac4c" aria-label="Share" onclick="(function(b){var r=b.getAttribute('data-u'),u=r?(r.charAt(0)==='/'?location.origin+r:r):location.href,t=b.getAttribute('data-t')||document.title;if(navigator.share){navigator.share({title:t,url:u}).catch(function(){})}else if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(u).then(function(){var o=b.innerHTML;b.innerHTML='Link copied ✓';setTimeout(function(){b.innerHTML=o},1600)})}else{prompt('Copy this link',u)}})(this)"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:5px"><circle cx="6" cy="12" r="2.4"/><circle cx="17.5" cy="6" r="2.4"/><circle cx="17.5" cy="18" r="2.4"/><path d="m8.2 10.9 7.1-3.8M8.2 13.1l7.1 3.8"/></svg>Share under your name</button></div>
+       <p class="mut" style="font-size:12px;margin:2px 0 0">Claims from your link are credited to you. A plain Share above stays anonymous.</p><div class="cap" style="margin-top:18px">Feature on a page you run</div><div class="rsvp"><form method="post" action="/feature"><input type="hidden" name="feat_kind" value="club"><input type="hidden" name="feat_id" value="36166b98-90eb-4563-b99e-1a092dd0a516"><input type="hidden" name="event_id" value="c9d52ceb-3bab-4254-916b-4b94ce89e44b"><button class="rb" type="submit">Feature on FC</button></form><form method="post" action="/feature"><input type="hidden" name="feat_kind" value="team"><input type="hidden" name="feat_id" value="642c9956-7f76-47c9-a5aa-6b844f6c7706"><input type="hidden" name="event_id" value="c9d52ceb-3bab-4254-916b-4b94ce89e44b"><button class="rb" type="submit">Feature on FC</button></form><form method="post" action="/feature"><input type="hidden" name="feat_kind" value="association"><input type="hidden" name="feat_id" value="e55a5d90-8477-40b4-bcb2-e3b76a4451bc"><input type="hidden" name="event_id" value="c9d52ceb-3bab-4254-916b-4b94ce89e44b"><button class="rb" type="submit">Feature on Berliner</button></form></div>
       <div class="prov">Public event · viewing is open; attending needs a free account. Calendar export &amp; watch links are open to members.</div>
     </main>
   </div>
-  <div style="height:76px"></div><div class="actionbar"><div class="abin"><div class="ablabel"><div class="abt">Open sparring & meet — Kreuzberg BC</div><div class="abs">0 claimed</div></div><a class="btn" href="/e/cfc441bf-58db-44c8-ba8c-0587247f60e4/check-in">Check-in</a></div></div>
+  
   </div>
   <nav class="bnav" aria-label="Primary"><div class="bninner">
     <a href="/" class="" aria-label="Home" title="Home"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 10.6 12 3l9 7.6"/><path d="M5.2 9.4V20h13.6V9.4"/></svg></a>
