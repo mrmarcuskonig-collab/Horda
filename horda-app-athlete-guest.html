@@ -2,12 +2,12 @@
 <meta property="og:type" content="profile">
 <meta property="og:title" content="Rico 'The Raven' Vargas on Horda">
 <meta property="og:description" content="Southpaw out of Kreuzberg. Welterweight. I don’t miss.">
-<meta property="og:url" content="https://localhost:36303/athlete/c9b2a1e5-0f9c-46d0-aeec-d7c563a7043a">
-<meta property="og:image" content="https://localhost:36303/og/athlete/c9b2a1e5-0f9c-46d0-aeec-d7c563a7043a.svg">
+<meta property="og:url" content="https://localhost:34605/athlete/9f50440f-88a5-4ee3-b53c-24f0c7b4b6e6">
+<meta property="og:image" content="https://localhost:34605/og/athlete/9f50440f-88a5-4ee3-b53c-24f0c7b4b6e6.svg">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="Rico 'The Raven' Vargas on Horda">
 <meta name="twitter:description" content="Southpaw out of Kreuzberg. Welterweight. I don’t miss.">
-<meta name="twitter:image" content="https://localhost:36303/og/athlete/c9b2a1e5-0f9c-46d0-aeec-d7c563a7043a.svg">
+<meta name="twitter:image" content="https://localhost:34605/og/athlete/9f50440f-88a5-4ee3-b53c-24f0c7b4b6e6.svg">
 <style>
   
   :root{color-scheme:dark;--ink:#232020;--bone:#EDE9DF;--s:rgba(237,233,223,.05);--b:rgba(237,233,223,.16);--mut:rgba(237,233,223,.6);--scrim:rgba(26,23,23,.84);--acc:#E15A40;--acc2:#cd4c33;--accink:#1b1310;--btnr:12px}
@@ -17,7 +17,7 @@
   .bnav{position:fixed;left:0;right:0;bottom:0;z-index:40;border-top:1px solid var(--b);background:var(--scrim);backdrop-filter:blur(14px)}
   .bninner{max-width:680px;margin:0 auto;display:flex;justify-content:space-around;align-items:center;padding:11px 6px calc(11px + env(safe-area-inset-bottom))}
   .bnav a{flex:1;max-width:130px;display:flex;align-items:center;justify-content:center;color:var(--mut);padding:3px 0}
-  .bnav a.on{color:var(--bone)}
+  .bnav a.on{color:var(--acc)}
   .bnav a:hover{color:var(--bone)}
   .bnav svg{width:25px;height:25px;display:block}
   /* Desktop: lift the bar into a vertical rail on the LEFT (Instagram pattern),
@@ -77,17 +77,18 @@
     body.deskrail .top{display:none}
     body.deskrail .hz-back{left:250px}   /* clear the fixed rail */
   }
-  .dr-logo{display:flex;align-items:center;gap:9px;padding:2px 8px 16px;color:var(--bone)}
+  .dr-logo{display:flex;align-items:center;gap:9px;padding:2px 8px 16px;color:var(--bone);text-decoration:none}
   .dr-logo b{font-size:19px;font-weight:800;letter-spacing:-.02em}
   .dr-search{display:block;margin:0 4px 14px}
   .dr-search input{width:100%;background:var(--s);border:1px solid var(--b);border-radius:999px;color:var(--bone);padding:9px 14px;font:inherit;font-size:13px}
   .dr-search input:focus{outline:none;border-color:var(--bone)}.dr-search input::placeholder{color:var(--mut)}
   .dr-nav{display:flex;flex-direction:column;gap:2px}
-  .dr-item{display:flex;align-items:center;gap:14px;padding:11px 12px;border-radius:12px;color:var(--bone);font-size:16px;font-weight:600}
+  .dr-item{display:flex;align-items:center;gap:14px;padding:11px 12px;border-radius:12px;color:var(--bone);font-size:16px;font-weight:600;text-decoration:none}
   .dr-item svg{width:26px;height:26px;flex:0 0 auto}
   .dr-item:hover{background:var(--s)}
-  .dr-item.on{color:var(--bone)}.dr-item.on svg{color:#e5484d}
-  .dr-item .dr-badge{margin-left:auto;background:#e5484d;color:#fff;font-size:11px;font-weight:800;min-width:19px;height:19px;border-radius:999px;display:inline-flex;align-items:center;justify-content:center;padding:0 5px}
+  /* selected nav = coral-orange accent (label + icon + badge), never underlined */
+  .dr-item.on,.dr-item.on svg{color:var(--acc)}
+  .dr-item .dr-badge{margin-left:auto;background:var(--acc);color:#fff;font-size:11px;font-weight:800;min-width:19px;height:19px;border-radius:999px;display:inline-flex;align-items:center;justify-content:center;padding:0 5px}
   .dr-sep{height:1px;background:var(--b);margin:14px 8px}
   .dr-set{display:flex;flex-direction:column;gap:10px;padding:0 8px}
   .dr-srow{display:flex;align-items:center;justify-content:space-between;gap:10px}
@@ -200,7 +201,7 @@
       <a class="dr-item" href="/settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="3.6"/><path d="M5.5 20c0-3.7 2.9-6.2 6.5-6.2S18.5 16.3 18.5 20"/></svg><span>Profile</span></a>
     </nav>
     <div class="dr-sep"></div>
-    <div class="dr-set"><div class="dr-srow"><span class="dr-slabel">Language</span><span class="lgtog" role="group" aria-label="Language"><a class="lgp" href="/set-lang?l=de&next=%2F" aria-label="Deutsch">DE</a><a class="lgp on" href="/set-lang?l=en&next=%2F" aria-label="English">EN</a></span></div></div>
+    <div class="dr-set"><div class="dr-srow"><span class="dr-slabel">Language</span><span class="lgtog" role="group" aria-label="Language"><a class="lgp" href="/set-lang?l=de" aria-label="Deutsch">DE</a><a class="lgp on" href="/set-lang?l=en" aria-label="English">EN</a></span></div></div>
     <div class="dr-foot"><a class="btn ghost" href="/login">Log in</a><a class="btn" href="/signup">Join free</a></div>
   </aside>
   <button type="button" class="hz-back" aria-label="Back" title="Back" onclick="if(history.length>1){history.back()}else{location.href='/'}"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 5-7 7 7 7"/></svg></button>
@@ -210,7 +211,7 @@
     <section class="profhead">
       <div class="avatar"><svg viewBox="0 0 104 104" xmlns="http://www.w3.org/2000/svg"><rect width="104" height="104" fill="#0B0B0C"/><text x="52" y="52" dy=".36em" text-anchor="middle" font-family="Helvetica,Arial,sans-serif" font-size="40" font-weight="800" fill="#EDE9DF">RV</text></svg></div>
       <div class="pid"><h1>Rico 'The Raven' Vargas</h1><div class="hsub">@rico · “The Raven” · Boxing</div></div>
-      <div class="phactions" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><a class="btn join" href="/signup?follow=athlete:c9b2a1e5-0f9c-46d0-aeec-d7c563a7043a">Follow</a><button type="button" class="btn ghost join" data-t="Rico 'The Raven' Vargas" aria-label="Share" onclick="(function(b){var r=b.getAttribute('data-u'),u=r?(r.charAt(0)==='/'?location.origin+r:r):location.href,t=b.getAttribute('data-t')||document.title;if(navigator.share){navigator.share({title:t,url:u}).catch(function(){})}else if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(u).then(function(){var o=b.innerHTML;b.innerHTML='Link copied ✓';setTimeout(function(){b.innerHTML=o},1600)})}else{prompt('Copy this link',u)}})(this)"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:5px"><circle cx="6" cy="12" r="2.4"/><circle cx="17.5" cy="6" r="2.4"/><circle cx="17.5" cy="18" r="2.4"/><path d="m8.2 10.9 7.1-3.8M8.2 13.1l7.1 3.8"/></svg>Share</button></div>
+      <div class="phactions" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><a class="btn join" href="/signup?follow=athlete:9f50440f-88a5-4ee3-b53c-24f0c7b4b6e6">Follow</a><button type="button" class="btn ghost join" data-t="Rico 'The Raven' Vargas" aria-label="Share" onclick="(function(b){var r=b.getAttribute('data-u'),u=r?(r.charAt(0)==='/'?location.origin+r:r):location.href,t=b.getAttribute('data-t')||document.title;if(navigator.share){navigator.share({title:t,url:u}).catch(function(){})}else if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(u).then(function(){var o=b.innerHTML;b.innerHTML='Link copied ✓';setTimeout(function(){b.innerHTML=o},1600)})}else{prompt('Copy this link',u)}})(this)"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:5px"><circle cx="6" cy="12" r="2.4"/><circle cx="17.5" cy="6" r="2.4"/><circle cx="17.5" cy="18" r="2.4"/><path d="m8.2 10.9 7.1-3.8M8.2 13.1l7.1 3.8"/></svg>Share</button></div>
     </section>
     <div class="icons"><a class="ic" aria-label="x" href="/signup"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M18.2 2H21l-6.6 7.6L22 22h-6.8l-4.6-6-5.3 6H1.8l7.1-8.1L2 2h6.9l4.2 5.5L18.2 2Zm-1.2 18h1.5L7.1 3.9H5.5L17 20Z"/></svg></a><a class="ic" aria-label="tiktok" href="/signup"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M16.5 3c.35 2.3 1.83 4 4.5 4.3v3.1c-1.6 0-3.1-.5-4.5-1.4v6.1A6.3 6.3 0 1 1 9.8 8.9v3.2A3.1 3.1 0 1 0 13.4 15V3h3.1Z"/></svg></a><a class="ic" aria-label="website" href="/signup"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M3.3 12h17.4M12 3c2.8 2.7 2.8 15.3 0 18M12 3c-2.8 2.7-2.8 15.3 0 18"/></svg></a><a class="ic" aria-label="youtube" href="/signup"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M23 12s0-3.4-.43-5a3 3 0 0 0-2.1-2.1C18.7 4.5 12 4.5 12 4.5s-6.7 0-8.47.4A3 3 0 0 0 1.43 7C1 8.6 1 12 1 12s0 3.4.43 5a3 3 0 0 0 2.1 2.1c1.77.4 8.47.4 8.47.4s6.7 0 8.47-.4a3 3 0 0 0 2.1-2.1c.43-1.6.43-5 .43-5Z"/><path d="M10 8.7v6.6l5.5-3.3L10 8.7Z" fill="#0B0B0C"/></svg></a><a class="ic" aria-label="instagram" href="/signup"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.4" cy="6.6" r="1.1" fill="currentColor" stroke="none"/></svg></a></div>
     <p class="tagline">Southpaw out of Kreuzberg. Welterweight. I don’t miss.</p>
@@ -220,15 +221,15 @@
     
     <div id="sec-nextup" class="secanchor"><section class="card"><h2>Next up</h2>
       <div class="evt"><strong>Rico 'The Raven' Vargas vs Max Stein</strong><span class="dt">2026-06-27</span></div><div class="notyet">You're not attending yet.</div><div class="opts"><a class="btn ghost" href="/signup">Join for free</a><a class="btn ghost" href="/signup">Buy tickets</a><a class="btn ghost" href="/signup">Stream live</a></div>
-      <div class="row"><a class="more" style="display:inline;padding:6px 12px" href="/share/fight/18ad96c4-9e73-4be7-899f-b8c3c1518349">Share the matchup card ↗</a></div></section></div>
+      <div class="row"><a class="more" style="display:inline;padding:6px 12px" href="/share/fight/a4d2270f-df3b-4b13-9dcf-cd4a5638c640">Share the matchup card ↗</a></div></section></div>
 <div id="sec-events" class="secanchor"><section class="card"><h2>Events</h2>
         <style>.evgh{font-size:10.5px;letter-spacing:1.5px;text-transform:uppercase;color:var(--mut);font-weight:800;margin:6px 0 2px}.evgrp.live .evgh{color:#e5484d}</style>
         
-        <div class="evgrp "><div class="evgh">Upcoming</div><ul style="list-style:none"><li style="display:flex;gap:10px;align-items:center;padding:9px 0;border-bottom:1px solid var(--b)"><span class="tag mutd">PLAYING</span><a class="hl" style="flex:1" href="/e/7ac95f3a-6ddf-476f-8d38-e32680a267e5">Season launch night · <span class="dt">FC Beispiel</span></a><span class="dt">01 Aug</span></li></ul></div>
-        <div class="evgrp "><div class="evgh">Past</div><ul style="list-style:none"><li style="display:flex;gap:10px;align-items:center;padding:9px 0;border-bottom:1px solid var(--b)"><span class="tag mutd">EVENT</span><a class="hl" style="flex:1" href="/e/c9d52ceb-3bab-4254-916b-4b94ce89e44b">Open sparring &amp; meet — Kreuzberg BC</a><span class="dt">24 Jun</span></li></ul></div>
+        <div class="evgrp "><div class="evgh">Upcoming</div><ul style="list-style:none"><li style="display:flex;gap:10px;align-items:center;padding:9px 0;border-bottom:1px solid var(--b)"><span class="tag mutd">PLAYING</span><a class="hl" style="flex:1" href="/e/a1002058-7d71-47c8-8177-64f2eb86f137">Season launch night · <span class="dt">FC Beispiel</span></a><span class="dt">01 Aug</span></li></ul></div>
+        <div class="evgrp "><div class="evgh">Past</div><ul style="list-style:none"><li style="display:flex;gap:10px;align-items:center;padding:9px 0;border-bottom:1px solid var(--b)"><span class="tag mutd">EVENT</span><a class="hl" style="flex:1" href="/e/46cfff92-3b1f-4983-8313-e9f03803d291">Open sparring &amp; meet — Kreuzberg BC</a><span class="dt">24 Jun</span></li></ul></div>
         
         </section></div>
-<div id="sec-connected" class="secanchor"><section class="card"><h2>Clubs &amp; Leagues</h2><style>.conngrid{display:grid;gap:10px;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));margin-top:8px}.conncard{display:flex;align-items:center;gap:11px;border:1px solid var(--b);border-radius:14px;padding:11px 12px;background:var(--s);transition:border-color .15s}.conncard:hover{border-color:var(--bone)}.connlogo{width:40px;height:40px;border-radius:10px;overflow:hidden;flex:0 0 auto;border:1px solid var(--b)}.connlogo img,.connlogo svg{width:100%;height:100%;object-fit:cover;display:block}.connname{font-weight:700;font-size:14px;display:block}.connrole{font-size:11px;color:var(--mut);text-transform:capitalize}</style><div class="conngrid"><a class="conncard" href="/club/36166b98-90eb-4563-b99e-1a092dd0a516"><span class="connlogo"><svg viewBox="0 0 104 104" xmlns="http://www.w3.org/2000/svg"><rect width="104" height="104" fill="#0B0B0C"/><text x="52" y="52" dy=".36em" text-anchor="middle" font-family="Helvetica,Arial,sans-serif" font-size="40" font-weight="800" fill="#EDE9DF">FB</text></svg></span><span class="connmeta"><span class="connname">FC Beispiel</span><span class="connrole">player</span></span></a></div></section></div>
+<div id="sec-connected" class="secanchor"><section class="card"><h2>Clubs &amp; Leagues</h2><style>.conngrid{display:grid;gap:10px;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));margin-top:8px}.conncard{display:flex;align-items:center;gap:11px;border:1px solid var(--b);border-radius:14px;padding:11px 12px;background:var(--s);transition:border-color .15s}.conncard:hover{border-color:var(--bone)}.connlogo{width:40px;height:40px;border-radius:10px;overflow:hidden;flex:0 0 auto;border:1px solid var(--b)}.connlogo img,.connlogo svg{width:100%;height:100%;object-fit:cover;display:block}.connname{font-weight:700;font-size:14px;display:block}.connrole{font-size:11px;color:var(--mut);text-transform:capitalize}</style><div class="conngrid"><a class="conncard" href="/club/d256eeca-b75d-4176-b903-efbe7f63ceb7"><span class="connlogo"><svg viewBox="0 0 104 104" xmlns="http://www.w3.org/2000/svg"><rect width="104" height="104" fill="#0B0B0C"/><text x="52" y="52" dy=".36em" text-anchor="middle" font-family="Helvetica,Arial,sans-serif" font-size="40" font-weight="800" fill="#EDE9DF">FB</text></svg></span><span class="connmeta"><span class="connname">FC Beispiel</span><span class="connrole">player</span></span></a></div></section></div>
   </div>
   <div class="gatebar"><span><strong>Only members can see the content in full.</strong> You're browsing as a guest.</span><a class="btn" href="/signup">Log in to continue ›</a></div>
   <div class="prov">Athlete-owned profile · persons self-create on Horda · coverage only, no fan-to-fan venue. Social &amp; affiliation links are athlete-chosen and point out.</div>

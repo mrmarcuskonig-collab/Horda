@@ -2,7 +2,7 @@
 <meta property="og:type" content="profile">
 <meta property="og:title" content="Berliner Fußball-Verband on Horda">
 <meta property="og:description" content="Governing body for Berlin football.">
-<meta property="og:url" content="https://localhost:36303/association/e55a5d90-8477-40b4-bcb2-e3b76a4451bc">
+<meta property="og:url" content="https://localhost:34605/association/94df1c54-d88a-4fa9-b01a-fefc0c07052e">
 <meta name="twitter:card" content="summary">
 <meta name="twitter:title" content="Berliner Fußball-Verband on Horda">
 <meta name="twitter:description" content="Governing body for Berlin football.">
@@ -15,7 +15,7 @@
   .bnav{position:fixed;left:0;right:0;bottom:0;z-index:40;border-top:1px solid var(--b);background:var(--scrim);backdrop-filter:blur(14px)}
   .bninner{max-width:680px;margin:0 auto;display:flex;justify-content:space-around;align-items:center;padding:11px 6px calc(11px + env(safe-area-inset-bottom))}
   .bnav a{flex:1;max-width:130px;display:flex;align-items:center;justify-content:center;color:var(--mut);padding:3px 0}
-  .bnav a.on{color:var(--bone)}
+  .bnav a.on{color:var(--acc)}
   .bnav a:hover{color:var(--bone)}
   .bnav svg{width:25px;height:25px;display:block}
   /* Desktop: lift the bar into a vertical rail on the LEFT (Instagram pattern),
@@ -75,17 +75,18 @@
     body.deskrail .top{display:none}
     body.deskrail .hz-back{left:250px}   /* clear the fixed rail */
   }
-  .dr-logo{display:flex;align-items:center;gap:9px;padding:2px 8px 16px;color:var(--bone)}
+  .dr-logo{display:flex;align-items:center;gap:9px;padding:2px 8px 16px;color:var(--bone);text-decoration:none}
   .dr-logo b{font-size:19px;font-weight:800;letter-spacing:-.02em}
   .dr-search{display:block;margin:0 4px 14px}
   .dr-search input{width:100%;background:var(--s);border:1px solid var(--b);border-radius:999px;color:var(--bone);padding:9px 14px;font:inherit;font-size:13px}
   .dr-search input:focus{outline:none;border-color:var(--bone)}.dr-search input::placeholder{color:var(--mut)}
   .dr-nav{display:flex;flex-direction:column;gap:2px}
-  .dr-item{display:flex;align-items:center;gap:14px;padding:11px 12px;border-radius:12px;color:var(--bone);font-size:16px;font-weight:600}
+  .dr-item{display:flex;align-items:center;gap:14px;padding:11px 12px;border-radius:12px;color:var(--bone);font-size:16px;font-weight:600;text-decoration:none}
   .dr-item svg{width:26px;height:26px;flex:0 0 auto}
   .dr-item:hover{background:var(--s)}
-  .dr-item.on{color:var(--bone)}.dr-item.on svg{color:#e5484d}
-  .dr-item .dr-badge{margin-left:auto;background:#e5484d;color:#fff;font-size:11px;font-weight:800;min-width:19px;height:19px;border-radius:999px;display:inline-flex;align-items:center;justify-content:center;padding:0 5px}
+  /* selected nav = coral-orange accent (label + icon + badge), never underlined */
+  .dr-item.on,.dr-item.on svg{color:var(--acc)}
+  .dr-item .dr-badge{margin-left:auto;background:var(--acc);color:#fff;font-size:11px;font-weight:800;min-width:19px;height:19px;border-radius:999px;display:inline-flex;align-items:center;justify-content:center;padding:0 5px}
   .dr-sep{height:1px;background:var(--b);margin:14px 8px}
   .dr-set{display:flex;flex-direction:column;gap:10px;padding:0 8px}
   .dr-srow{display:flex;align-items:center;justify-content:space-between;gap:10px}
@@ -154,14 +155,14 @@
     <form class="dr-search" method="get" action="/"><input name="region" value="" placeholder="Search city or sport" autocomplete="off" aria-label="Search city or sport"></form>
     <nav class="dr-nav" aria-label="Primary">
       <a class="dr-item on" href="/" aria-current="page"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m15.2 8.8-2 4.4-4.4 2 2-4.4 4.4-2Z"/></svg><span>Explore</span></a>
-      <a class="dr-item" href="/fan/189fd1e8-9108-4528-a60e-b8a380dd8573#hordas"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.4"/><path d="M3.5 20c0-3.4 2.7-5.6 5.5-5.6S14.5 16.6 14.5 20"/><path d="M17 8.5v5M14.5 11h5"/></svg><span>Following</span></a>
+      <a class="dr-item" href="/following"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.4"/><path d="M3.5 20c0-3.4 2.7-5.6 5.5-5.6S14.5 16.6 14.5 20"/><path d="M17 8.5v5M14.5 11h5"/></svg><span>Following</span></a>
       <a class="dr-item" href="/notifications"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9a6 6 0 0 1 12 0c0 4 1.2 5.4 1.8 6.2.3.4 0 .9-.5.9H4.7c-.5 0-.8-.5-.5-.9C4.8 14.4 6 13 6 9Z"/><path d="M10 20a2 2 0 0 0 4 0"/></svg><span>Notifications</span></a>
       <a class="dr-item" href="/create"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="3.5" width="17" height="17" rx="5"/><path d="M12 8v8M8 12h8"/></svg><span>Create event</span></a>
       <a class="dr-item" href="/settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="3.6"/><path d="M5.5 20c0-3.7 2.9-6.2 6.5-6.2S18.5 16.3 18.5 20"/></svg><span>Profile</span></a>
     </nav>
     <div class="dr-sep"></div>
-    <div class="dr-set"><div class="dr-srow"><span class="dr-slabel">Language</span><span class="lgtog" role="group" aria-label="Language"><a class="lgp" href="/set-lang?l=de&next=%2F" aria-label="Deutsch">DE</a><a class="lgp on" href="/set-lang?l=en&next=%2F" aria-label="English">EN</a></span></div></div>
-    <div class="dr-foot"><a class="btn" href="/fan/189fd1e8-9108-4528-a60e-b8a380dd8573">Your feed →</a></div>
+    <div class="dr-set"><div class="dr-srow"><span class="dr-slabel">Language</span><span class="lgtog" role="group" aria-label="Language"><a class="lgp" href="/set-lang?l=de" aria-label="Deutsch">DE</a><a class="lgp on" href="/set-lang?l=en" aria-label="English">EN</a></span></div></div>
+    <div class="dr-foot"><a class="btn" href="/fan/389df9a4-5a39-435c-8adb-09d948e3f5ea">Your feed →</a></div>
   </aside>
   <a class="hz-back" href="/" aria-label="Back" title="Back"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 5-7 7 7 7"/></svg></a>
   <div class="hero">
@@ -171,21 +172,21 @@
   <div class="grid"><main><section id="actck" class="card" style="border:1px solid var(--b);border-radius:16px;padding:16px 18px;margin:0 0 14px;background:var(--s)">
     <div style="display:flex;justify-content:space-between;align-items:center;gap:10px">
       <strong style="font-size:15px">Finish setting up your page</strong>
-      <button type="button" onclick="try{localStorage.setItem('hz_act_association_e55a5d90-8477-40b4-bcb2-e3b76a4451bc','1')}catch(e){};var e=document.getElementById('actck');if(e)e.style.display='none'" style="background:transparent;border:0;color:var(--mut);font-size:12px;cursor:pointer;padding:4px">Dismiss</button>
+      <button type="button" onclick="try{localStorage.setItem('hz_act_association_94df1c54-d88a-4fa9-b01a-fefc0c07052e','1')}catch(e){};var e=document.getElementById('actck');if(e)e.style.display='none'" style="background:transparent;border:0;color:var(--mut);font-size:12px;cursor:pointer;padding:4px">Dismiss</button>
     </div>
     <div style="font-size:12px;color:var(--mut);margin:3px 0 8px">2 of 3 done</div>
     <div style="height:6px;border-radius:999px;background:var(--ink);border:1px solid var(--b);overflow:hidden;margin-bottom:6px"><span style="display:block;height:100%;width:67%;background:var(--bone)"></span></div>
-    <a href="/association/e55a5d90-8477-40b4-bcb2-e3b76a4451bc" style="display:flex;align-items:center;gap:11px;padding:9px 0;border-top:1px solid var(--b);color:inherit;text-decoration:none"><span style="flex:0 0 20px;width:20px;height:20px;border-radius:50%;background:var(--bone);color:var(--ink);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800">✓</span><span style="font-size:14px;color:var(--mut);text-decoration:line-through">Page claimed &amp; verified</span></a><a href="/association/e55a5d90-8477-40b4-bcb2-e3b76a4451bc" style="display:flex;align-items:center;gap:11px;padding:9px 0;border-top:1px solid var(--b);color:inherit;text-decoration:none"><span style="flex:0 0 20px;width:20px;height:20px;border-radius:50%;border:1.5px solid var(--b);display:block"></span><span style="font-size:14px;">Set up your look — badge &amp; banner</span></a><a href="/host/association/e55a5d90-8477-40b4-bcb2-e3b76a4451bc/new" style="display:flex;align-items:center;gap:11px;padding:9px 0;border-top:1px solid var(--b);color:inherit;text-decoration:none"><span style="flex:0 0 20px;width:20px;height:20px;border-radius:50%;background:var(--bone);color:var(--ink);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800">✓</span><span style="font-size:14px;color:var(--mut);text-decoration:line-through">Add your first event</span></a>
+    <a href="/association/94df1c54-d88a-4fa9-b01a-fefc0c07052e" style="display:flex;align-items:center;gap:11px;padding:9px 0;border-top:1px solid var(--b);color:inherit;text-decoration:none"><span style="flex:0 0 20px;width:20px;height:20px;border-radius:50%;background:var(--bone);color:var(--ink);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800">✓</span><span style="font-size:14px;color:var(--mut);text-decoration:line-through">Page claimed &amp; verified</span></a><a href="/association/94df1c54-d88a-4fa9-b01a-fefc0c07052e" style="display:flex;align-items:center;gap:11px;padding:9px 0;border-top:1px solid var(--b);color:inherit;text-decoration:none"><span style="flex:0 0 20px;width:20px;height:20px;border-radius:50%;border:1.5px solid var(--b);display:block"></span><span style="font-size:14px;">Set up your look — badge &amp; banner</span></a><a href="/host/association/94df1c54-d88a-4fa9-b01a-fefc0c07052e/new" style="display:flex;align-items:center;gap:11px;padding:9px 0;border-top:1px solid var(--b);color:inherit;text-decoration:none"><span style="flex:0 0 20px;width:20px;height:20px;border-radius:50%;background:var(--bone);color:var(--ink);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800">✓</span><span style="font-size:14px;color:var(--mut);text-decoration:line-through">Add your first event</span></a>
   </section>
-  <script>(function(){try{if(localStorage.getItem('hz_act_association_e55a5d90-8477-40b4-bcb2-e3b76a4451bc')==='1'){var e=document.getElementById('actck');if(e)e.style.display='none'}}catch(e){}})();</script><div class="row" style="margin:0 0 10px"><a class="btn ghost" href="/onboarding/brand/association/e55a5d90-8477-40b4-bcb2-e3b76a4451bc">✦ AI page setup</a></div><details class="card" style="margin-bottom:16px">
+  <script>(function(){try{if(localStorage.getItem('hz_act_association_94df1c54-d88a-4fa9-b01a-fefc0c07052e')==='1'){var e=document.getElementById('actck');if(e)e.style.display='none'}}catch(e){}})();</script><div class="row" style="margin:0 0 10px"><a class="btn ghost" href="/onboarding/brand/association/94df1c54-d88a-4fa9-b01a-fefc0c07052e">✦ AI page setup</a></div><details class="card" style="margin-bottom:16px">
     <summary style="cursor:pointer;font-weight:800;font-size:13px;letter-spacing:1.5px;text-transform:uppercase">Edit profile (owner)</summary>
-    <form method="post" action="/entity/association/e55a5d90-8477-40b4-bcb2-e3b76a4451bc/branding" onsubmit="return hzPrep(this)" style="margin-top:10px">
+    <form method="post" action="/entity/association/94df1c54-d88a-4fa9-b01a-fefc0c07052e/branding" onsubmit="return hzPrep(this)" style="margin-top:10px">
       <label style="display:block;font-size:13px;color:rgba(237,233,223,.65);margin:10px 0">Crest / avatar<br><input type="file" accept="image/*" data-target="avatar" style="margin-top:6px;color:inherit"></label>
       <label style="display:block;font-size:13px;color:rgba(237,233,223,.65);margin:10px 0">Banner<br><input type="file" accept="image/*" data-target="banner" style="margin-top:6px;color:inherit"></label>
       <input type="hidden" name="avatar"><input type="hidden" name="banner">
       <button class="btn" type="submit" style="margin-top:6px">Save</button>
     </form>
-  </details><div class="card notice"><span class="meg">▸</span><span>[Notice] Berliner Fußball-Verband sanctions 1 competition(s).</span></div><section class="card"><h2>Events</h2><div class="affs"><a class="aff" href="/e/8c00bf54-a798-4ed1-b8bc-02e5245812c4"><span class="ai"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 9h18M8 3v4M16 3v4"/></svg></span><span class="al">Kreisliga A — season opening ceremony</span><span class="av">08 Aug</span></a></div><div class="row"><a class="more" style="display:inline;padding:7px 12px" href="/host/association/e55a5d90-8477-40b4-bcb2-e3b76a4451bc/new">＋ Schedule an event</a></div></section></main><aside class="side">
+  </details><div class="card notice"><span class="meg">▸</span><span>[Notice] Berliner Fußball-Verband sanctions 1 competition(s).</span></div><section class="card"><h2>Events</h2><div class="affs"><a class="aff" href="/e/99b8be2c-8f44-4030-9a30-15784e47d4d8"><span class="ai"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 9h18M8 3v4M16 3v4"/></svg></span><span class="al">Kreisliga A — season opening ceremony</span><span class="av">08 Aug</span></a></div><div class="row"><a class="more" style="display:inline;padding:7px 12px" href="/host/association/94df1c54-d88a-4fa9-b01a-fefc0c07052e/new">＋ Schedule an event</a></div></section></main><aside class="side">
     <div class="card sidec">
       <div class="sh"><div><div class="sn">Berliner Fußball-Verband</div><div class="handle">Association</div>
         </div>
@@ -194,7 +195,7 @@
       <p class="about">Governing body for Berlin football.</p>
       <div class="recline"><span class="rk">MEMBER CLUBS</span><span class="rv">5</span><span class="rl">in sanctioned leagues</span></div>
     </div>
-    <div class="card listc"><h2>Member clubs</h2><div class="affs"><a class="aff" href="/club/16c97cdb-3f1c-48be-8b67-31942a933436"><span class="ai"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3 5 6v5c0 4.4 3 7.6 7 9 4-1.4 7-4.6 7-9V6l-7-3Z"/></svg></span><span class="al">Berliner SC</span></a><a class="aff" href="/club/36166b98-90eb-4563-b99e-1a092dd0a516"><span class="ai"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3 5 6v5c0 4.4 3 7.6 7 9 4-1.4 7-4.6 7-9V6l-7-3Z"/></svg></span><span class="al">FC Beispiel</span></a><a class="aff" href="/club/7b66d327-2fba-40e8-9230-a8761870d486"><span class="ai"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3 5 6v5c0 4.4 3 7.6 7 9 4-1.4 7-4.6 7-9V6l-7-3Z"/></svg></span><span class="al">SV Example</span></a><a class="aff" href="/club/c3b0f9eb-cd40-410f-a245-f4bd6a59c76f"><span class="ai"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3 5 6v5c0 4.4 3 7.6 7 9 4-1.4 7-4.6 7-9V6l-7-3Z"/></svg></span><span class="al">SpVgg Altdorf</span></a><a class="aff" href="/club/5743d0bf-1e7b-46a3-96c3-5d0c890b5e16"><span class="ai"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3 5 6v5c0 4.4 3 7.6 7 9 4-1.4 7-4.6 7-9V6l-7-3Z"/></svg></span><span class="al">TSV Musterstadt</span></a></div></div><div class="card listc"><h2>Competitions</h2><div class="affs"><a class="aff" href="#"><span class="ai"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M7 4h10v3a5 5 0 0 1-10 0V4ZM5 5H3v2a3 3 0 0 0 3 3M19 5h2v2a3 3 0 0 1-3 3M9 14h6M10 19h4M12 12v2"/></svg></span><span class="al">Kreisliga A</span></a></div></div>
+    <div class="card listc"><h2>Member clubs</h2><div class="affs"><a class="aff" href="/club/438a385a-4dd2-4c52-9c38-db768cac1552"><span class="ai"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3 5 6v5c0 4.4 3 7.6 7 9 4-1.4 7-4.6 7-9V6l-7-3Z"/></svg></span><span class="al">Berliner SC</span></a><a class="aff" href="/club/d256eeca-b75d-4176-b903-efbe7f63ceb7"><span class="ai"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3 5 6v5c0 4.4 3 7.6 7 9 4-1.4 7-4.6 7-9V6l-7-3Z"/></svg></span><span class="al">FC Beispiel</span></a><a class="aff" href="/club/659b7b49-854c-4471-8ccb-bc10177cdff8"><span class="ai"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3 5 6v5c0 4.4 3 7.6 7 9 4-1.4 7-4.6 7-9V6l-7-3Z"/></svg></span><span class="al">SV Example</span></a><a class="aff" href="/club/9b1217db-9257-4b48-acd0-0d31e92b8fed"><span class="ai"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3 5 6v5c0 4.4 3 7.6 7 9 4-1.4 7-4.6 7-9V6l-7-3Z"/></svg></span><span class="al">SpVgg Altdorf</span></a><a class="aff" href="/club/adfadd36-9f8a-487c-9987-f15a41e1b30b"><span class="ai"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3 5 6v5c0 4.4 3 7.6 7 9 4-1.4 7-4.6 7-9V6l-7-3Z"/></svg></span><span class="al">TSV Musterstadt</span></a></div></div><div class="card listc"><h2>Competitions</h2><div class="affs"><a class="aff" href="#"><span class="ai"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M7 4h10v3a5 5 0 0 1-10 0V4ZM5 5H3v2a3 3 0 0 0 3 3M19 5h2v2a3 3 0 0 1-3 3M9 14h6M10 19h4M12 12v2"/></svg></span><span class="al">Kreisliga A</span></a></div></div>
   </aside></div>
   
   <div class="prov">Association profile · owner-controlled identity · system of record, no fan-to-fan venue. Social &amp; affiliation links are owner-chosen and point out.</div>
@@ -202,8 +203,8 @@
     <a href="/" class="" aria-label="Home" title="Home"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 10.6 12 3l9 7.6"/><path d="M5.2 9.4V20h13.6V9.4"/></svg></a>
     <a href="/map" class="" aria-label="Explore" title="Explore"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="m20 20-3.7-3.7"/></svg></a>
     
-    <a href="/fan/189fd1e8-9108-4528-a60e-b8a380dd8573#hordas" class="" aria-label="Following — your Hordas" title="Following — your Hordas"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20S3 14.6 3 8.9C3 6 5.1 4 7.7 4c1.8 0 3.3 1 4.3 2.4C13 5 14.5 4 16.3 4 18.9 4 21 6 21 8.9 21 14.6 12 20 12 20Z"/></svg></a>
-    <a href="/fan/189fd1e8-9108-4528-a60e-b8a380dd8573" class="" aria-label="You" title="You"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="3.6"/><path d="M5.5 20c0-3.7 2.9-6.2 6.5-6.2S18.5 16.3 18.5 20"/></svg></a>
+    <a href="/following" class="" aria-label="Following — your Hordas" title="Following — your Hordas"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20S3 14.6 3 8.9C3 6 5.1 4 7.7 4c1.8 0 3.3 1 4.3 2.4C13 5 14.5 4 16.3 4 18.9 4 21 6 21 8.9 21 14.6 12 20 12 20Z"/></svg></a>
+    <a href="/fan/389df9a4-5a39-435c-8adb-09d948e3f5ea" class="" aria-label="You" title="You"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="3.6"/><path d="M5.5 20c0-3.7 2.9-6.2 6.5-6.2S18.5 16.3 18.5 20"/></svg></a>
   </div></nav>
   <script>
 function hzPrep(f){var ins=[].slice.call(f.querySelectorAll('input[type=file]'));
