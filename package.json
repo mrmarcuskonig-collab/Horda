@@ -3,9 +3,9 @@
   "version": "0.0.1",
   "private": true,
   "type": "module",
-  "description": "Horda — system of record for real sport. DB schema + computation engines.",
+  "description": "Horda \u2014 system of record for real sport. DB schema + computation engines.",
   "scripts": {
-    "test": "node tests/trio.test.ts && node tests/pipeline.test.ts && node tests/read.test.ts && node tests/db.test.ts && node tests/engagement.test.ts && node tests/content.test.ts && node tests/events.test.ts && node tests/membership.test.ts && node tests/tiers.test.ts && node tests/auth.test.ts && node tests/claim.test.ts && node tests/payments.test.ts && node tests/email.test.ts && node tests/storage.test.ts && node tests/activation.test.ts && node tests/sections.test.ts && node tests/onboarding.test.ts && node tests/oauth.test.ts && node tests/web.test.ts",
+    "test": "node tests/trio.test.ts && node tests/pipeline.test.ts && node tests/read.test.ts && node tests/db.test.ts && node tests/engagement.test.ts && node tests/content.test.ts && node tests/events.test.ts && node tests/membership.test.ts && node tests/tiers.test.ts && node tests/auth.test.ts && node tests/claim.test.ts && node tests/payments.test.ts && node tests/email.test.ts && node tests/storage.test.ts && node tests/activation.test.ts && node tests/sections.test.ts && node tests/onboarding.test.ts && node tests/oauth.test.ts && node tests/geo.test.ts && node tests/community.test.ts && node tests/legal.test.ts && node tests/tz.test.ts && node tests/attribution.test.ts && node tests/ways.test.ts && node tests/card.test.ts && node tests/resale.test.ts && node tests/wallet.test.ts && node tests/machine.test.ts && node tests/web.test.ts",
     "_note": "events.test covers RSVP + admission + payment + featuring",
     "demo": "node examples/persist-demo.ts",
     "web": "node src/web/server.ts",
@@ -17,6 +17,8 @@
   },
   "dependencies": {
     "@electric-sql/pglite": "^0.5.3",
+    "@resvg/resvg-js": "^2.6.2",
     "pg": "^8.22.0"
-  }
+  },
+  "_dep_note": "@resvg/resvg-js rasterises the matchday card to PNG. No unfurler (WhatsApp/X/Facebook) renders an SVG og:image, so PNG is the format the outside world accepts, not a preference. It is loaded lazily and every failure degrades to no-card \u2014 see src/web/raster.ts."
 }

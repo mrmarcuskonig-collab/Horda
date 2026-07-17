@@ -2,7 +2,7 @@
 <meta property="og:type" content="profile">
 <meta property="og:title" content="FC Beispiel on Horda">
 <meta property="og:description" content="1. Herren · Kreisliga A">
-<meta property="og:url" content="https://localhost:34605/team/13c02a69-aa52-4f1d-bd82-29b0c10948f0">
+<meta property="og:url" content="https://localhost:41021/team/a202e329-6cf0-4b63-8b87-ddaf33b6e119">
 <meta name="twitter:card" content="summary">
 <meta name="twitter:title" content="FC Beispiel on Horda">
 <meta name="twitter:description" content="1. Herren · Kreisliga A">
@@ -12,16 +12,36 @@
 
   .thm{display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:999px;border:1.5px solid var(--b);background:transparent;color:var(--bone);cursor:pointer;padding:0;flex:0 0 auto}.thm:hover{border-color:var(--bone)}.thm svg{display:block}
   .vbadge{display:inline-flex;vertical-align:-2px;margin-left:4px;color:currentColor}.vbadge svg{display:block}
-  .bnav{position:fixed;left:0;right:0;bottom:0;z-index:40;border-top:1px solid var(--b);background:var(--scrim);backdrop-filter:blur(14px)}
-  .bninner{max-width:680px;margin:0 auto;display:flex;justify-content:space-around;align-items:center;padding:11px 6px calc(11px + env(safe-area-inset-bottom))}
+  /* Mobile: a FLOATING translucent bar (the iOS 26 / Instagram pattern) — it
+     hovers above the content with the page visibly moving underneath it, rather
+     than sitting in an opaque tray welded to the bottom edge. Three things make
+     it read as glass: a semi-transparent fill, a real backdrop blur, and a
+     saturate() boost so colours behind it stay alive instead of going grey.
+     Corner radius is 20px — our button language (--btnr:12px) scaled up for a
+     bigger object, deliberately NOT a 999px pill, which would fight the app's
+     squarer geometry. */
+  .bnav{position:fixed;left:12px;right:12px;bottom:calc(10px + env(safe-area-inset-bottom));z-index:40;
+    border:1px solid rgba(255,255,255,.10);border-radius:20px;
+    background:color-mix(in srgb, var(--ink) 62%, transparent);
+    -webkit-backdrop-filter:blur(22px) saturate(180%);backdrop-filter:blur(22px) saturate(180%);
+    box-shadow:0 8px 30px rgba(0,0,0,.38)}
+  .bninner{max-width:680px;margin:0 auto;display:flex;justify-content:space-around;align-items:center;padding:10px 6px}
   .bnav a{flex:1;max-width:130px;display:flex;align-items:center;justify-content:center;color:var(--mut);padding:3px 0}
   .bnav a.on{color:var(--acc)}
   .bnav a:hover{color:var(--bone)}
   .bnav svg{width:25px;height:25px;display:block}
+  /* No backdrop-filter (older Android/Firefox) → fall back to a near-solid fill
+     so the bar stays legible instead of turning into a transparent smear. */
+  @supports not ((backdrop-filter:blur(1px)) or (-webkit-backdrop-filter:blur(1px))){
+    .bnav{background:color-mix(in srgb, var(--ink) 94%, transparent)}
+  }
   /* Desktop: lift the bar into a vertical rail on the LEFT (Instagram pattern),
      sitting in the left gutter so it never overlaps the centred 680px column. */
   @media(min-width:1024px){
-    .bnav{top:0;right:auto;bottom:0;width:74px;border-top:0;border-right:1px solid var(--b);background:transparent;backdrop-filter:none}
+    /* Undo the floating-glass treatment: on desktop this is a flush rail, not a
+       hovering pill. Every mobile-only property is explicitly reset here. */
+    .bnav{top:0;left:0;right:auto;bottom:0;width:74px;border:0;border-right:1px solid var(--b);border-radius:0;
+      background:transparent;-webkit-backdrop-filter:none;backdrop-filter:none;box-shadow:none}
     .bninner{flex-direction:column;justify-content:flex-start;align-items:center;gap:8px;height:100%;max-width:none;padding:80px 0 0}
     .bnav a{flex:0 0 auto;max-width:none;width:46px;height:46px;border-radius:13px}
     .bnav a.on{background:var(--s)}
@@ -113,6 +133,7 @@
   .heroin h1{font-size:44px;line-height:1;letter-spacing:.5px;text-transform:uppercase;margin-bottom:14px}
   .btn{display:inline-block;background:var(--bone);color:var(--ink);font-weight:800;letter-spacing:.4px;border:1.5px solid var(--bone);border-radius:999px;padding:10px 20px;font-size:14px;cursor:pointer}
   .btn.ghost{background:transparent;color:var(--bone)}button.btn{font:inherit}
+  .secanchor{scroll-margin-top:96px}
   .tabs{display:flex;gap:18px;padding:12px 20px;border-bottom:1px solid var(--b);overflow-x:auto}
   .tab{color:var(--mut);font-weight:700;font-size:14px;white-space:nowrap;padding:4px 0}.tab.on{color:var(--bone);border-bottom:2px solid var(--bone)}
   .grid{display:block;max-width:680px;margin:16px auto;padding:0 16px}
@@ -152,61 +173,87 @@
 </style></head><body class="deskrail">
   <aside class="drail">
     <a class="dr-logo" href="/" aria-label="Horda"><svg width="26" height="26" viewBox="2 47 166 141" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Horda"><path fill="currentColor" fill-rule="evenodd" d="M12,100 L68,80 L84,60 L120,55 L140,58 L156,74 L158,104 L150,132 L140,160 L128,176 L106,180 L84,152 L62,120 Z M98,82 L110,76 L113,80 L101,86 Z"/></svg><b>Horda</b></a>
-    <form class="dr-search" method="get" action="/"><input name="region" value="" placeholder="Search city or sport" autocomplete="off" aria-label="Search city or sport"></form>
+    <form class="dr-search" method="get" action="/"><input name="region" value="" placeholder="Search" autocomplete="off" aria-label="Search"></form>
     <nav class="dr-nav" aria-label="Primary">
-      <a class="dr-item on" href="/" aria-current="page"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m15.2 8.8-2 4.4-4.4 2 2-4.4 4.4-2Z"/></svg><span>Explore</span></a>
+      <a class="dr-item on" href="/" aria-current="page"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m15.2 8.8-2 4.4-4.4 2 2-4.4 4.4-2Z"/></svg><span>Your Horda</span></a>
       <a class="dr-item" href="/following"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.4"/><path d="M3.5 20c0-3.4 2.7-5.6 5.5-5.6S14.5 16.6 14.5 20"/><path d="M17 8.5v5M14.5 11h5"/></svg><span>Following</span></a>
       <a class="dr-item" href="/notifications"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9a6 6 0 0 1 12 0c0 4 1.2 5.4 1.8 6.2.3.4 0 .9-.5.9H4.7c-.5 0-.8-.5-.5-.9C4.8 14.4 6 13 6 9Z"/><path d="M10 20a2 2 0 0 0 4 0"/></svg><span>Notifications</span></a>
       <a class="dr-item" href="/create"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="3.5" width="17" height="17" rx="5"/><path d="M12 8v8M8 12h8"/></svg><span>Create event</span></a>
-      <a class="dr-item" href="/settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="3.6"/><path d="M5.5 20c0-3.7 2.9-6.2 6.5-6.2S18.5 16.3 18.5 20"/></svg><span>Profile</span></a>
+      <a class="dr-item" href="/fan/66396731-0c77-4e43-8c4a-5263ad570849"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="3.6"/><path d="M5.5 20c0-3.7 2.9-6.2 6.5-6.2S18.5 16.3 18.5 20"/></svg><span>Profile</span></a>
     </nav>
     <div class="dr-sep"></div>
     <div class="dr-set"><div class="dr-srow"><span class="dr-slabel">Language</span><span class="lgtog" role="group" aria-label="Language"><a class="lgp" href="/set-lang?l=de" aria-label="Deutsch">DE</a><a class="lgp on" href="/set-lang?l=en" aria-label="English">EN</a></span></div></div>
-    <div class="dr-foot"><a class="btn" href="/fan/389df9a4-5a39-435c-8adb-09d948e3f5ea">Your feed →</a></div>
+    
+    <div class="dr-foot"></div>
   </aside>
-  <a class="hz-back" href="/club/d256eeca-b75d-4176-b903-efbe7f63ceb7" aria-label="Back" title="Back"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 5-7 7 7 7"/></svg></a>
+  <a class="hz-back" href="/club/a2e0162a-6257-4bf3-997d-aa8ec645947e" aria-label="Back" title="Back"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 5-7 7 7 7"/></svg></a>
   <div class="hero">
     <div class="bg ph"><span class="kick">FC Beispiel</span></div>
-    <div class="heroin"><span class="kindtag">Team</span><h1>FC Beispiel</h1><div style="display:flex;gap:8px;flex-wrap:wrap"><a class="btn" href="#join">Join the Horda</a><button type="button" class="btn ghost" data-t="FC Beispiel" aria-label="Share" onclick="(function(b){var r=b.getAttribute('data-u'),u=r?(r.charAt(0)==='/'?location.origin+r:r):location.href,t=b.getAttribute('data-t')||document.title;if(navigator.share){navigator.share({title:t,url:u}).catch(function(){})}else if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(u).then(function(){var o=b.innerHTML;b.innerHTML='Link copied ✓';setTimeout(function(){b.innerHTML=o},1600)})}else{prompt('Copy this link',u)}})(this)"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:5px"><circle cx="6" cy="12" r="2.4"/><circle cx="17.5" cy="6" r="2.4"/><circle cx="17.5" cy="18" r="2.4"/><path d="m8.2 10.9 7.1-3.8M8.2 13.1l7.1 3.8"/></svg>Share</button></div></div>
-  </div><nav class="tabs"><a class="tab on" href="#">Highlight</a><a class="tab" href="#">Squad</a><a class="tab" href="#">Fixtures</a><a class="tab" href="#shop">Shop ↗</a></nav>
+    <div class="heroin"><span class="kindtag">Team</span><h1>FC Beispiel</h1><div style="display:flex;gap:8px;flex-wrap:wrap"><form method="post" action="/follow" style="display:inline"><input type="hidden" name="fan_id" value="66396731-0c77-4e43-8c4a-5263ad570849"><input type="hidden" name="target_type" value="team"><input type="hidden" name="target_id" value="a202e329-6cf0-4b63-8b87-ddaf33b6e119"><button class="btn" type="submit">Join the Horda</button></form><button type="button" class="btn ghost" data-t="FC Beispiel" aria-label="Share" onclick="hzShare(this)"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:5px"><circle cx="6" cy="12" r="2.4"/><circle cx="17.5" cy="6" r="2.4"/><circle cx="17.5" cy="18" r="2.4"/><path d="m8.2 10.9 7.1-3.8M8.2 13.1l7.1 3.8"/></svg>Share</button></div></div>
+  </div><nav class="tabs"><a class="tab on" href="#sec-nextup">Next up</a><a class="tab" href="#sec-events">Events</a><a class="tab" href="#sec-connected">Connected</a></nav>
   <div class="grid"><main><section id="actck" class="card" style="border:1px solid var(--b);border-radius:16px;padding:16px 18px;margin:0 0 14px;background:var(--s)">
     <div style="display:flex;justify-content:space-between;align-items:center;gap:10px">
       <strong style="font-size:15px">Finish setting up your page</strong>
-      <button type="button" onclick="try{localStorage.setItem('hz_act_team_13c02a69-aa52-4f1d-bd82-29b0c10948f0','1')}catch(e){};var e=document.getElementById('actck');if(e)e.style.display='none'" style="background:transparent;border:0;color:var(--mut);font-size:12px;cursor:pointer;padding:4px">Dismiss</button>
+      <button type="button" onclick="try{localStorage.setItem('hz_act_team_a202e329-6cf0-4b63-8b87-ddaf33b6e119','1')}catch(e){};var e=document.getElementById('actck');if(e)e.style.display='none'" style="background:transparent;border:0;color:var(--mut);font-size:12px;cursor:pointer;padding:4px">Dismiss</button>
     </div>
     <div style="font-size:12px;color:var(--mut);margin:3px 0 8px">1 of 3 done</div>
     <div style="height:6px;border-radius:999px;background:var(--ink);border:1px solid var(--b);overflow:hidden;margin-bottom:6px"><span style="display:block;height:100%;width:33%;background:var(--bone)"></span></div>
-    <a href="/team/13c02a69-aa52-4f1d-bd82-29b0c10948f0" style="display:flex;align-items:center;gap:11px;padding:9px 0;border-top:1px solid var(--b);color:inherit;text-decoration:none"><span style="flex:0 0 20px;width:20px;height:20px;border-radius:50%;background:var(--bone);color:var(--ink);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800">✓</span><span style="font-size:14px;color:var(--mut);text-decoration:line-through">Page claimed &amp; verified</span></a><a href="/team/13c02a69-aa52-4f1d-bd82-29b0c10948f0" style="display:flex;align-items:center;gap:11px;padding:9px 0;border-top:1px solid var(--b);color:inherit;text-decoration:none"><span style="flex:0 0 20px;width:20px;height:20px;border-radius:50%;border:1.5px solid var(--b);display:block"></span><span style="font-size:14px;">Set up your look — badge &amp; banner</span></a><a href="/host/team/13c02a69-aa52-4f1d-bd82-29b0c10948f0/new" style="display:flex;align-items:center;gap:11px;padding:9px 0;border-top:1px solid var(--b);color:inherit;text-decoration:none"><span style="flex:0 0 20px;width:20px;height:20px;border-radius:50%;border:1.5px solid var(--b);display:block"></span><span style="font-size:14px;">Add your first event</span></a>
+    <a href="/team/a202e329-6cf0-4b63-8b87-ddaf33b6e119" style="display:flex;align-items:center;gap:11px;padding:9px 0;border-top:1px solid var(--b);color:inherit;text-decoration:none"><span style="flex:0 0 20px;width:20px;height:20px;border-radius:50%;background:var(--bone);color:var(--ink);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800">✓</span><span style="font-size:14px;color:var(--mut);text-decoration:line-through">Page claimed &amp; verified</span></a><a href="/team/a202e329-6cf0-4b63-8b87-ddaf33b6e119" style="display:flex;align-items:center;gap:11px;padding:9px 0;border-top:1px solid var(--b);color:inherit;text-decoration:none"><span style="flex:0 0 20px;width:20px;height:20px;border-radius:50%;border:1.5px solid var(--b);display:block"></span><span style="font-size:14px;">Set up your look — badge &amp; banner</span></a><a href="/host/team/a202e329-6cf0-4b63-8b87-ddaf33b6e119/new" style="display:flex;align-items:center;gap:11px;padding:9px 0;border-top:1px solid var(--b);color:inherit;text-decoration:none"><span style="flex:0 0 20px;width:20px;height:20px;border-radius:50%;border:1.5px solid var(--b);display:block"></span><span style="font-size:14px;">Add your first event</span></a>
   </section>
-  <script>(function(){try{if(localStorage.getItem('hz_act_team_13c02a69-aa52-4f1d-bd82-29b0c10948f0')==='1'){var e=document.getElementById('actck');if(e)e.style.display='none'}}catch(e){}})();</script><div class="row" style="margin:0 0 10px"><a class="btn ghost" href="/onboarding/brand/team/13c02a69-aa52-4f1d-bd82-29b0c10948f0">✦ AI page setup</a></div><details class="card" style="margin-bottom:16px">
+  <script>(function(){try{if(localStorage.getItem('hz_act_team_a202e329-6cf0-4b63-8b87-ddaf33b6e119')==='1'){var e=document.getElementById('actck');if(e)e.style.display='none'}}catch(e){}})();</script><div class="row" style="margin:0 0 10px"><a class="btn ghost" href="/onboarding/brand/team/a202e329-6cf0-4b63-8b87-ddaf33b6e119">✦ AI page setup</a></div><details class="card" style="margin-bottom:16px">
     <summary style="cursor:pointer;font-weight:800;font-size:13px;letter-spacing:1.5px;text-transform:uppercase">Edit profile (owner)</summary>
-    <form method="post" action="/entity/team/13c02a69-aa52-4f1d-bd82-29b0c10948f0/branding" onsubmit="return hzPrep(this)" style="margin-top:10px">
+    <form method="post" action="/entity/team/a202e329-6cf0-4b63-8b87-ddaf33b6e119/branding" onsubmit="return hzPrep(this)" style="margin-top:10px">
       <label style="display:block;font-size:13px;color:rgba(237,233,223,.65);margin:10px 0">Crest / avatar<br><input type="file" accept="image/*" data-target="avatar" style="margin-top:6px;color:inherit"></label>
       <label style="display:block;font-size:13px;color:rgba(237,233,223,.65);margin:10px 0">Banner<br><input type="file" accept="image/*" data-target="banner" style="margin-top:6px;color:inherit"></label>
       <input type="hidden" name="avatar"><input type="hidden" name="banner">
       <button class="btn" type="submit" style="margin-top:6px">Save</button>
     </form>
-  </details><div class="card notice"><span class="meg">▸</span><span>[Notice] Next match: FC Beispiel vs TSV Musterstadt — 2026-06-28.</span></div><section class="card"><h2>Next up</h2><div class="evt"><strong>FC Beispiel vs TSV Musterstadt</strong><span class="dt">2026-06-28</span></div><div class="notyet">You're not attending yet.</div><div class="opts"><form method="post" action="/attend"><input type="hidden" name="fan_id" value="389df9a4-5a39-435c-8adb-09d948e3f5ea"><input type="hidden" name="event_id" value="eb392b4d-0ce4-49ff-ae98-eb5d43e5fd5c"><input type="hidden" name="mode" value="going"><button class="btn">Join for free</button></form><a class="btn ghost" href="https://tickets.joinhorda.com/fcb" target="_blank" rel="noopener">Buy tickets</a><a class="btn ghost" href="https://stream.joinhorda.com/fcb" target="_blank" rel="noopener">Stream live</a></div>
-      <div class="row"><a class="more" style="display:inline;padding:6px 12px" href="/share/fight/eb392b4d-0ce4-49ff-ae98-eb5d43e5fd5c">Share the matchday card ↗</a></div></section><section class="card"><h2>Events</h2><div class="affs"><div style="color:var(--mut);font-size:13px;padding:6px 0">No upcoming events.</div></div><div class="row"><a class="more" style="display:inline;padding:7px 12px" href="/host/team/13c02a69-aa52-4f1d-bd82-29b0c10948f0/new">＋ Schedule an event</a></div></section><section class="card"><h2>Shop</h2><div class="shelf"><a class="mItem" href="#shop"><div class="mImg"></div><div class="mName">Home shirt — €55</div></a><a class="mItem" href="#shop"><div class="mImg"></div><div class="mName">Crest scarf — €25</div></a><a class="mItem" href="#shop"><div class="mImg"></div><div class="mName">Matchday cap — €22</div></a></div><a class="more" href="#shop">View more</a></section></main><aside class="side">
+  </details><div class="card notice"><span class="meg">▸</span><span>[Notice] Next match: FC Beispiel vs TSV Musterstadt — 2026-06-28.</span></div><section id="sec-nextup" class="secanchor card"><h2>Next up</h2><div class="evt"><strong>FC Beispiel vs TSV Musterstadt</strong><span class="dt">2026-06-28</span></div><div class="notyet">You're not attending yet.</div><div class="opts"><form method="post" action="/attend"><input type="hidden" name="fan_id" value="66396731-0c77-4e43-8c4a-5263ad570849"><input type="hidden" name="event_id" value="e3e907d2-6f81-4503-a5a3-214936c83d7a"><input type="hidden" name="mode" value="going"><button class="btn">Join for free</button></form><a class="btn ghost" href="https://tickets.joinhorda.com/fcb" target="_blank" rel="noopener">Buy tickets</a><a class="btn ghost" href="https://stream.joinhorda.com/fcb" target="_blank" rel="noopener">Stream live</a></div>
+      <div class="row"><button type="button" class="more" data-t="FC Beispiel vs TSV Musterstadt" data-u="/e/e3e907d2-6f81-4503-a5a3-214936c83d7a" data-img="/e/e3e907d2-6f81-4503-a5a3-214936c83d7a/card.png" aria-label="Share" onclick="hzShare(this)"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:5px"><circle cx="6" cy="12" r="2.4"/><circle cx="17.5" cy="6" r="2.4"/><circle cx="17.5" cy="18" r="2.4"/><path d="m8.2 10.9 7.1-3.8M8.2 13.1l7.1 3.8"/></svg>Share the matchday card</button></div></section><section id="sec-events" class="secanchor card"><h2>Events</h2><div class="affs"><div style="color:var(--mut);font-size:13px;padding:6px 0">No upcoming events.</div></div><div class="row"><a class="more" style="display:inline;padding:7px 12px" href="/host/team/a202e329-6cf0-4b63-8b87-ddaf33b6e119/new">＋ Schedule an event</a></div></section></main><aside class="side">
     <div class="card sidec">
       <div class="sh"><div><div class="sn">FC Beispiel</div><div class="handle">Team</div>
-        <a class="parent" href="/club/d256eeca-b75d-4176-b903-efbe7f63ceb7">▸ FC Beispiel</a></div>
+        <a class="parent" href="/club/a2e0162a-6257-4bf3-997d-aa8ec645947e">▸ FC Beispiel</a></div>
         <div class="sav"><svg viewBox="0 0 104 104" xmlns="http://www.w3.org/2000/svg"><rect width="104" height="104" fill="#0B0B0C"/><text x="52" y="54" dy=".35em" text-anchor="middle" font-family="Helvetica,Arial,sans-serif" font-size="38" font-weight="800" fill="#EDE9DF">FB</text></svg></div></div>
       <div class="icons"><a class="ic" aria-label="instagram" href="https://instagram.com/fcbeispiel1" target="_blank" rel="noopener"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.4" cy="6.6" r="1.1" fill="currentColor" stroke="none"/></svg></a></div>
       <p class="about">Football · </p>
       <div class="recline"><span class="rk">KREISLIGA A</span><span class="rv">#2</span><span class="rl">10 pts</span></div>
     </div>
-    <div class="card listc"><h2>Squad</h2><div class="affs"><a class="aff" href="/athlete/4468d80a-787e-42dd-9eac-94cc498e974f"><span class="ai"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="8" r="3.4"/><path d="M5 20c0-3.6 3.1-6 7-6s7 2.4 7 6"/></svg></span><span class="al">Emre Demir</span></a><a class="aff" href="/athlete/b257e518-8a92-489f-866c-04074eaed3ce"><span class="ai"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="8" r="3.4"/><path d="M5 20c0-3.6 3.1-6 7-6s7 2.4 7 6"/></svg></span><span class="al">Finn Albrecht</span></a><a class="aff" href="/athlete/c94f4986-c446-4ecc-b2ca-fe1bf1296011"><span class="ai"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="8" r="3.4"/><path d="M5 20c0-3.6 3.1-6 7-6s7 2.4 7 6"/></svg></span><span class="al">Jonas Weber</span></a><a class="aff" href="/athlete/b90e8548-d295-471d-b331-984fa3ae65c9"><span class="ai"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="8" r="3.4"/><path d="M5 20c0-3.6 3.1-6 7-6s7 2.4 7 6"/></svg></span><span class="al">Luka Petrović</span></a></div></div>
+    <div id="sec-connected" class="secanchor card listc"><h2>Squad</h2><div class="affs"><a class="aff" href="/athlete/f166de34-b176-40c8-aeb2-a8021ea915bd"><span class="ai"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="8" r="3.4"/><path d="M5 20c0-3.6 3.1-6 7-6s7 2.4 7 6"/></svg></span><span class="al">Emre Demir</span></a><a class="aff" href="/athlete/0e0da9c7-7e1a-4424-8df3-5fd6fdf7b8b0"><span class="ai"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="8" r="3.4"/><path d="M5 20c0-3.6 3.1-6 7-6s7 2.4 7 6"/></svg></span><span class="al">Finn Albrecht</span></a><a class="aff" href="/athlete/2fa42234-62ad-40ad-afc6-328d77e76a32"><span class="ai"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="8" r="3.4"/><path d="M5 20c0-3.6 3.1-6 7-6s7 2.4 7 6"/></svg></span><span class="al">Jonas Weber</span></a><a class="aff" href="/athlete/d02b7e6a-a525-4466-9a17-797ed8c6150b"><span class="ai"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="8" r="3.4"/><path d="M5 20c0-3.6 3.1-6 7-6s7 2.4 7 6"/></svg></span><span class="al">Luka Petrović</span></a></div></div>
   </aside></div>
   
   <div class="prov">Team profile · owner-controlled identity · system of record, no fan-to-fan venue. Social &amp; affiliation links are owner-chosen and point out.</div>
   <nav class="bnav" aria-label="Primary"><div class="bninner">
-    <a href="/" class="" aria-label="Home" title="Home"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 10.6 12 3l9 7.6"/><path d="M5.2 9.4V20h13.6V9.4"/></svg></a>
-    <a href="/map" class="" aria-label="Explore" title="Explore"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="m20 20-3.7-3.7"/></svg></a>
+    <a href="/" class="" aria-label="Your Horda" title="Your Horda"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 10.6 12 3l9 7.6"/><path d="M5.2 9.4V20h13.6V9.4"/></svg></a>
+    <a href="/following" class="" aria-label="Following" title="Following"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20S3 14.6 3 8.9C3 6 5.1 4 7.7 4c1.8 0 3.3 1 4.3 2.4C13 5 14.5 4 16.3 4 18.9 4 21 6 21 8.9 21 14.6 12 20 12 20Z"/></svg></a>
     
-    <a href="/following" class="" aria-label="Following — your Hordas" title="Following — your Hordas"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20S3 14.6 3 8.9C3 6 5.1 4 7.7 4c1.8 0 3.3 1 4.3 2.4C13 5 14.5 4 16.3 4 18.9 4 21 6 21 8.9 21 14.6 12 20 12 20Z"/></svg></a>
-    <a href="/fan/389df9a4-5a39-435c-8adb-09d948e3f5ea" class="" aria-label="You" title="You"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="3.6"/><path d="M5.5 20c0-3.7 2.9-6.2 6.5-6.2S18.5 16.3 18.5 20"/></svg></a>
+    <a href="/notifications" class="" aria-label="Notifications" title="Notifications"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9a6 6 0 0 1 12 0c0 4 1.2 5.4 1.8 6.2.3.4 0 .9-.5.9H4.7c-.5 0-.8-.5-.5-.9C4.8 14.4 6 13 6 9Z"/><path d="M10 20a2 2 0 0 0 4 0"/></svg></a>
+    <a href="/fan/66396731-0c77-4e43-8c4a-5263ad570849" class="" aria-label="Profile" title="Profile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="3.6"/><path d="M5.5 20c0-3.7 2.9-6.2 6.5-6.2S18.5 16.3 18.5 20"/></svg></a>
   </div></nav>
+  <script>
+window.hzShare=function(b){
+  var r=b.getAttribute('data-u'), u=r?(r.charAt(0)==='/'?location.origin+r:r):location.href;
+  var t=b.getAttribute('data-t')||document.title;
+  var x=b.getAttribute('data-x')||t;
+  var im=b.getAttribute('data-img');
+  var done=function(msg){var o=b.innerHTML;b.innerHTML=msg;setTimeout(function(){b.innerHTML=o},1800)};
+  var link=function(){
+    if(navigator.share){navigator.share({title:t,text:x,url:u}).catch(function(){})}
+    else if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(u).then(function(){done('Link copied ✓')})}
+    else{prompt('Copy this link',u)}
+  };
+  if(!im||!navigator.canShare){return link()}
+  // Fetch the card, then ask whether this browser will actually take a file.
+  // Never block the tap on the network: if the card is slow or missing, the link
+  // still goes out. A share that fails silently is worse than a plain link.
+  var to=setTimeout(link,2500), sent=false;
+  fetch(im.charAt(0)==='/'?location.origin+im:im).then(function(r){ if(!r.ok)throw 0; return r.blob() }).then(function(bl){
+    if(sent)return; clearTimeout(to);
+    var f=new File([bl],'horda-matchday.png',{type:bl.type||'image/png'});
+    if(navigator.canShare({files:[f]})){ sent=true; return navigator.share({files:[f],title:t,text:x,url:u}) }
+    sent=true; link();
+  }).catch(function(){ if(!sent){sent=true;clearTimeout(to);link()} });
+};
+</script>
   <script>
 function hzPrep(f){var ins=[].slice.call(f.querySelectorAll('input[type=file]'));
 Promise.all(ins.map(function(i){return new Promise(function(res){var t=i.dataset.target;if(!i.files[0])return res();var r=new FileReader();r.onload=function(){var h=f.querySelector('input[name="'+t+'"]');if(h)h.value=r.result;res();};r.readAsDataURL(i.files[0]);});})).then(function(){f.submit();});return false;}
