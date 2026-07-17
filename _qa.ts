@@ -219,8 +219,11 @@ const sPro = await fetch(base + '/signup', post({ email: 'proqa@x.com', name: 'P
 const ccPro = (sPro.headers.get('set-cookie') || '').split(';')[0];
 const proAcc = (await app.db.query<{ creator_layer: boolean; creator_verified: boolean }>(`SELECT creator_layer, creator_verified FROM account WHERE email='proqa@x.com'`)).rows[0];
 ok('/pros signup auto-activates creator layer, unverified', proAcc.creator_layer === true && proAcc.creator_verified === false);
+// Doctrine change: NO age gate on creation. Youth sport is a first-class use
+// case — a 15-year-old with a page and a fixture is exactly the point. Age is
+// enforced only where money moves (payouts), which is Stripe's rule, not ours.
 const under = await fetch(base + '/onboarding/athlete', post({ name: 'Kid', handle: 'kidqa', tagline: 'x', bio: 'b', cover: 'x', sport: 'boxing', birth_year: String(new Date().getFullYear() - 15) }, ccPro));
-ok('18+ gate blocks under-18 from a Creathor page', under.status !== 303);
+ok('no age gate on creating a page (gate money, not creation)', under.status === 303);
 const adult = await fetch(base + '/onboarding/athlete', post({ name: 'Adult QA', handle: 'adultqa', tagline: 'x', bio: 'b', cover: 'x', sport: 'boxing', birth_year: '1997' }, ccPro));
 const aidPro = (adult.headers.get('location') || '').split('/').pop()!;
 ok('18+ publishes a Creathor page', adult.status === 303 && !!aidPro);
@@ -233,7 +236,9 @@ ok('"Creathor" copy in settings', (await txt('/settings', ccPro)).includes('Crea
 console.log('\n[account switcher / your pages]');
 const athFan = (await app.db.query<{ id: string }>(`SELECT f.id FROM fan f JOIN account a ON a.id=f.account_id WHERE a.email='qaath@x.com'`)).rows[0].id;
 const yh = await txt(`/fan/${athFan}`, cc);
-ok('creator fan home shows "Your pages" switcher incl. their athlete', yh.includes('Your pages') && yh.includes(`/athlete/${aid}`));
+// The band is now "You're running" — the three bands are obligation, then
+// commitment, then browsing, and the heading says which one you're looking at.
+ok('creator home leads with the pages they RUN, incl. their athlete', yh.includes("You're running") && yh.includes(`/athlete/${aid}`));
 ok('creator manages their page events from the hub (Manage links)', yh.includes('/manage/'));
 ok('a plain fan sees the "Become a Creathor" upgrade doorway', (await txt(`/fan/${fanId}`, cookie)).includes('Become a Creathor'));
 

@@ -1,0 +1,24 @@
+import { startServer } from './src/web/server.ts';
+const app = await startServer(0); const b='http://127.0.0.1:'+app.port;
+const h = app.ids.athletes[0].id;
+const mk = async (tz?:string) => {
+  const body:any = {host_kind:'athlete',host_id:h,title:'TZ',starts_at:'2030-09-12T20:00',location_kind:'in_person',fmt_inperson:'1',ip_cost:'free'};
+  if (tz) body.timezone = tz;
+  const r = await fetch(b+'/events',{method:'POST',redirect:'manual',headers:{'content-type':'application/x-www-form-urlencoded'},body:new URLSearchParams(body).toString()});
+  const id=(r.headers.get('location')||'').replace('/e/','');
+  const row=(await app.db.query<any>(`SELECT starts_at, timezone FROM event WHERE id=$1`,[id])).rows[0];
+  const ics = await (await fetch(b+'/e/'+id+'/ics')).text();
+  return {id, iso:new Date(row.starts_at).toISOString(), tz:row.timezone, ics:(ics.match(/DTSTART:(\S+)/)||[])[1]};
+};
+const berlin = await mk('Europe/Berlin');
+console.log('Berlin organiser types 20:00');
+console.log('  stored instant :', berlin.iso, '(should be 18:00Z — 20:00 CEST)');
+console.log('  timezone kept  :', berlin.tz);
+console.log('  ICS DTSTART    :', berlin.ics);
+console.log('  → fan\'s calendar in Berlin:', new Date(berlin.iso).toLocaleString('en-GB',{timeZone:'Europe/Berlin'}), '← must be 20:00');
+const ny = await mk('America/New_York');
+console.log('New York organiser types 20:00 → stored', ny.iso, '(should be 00:00Z next day)');
+console.log('  → in New York:', new Date(ny.iso).toLocaleString('en-GB',{timeZone:'America/New_York'}));
+const none = await mk();
+console.log('No tz posted (legacy caller) → stored', none.iso, 'tz =', none.tz, '(unchanged behaviour, no silent shift)');
+process.exit(0);
