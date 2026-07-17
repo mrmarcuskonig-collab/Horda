@@ -10,13 +10,13 @@ const ok = (n: string, c: boolean) => { console.log(`  ${c ? 'PASS' : 'FAIL'}  $
 console.log('\n[email · adapter]');
 let lastUrl = '', lastInit: any = null;
 const fakeFetch: any = async (u: string, init: any) => { lastUrl = u; lastInit = init; return { ok: true, json: async () => ({ id: 'e_1' }) }; };
-const re = new ResendEmailer('re_test_key', 'Horda <noreply@joinhorda.com>', fakeFetch);
+const re = new ResendEmailer('re_test_key', 'Horda <marcus@spaghetti.ventures>', fakeFetch);
 const sent = await re.send({ to: 'a@x.com', subject: 'Hi', html: '<b>hi</b>', text: 'hi' });
 const body = JSON.parse(lastInit.body);
 ok('resend send returns true on ok', sent === true);
 ok('posts to the Resend endpoint', lastUrl === 'https://api.resend.com/emails');
 ok('authorizes with the api key', lastInit.headers.Authorization === 'Bearer re_test_key');
-ok('payload carries from/to/subject/html', body.from.includes('joinhorda.com') && body.to[0] === 'a@x.com' && body.subject === 'Hi' && body.html === '<b>hi</b>');
+ok('payload carries from/to/subject/html', body.from.includes('spaghetti.ventures') && body.to[0] === 'a@x.com' && body.subject === 'Hi' && body.html === '<b>hi</b>');
 
 const console_ = new ConsoleEmailer();
 ok('console emailer is disabled (fallback)', console_.enabled === false);

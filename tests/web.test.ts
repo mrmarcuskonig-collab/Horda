@@ -42,7 +42,10 @@ const guestEv = await get(`/e/${(await app.db.query<{ id: string }>(`SELECT id F
 ok('public event page leads with the claim (no content/shop)', guestEv.includes('Claim your spot') || guestEv.includes('waitlist'));
 
 const fan = await get(`/fan/${app.ids.fanId}`);
-ok('fan home renders (feed-of-doors)', fan.includes('Your Horda') && fan.includes('Your doors'));
+// Three bands, three jobs: what you RUN, what you HOLD A TICKET FOR, what you
+// might still claim. One undifferentiated "Your doors" list put the event you're
+// organising on Saturday next to one you might fancy.
+ok('fan home separates running / going / might-be-for-you', fan.includes('Your Horda') && fan.includes('Might be for you'));
 ok('feed is finite — ends visibly OR empty state', fan.includes("You're up to date") || fan.includes('Find your scene'));
 ok('doctrine guardrail line present', fan.includes('a ranked set of doors'));
 
@@ -118,13 +121,23 @@ const checkout = await get(`/e/${ticketedId}/checkout`);
 ok('checkout page shows the charge', checkout.includes('Checkout') && checkout.includes('Pay'));
 await fetch(base + `/e/${ticketedId}/pay`, form({ fan_id: app.ids.fanId }));
 const paidAfter = await get(`/e/${ticketedId}`);
-ok('after pay, fan holds a ticket', paidAfter.includes('You hold a ticket'));
+// The bearer-ticket surface is gone: a paid claim gives you a PASS (identity-bound,
+// QR at the door), never a transferable "ticket you hold".
+ok('after pay, the fan gets a pass — not a bearer ticket', !paidAfter.includes('You hold a ticket'));
 const applyId = (await app.db.query<{ id: string }>(`SELECT id FROM event WHERE admission='apply' LIMIT 1`)).rows[0].id;
 ok('apply event shows the claim CTA (approval-gated)', (await get(`/e/${applyId}?guest=1`)).includes('Claim your spot'));
 
-// tickets: gift / sell + resale on the paid event (seed gave "You" a ticket + a Rieke listing)
-ok('ticket holder can gift + sell', paidAfter.includes('You hold a ticket') && paidAfter.includes('>Gift</button>') && paidAfter.includes('>Sell</button>'));
-ok('resale listing visible (from Rieke)', paidAfter.includes('Resale') && paidAfter.includes('Rieke'));
+// RESALE + GIFTING ARE NOT OFFERED. These used to assert the opposite, while the
+// AGB said in writing that tickets are personengebunden and resale isn't offered.
+// The page was wrong, so the test was too. Both directions are asserted now: no
+// UI, AND no live endpoint (the routes existed unlinked, and never checked that
+// the caller owned the ticket they were giving away).
+ok('no Gift / Sell affordance on a ticket', !paidAfter.includes('>Gift</button>') && !paidAfter.includes('>Sell</button>'));
+ok('no resale shelf on the event page', !paidAfter.includes('<div class="h3">Resale</div>'));
+for (const r of ['gift', 'list', 'buy']) {
+  const resp = await fetch(base + `/ticket/${r}`, form({ ticket_id: 'x', event_id: ticketedId, price: '5' }));
+  ok(`/ticket/${r} is gone, not just unlinked (404)`, resp.status === 404);
+}
 
 // Post-pivot: no subscription tiers, no gated content. The crowd is followable;
 // closeness comes from showing up (standing), never from a paid status.
@@ -132,7 +145,16 @@ ok('athlete page offers "Join the crowd" (follow), not paid tiers', guest.includ
 ok('no content/exclusivity gating on the public page', !guest.includes('class="lockpill"') && !guest.includes('Supporter-only'));
 
 const createForm = await get(`/host/athlete/${rico}/new`);
-ok('owner create-event form has admission + price + stream fields', createForm.includes('Admission') && createForm.includes('Price') && createForm.includes('YouTube'));
+// Rewritten for the reworked form: the old one asked "Admission" + "Price" +
+// five stream URLs all at once. The new one asks where, then what that implies.
+// The form asks WHERE, then offers a block per door that the place allows. It
+// is NOT one get-in question with one answer — a hybrid event has two doors and
+// the fan chooses. (v80's single `getin` radio couldn't express that; see
+// tests/ways.test.ts for the full model.)
+ok('create form asks where, then offers a block per door', createForm.includes('name="location_kind"') && createForm.includes('way_ip') && createForm.includes('way_st'));
+ok('each door prices itself; price only surfaces when that door is paid', createForm.includes('fmt_inperson_price') && createForm.includes('ip_price_wrap') && createForm.includes('fmt_stream1_price'));
+ok('the stream door carries the watch link', createForm.includes('fmt_stream1_url'));
+ok('the organiser can let one person take several spots', createForm.includes('fmt_inperson_maxpp'));
 ok('athlete profile shows its events + a FEATURED cross-post', athleteImg.includes('Schedule an event') && athleteImg.includes('Season launch'));
 
 // --- live start screen (public, filterable, gated personalization) ---
@@ -152,6 +174,167 @@ const following = await get('/following');
 ok('Following page lists follows + search + unfollow', following.includes('>Following<') && following.includes('action="/following"') && (following.includes('/unfollow') || following.includes('not following anyone')));
 const filtered = await get(`/?sport=boxing&region=Hamburg`);
 ok('filter is applied to the landing (region reflected)', filtered.includes('Hamburg'));
+
+// --- REGRESSION: an event created THROUGH THE FORM must be viewable ---------
+// v79 bug: /e/:id threw "esc is not defined" — esc() was used in the Event Room
+// CTA but never imported into server.ts. It only fired when a room was enabled.
+// Seed events have no rooms, so 138 tests passed while every real user-created
+// event 500'd, because the create form ships "Open an Event Room" PRE-CHECKED.
+// The lesson: test the artefact a user actually produces, not the fixture.
+const hostA = app.ids.athletes[0].id;
+const mk = await fetch(base + `/events`, {
+  method: 'POST', redirect: 'manual',
+  headers: { 'content-type': 'application/x-www-form-urlencoded' },
+  body: new URLSearchParams({
+    host_kind: 'athlete', host_id: hostA,
+    title: 'Regression Night', starts_at: '2030-09-12T20:00', location: 'Kreuzberg',
+    admission: 'open', room_enabled: '1', room_label: 'Fight <Night>',   // form default
+  }).toString(),
+});
+const mkLoc = mk.headers.get('location') || '';
+ok('creating an event through the form redirects to the event', mk.status === 303 && mkLoc.startsWith('/e/'));
+const newEv = await fetch(base + mkLoc);
+const newEvHtml = await newEv.text();
+ok('a form-created event page LOADS (no esc/500 crash)', newEv.status === 200);
+ok('event page has no server error leaking into the HTML', !newEvHtml.includes('is not defined') && !newEvHtml.includes('ReferenceError'));
+ok('the room label is HTML-escaped, not injected raw', !newEvHtml.includes('<Night>'));
+
+// --- create-event: the parts NOT about doors ---------------------------------
+// The "ways to get in" model (doors, per-door price/capacity, party size, the
+// admission/access derivation) now lives in tests/ways.test.ts — it outgrew a
+// few lines here. v80's single `getin` radio, and the assertions that pinned it,
+// are deliberately gone: that model could not express a hybrid event.
+const ev = async (o: Record<string, string>) => {
+  const r = await fetch(base + '/events', {
+    method: 'POST', redirect: 'manual', headers: { 'content-type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({ host_kind: 'athlete', host_id: hostA, title: 'T', starts_at: '2030-05-05T19:00', ...o }).toString(),
+  });
+  const id = (r.headers.get('location') || '').replace('/e/', '');
+  return (await app.db.query<any>(`SELECT admission, access_mode, price_cents, capacity, waitlist_enabled, approval_required, visibility, (SELECT key FROM sport WHERE id=sport_id) sport FROM event WHERE id=$1`, [id])).rows[0];
+};
+// Approval used to be a fourth admission VALUE, so "paid AND approved" couldn't
+// be expressed. As a flag it composes with anything.
+const a6 = await ev({ location_kind: 'in_person', fmt_inperson: '1', ip_cost: 'paid', fmt_inperson_price: '10', approval_required: '1' });
+ok('approval composes with paid (was impossible as a 4th admission value)', a6.approval_required === true && a6.price_cents === 1000);
+// Capacity: unlimited unless explicitly opted into. A stray number must not
+// silently cap an event.
+const a7 = await ev({ location_kind: 'in_person', fmt_inperson: '1', ip_cost: 'free', capacity_limited: '0', capacity: '50' });
+ok('unticking the limit means unlimited, even with a stale number in the box', a7.capacity === null && a7.waitlist_enabled === false);
+const a7b = await ev({ location_kind: 'in_person', fmt_inperson: '1', ip_cost: 'free', capacity: '50' });
+ok('a caller predating the toggle still gets its capacity honoured', a7b.capacity === 50);
+const a8 = await ev({ location_kind: 'in_person', fmt_inperson: '1', ip_cost: 'free', capacity_limited: '1', capacity: '50', waitlist_enabled: '1' });
+ok('opting into a limit sets capacity + waitlist', a8.capacity === 50 && a8.waitlist_enabled === true);
+// Sport: the `sport` TABLE is a registry that only had seeded sports, so HYROX
+// resolved to null and no filter could ever find the event. Now self-populating.
+const a9 = await ev({ location_kind: 'in_person', fmt_inperson: '1', ip_cost: 'free', visibility: 'unlisted', sport: 'hyrox' });
+ok('a sport new to the registry (HYROX) registers itself on first use', a9.sport === 'hyrox');
+ok('private events are stored unlisted', a9.visibility === 'unlisted');
+const a10 = await ev({ location_kind: 'in_person', fmt_inperson: '1', ip_cost: 'free', sport: 'other' });
+ok('"Other / not a sport" means no sport, not a fake one', a10.sport === null);
+
+// "Private" has to MEAN private. Two events, same sport, same everything —
+// only the public one may be discoverable. Enforced in the query, not by hoping
+// no UI links to it.
+const { getDiscover } = await import('../src/db/discover_repo.ts');
+await ev({ location_kind: 'in_person', fmt_inperson: '1', ip_cost: 'free', sport: 'climbing', title: 'PUBLIC_SESSION', visibility: 'public' });
+await ev({ location_kind: 'in_person', fmt_inperson: '1', ip_cost: 'free', sport: 'climbing', title: 'SECRET_SESSION', visibility: 'unlisted' });
+const climb = await getDiscover(app.db, { sport: 'climbing' });
+const titles = climb.upcoming.map((e: any) => e.title);
+ok('a public event IS discoverable by its sport', titles.includes('PUBLIC_SESSION'));
+ok('an unlisted event is NOT discoverable, even by the filter that matches it', !titles.includes('SECRET_SESSION'));
+ok('an unlisted event is still reachable by direct link', (await fetch(base + '/e/' + (await app.db.query<any>(`SELECT id FROM event WHERE name='SECRET_SESSION'`)).rows[0].id)).status === 200);
+
+const cform = await get(`/host/athlete/${hostA}/new`);
+ok('form says "Event name", not "Title"', cform.includes('Event name') && !cform.includes('>Title<'));
+ok('public/private is the first choice, at the top', cform.includes('ev_vis') && cform.includes('only people with the link'));
+ok('sport sits at the top, defaulted to the host\'s own', cform.includes('name="sport"'));
+ok('optional detail is collapsed so the first screen is the decision', cform.includes('<details class="more"'));
+ok('capacity is opt-in with a waitlist toggle', cform.includes('ev_cap_on') && cform.includes('waitlist_enabled'));
+ok('approval is offered in German too (Genehmigung erforderlich)', cform.includes('Genehmigung'));
+ok('the 5 always-visible stream URL fields are gone', !cform.includes('name="youtube"') && !cform.includes('name="twitch"'));
+// The language toggle is a full navigation; without this the form was wiped.
+ok('form state survives a language switch (sessionStorage snapshot/restore)', cform.includes('sessionStorage') && cform.includes('hz_evform_'));
+ok('address field is autofilled from the place lookup', cform.includes('/api/geo'));
+
+// --- event image: create → event page → home card ---------------------------
+// The plumbing existed (cover_url, event hero, feed card) but the upload was
+// buried in a collapsed fold, so in practice nobody added a picture — and the
+// picture is what makes a card get clicked. These walk the whole chain.
+// Dated SOON on purpose: the home screen shows the nearest 8 events, so a 2030
+// date would be a real event that simply isn't in the visible window — which
+// would make this test fail for a reason that has nothing to do with images.
+const soonISO = new Date(Date.now() + 36e5).toISOString().slice(0, 16);
+const evImg = await ev({ location_kind: 'in_person', getin: 'free_open', sport: 'boxing', title: 'IMG_EVENT', cover: png, starts_at: soonISO });
+const imgRow = (await app.db.query<any>(`SELECT id, cover_url FROM event WHERE name='IMG_EVENT'`)).rows[0];
+ok('an uploaded event image is stored on the event', !!imgRow.cover_url);
+ok('the image renders on the event page', (await get('/e/' + imgRow.id)).includes(imgRow.cover_url.slice(0, 40)));
+const homeImg = await get('/');
+ok('the image renders on the event card on the home screen', homeImg.includes('IMG_EVENT') && homeImg.includes(imgRow.cover_url.slice(0, 40)));
+// A feed of empty rectangles is worse than generated art, so there's always art.
+await ev({ location_kind: 'in_person', getin: 'free_open', sport: 'boxing', title: 'NOIMG_EVENT', starts_at: soonISO });
+const homeNo = await get('/');
+ok('an event with no image still gets generated art, never an empty card', homeNo.includes('NOIMG_EVENT') && homeNo.includes('class="fimg" src="data:image/svg'));
+const cform2 = await get(`/host/athlete/${hostA}/new`);
+ok('the image upload sits up top, not buried in the details fold', cform2.includes('ev_cover_drop') && cform2.indexOf('ev_cover_drop') < cform2.indexOf('<details class="more"'));
+ok('exactly one input writes the cover field (two would race)', (cform2.match(/data-target="cover"/g) || []).length === 1);
+ok('the upload previews the actual card art before publishing', cform2.includes('ev_cover_prev'));
+
+// --- rival / roster typeahead ---------------------------------------------
+// Naming a rival as free text mints an UNCLAIMED placeholder. If that rival is
+// already on Horda and you type their name slightly differently, you get a
+// duplicate ghost and that side's attribution accrues to nobody — which is the
+// one number the product sells. So: picked entity → linked; typed → placeholder
+// (the growth loop); forged id → refused, never trusted from the client.
+const apiRes = await fetch(base + '/api/entities?q=ric');
+const apiJson = await apiRes.json() as any;
+ok('entity typeahead returns matches as JSON', apiRes.status === 200 && Array.isArray(apiJson.results) && apiJson.results.length > 0);
+ok('typeahead suggestions carry what a human needs to disambiguate', apiJson.results.every((r: any) => 'kind' in r && 'name' in r && 'region' in r && 'verified' in r));
+ok('typeahead ignores 1-char noise (everything would match)', ((await (await fetch(base + '/api/entities?q=r')).json()) as any).results.length === 0);
+// Fan-privacy doctrine: this is an authoring aid, not a browsable people index.
+// A logged-out request must get nothing back — not a smaller list, nothing.
+const apiGuest = await fetch(base + '/api/entities?q=ric&guest=1');
+ok('typeahead is not a public people directory (guests get 401, no results)', apiGuest.status === 401 && ((await apiGuest.json()) as any).results.length === 0);
+
+const mkEv = async (body: Record<string, string>) => (await fetch(base + '/events', {
+  method: 'POST', redirect: 'manual', headers: { 'content-type': 'application/x-www-form-urlencoded' },
+  body: new URLSearchParams(body).toString(),
+})).headers.get('location')!.replace('/e/', '');
+const rivalClub = app.ids.clubs[0].id;
+const evPick = await mkEv({ host_kind: 'athlete', host_id: hostA, title: 'Picked rival', starts_at: '2030-01-01T20:00', admission: 'open', archetype: 'versus', side_b_name: 'FC Beispiel', side_b_kind: 'club', side_b_id: rivalClub });
+const bPick = (await app.db.query<any>(`SELECT entity_kind, entity_id, placeholder, status FROM event_party WHERE event_id=$1 AND side='B'`, [evPick])).rows[0];
+ok('rival picked from suggestions links the REAL entity (no ghost placeholder)', bPick.entity_id === rivalClub && bPick.entity_kind === 'club' && bPick.placeholder === null);
+ok('a named-but-not-consenting rival is "invited", not silently "accepted"', bPick.status === 'invited');
+
+const evFree = await mkEv({ host_kind: 'athlete', host_id: hostA, title: 'Free rival', starts_at: '2030-01-01T20:00', admission: 'open', archetype: 'versus', side_b_name: 'FC Nowhere' });
+const bFree = (await app.db.query<any>(`SELECT entity_id, placeholder, status FROM event_party WHERE event_id=$1 AND side='B'`, [evFree])).rows[0];
+ok('a rival NOT on Horda still works as free text (the growth loop)', bFree.entity_id === null && bFree.placeholder === 'FC Nowhere' && bFree.status === 'unclaimed');
+
+const evRost = await mkEv({ host_kind: 'athlete', host_id: hostA, title: 'Card', starts_at: '2030-01-01T20:00', admission: 'open', archetype: 'multi', roster: 'Rico, Ghost Guy', roster_ids: `athlete:${hostA},` });
+const rost = (await app.db.query<any>(`SELECT entity_id, placeholder FROM event_party WHERE event_id=$1 AND role='attending_athlete'`, [evRost])).rows;
+ok('roster mixes linked entities and free-text placeholders', rost.some((r: any) => r.entity_id === hostA) && rost.some((r: any) => r.placeholder === 'Ghost Guy'));
+
+const evBad = await mkEv({ host_kind: 'athlete', host_id: hostA, title: 'Bad id', starts_at: '2030-01-01T20:00', admission: 'open', archetype: 'versus', side_b_name: 'X', side_b_kind: 'club', side_b_id: 'not-a-uuid' });
+const bBad = (await app.db.query<any>(`SELECT entity_id, placeholder FROM event_party WHERE event_id=$1 AND side='B'`, [evBad])).rows[0];
+ok('a forged entity id from the client is refused, falls back to placeholder', bBad.entity_id === null && bBad.placeholder === 'X');
+
+const formHtml = await get(`/host/athlete/${hostA}/new`);
+ok('create form ships the rival + roster typeahead', formHtml.includes('/api/entities') && formHtml.includes('ev_sideb') && formHtml.includes('ev_roster_in'));
+ok('typeahead always offers "use as typed" so off-Horda rivals are never blocked', formHtml.includes('not on Horda yet'));
+
+// --- built in the open: public changelog + env-gated Discord ---------------
+// The changelog is public (no auth) — a stranger who has never heard of us must
+// be able to see that we ship. It leads with the unshipped promises.
+const clog = await get('/changelog');
+ok('changelog is public and lists shipped entries', clog.includes('What we shipped') && clog.includes('class="cle"'));
+ok('changelog publishes what is NOT built yet (the promise)', clog.includes('Now building') && clog.includes('class="bldi"'));
+ok('changelog credits the fan who asked, by handle', clog.includes('Asked for by') || !/asked:/.test(clog));
+ok('changelog is reachable from /about and the app footer', (await get('/about')).includes('/changelog') && (await get('/')).includes('/changelog'));
+ok('/about/changelog redirects to the canonical /changelog', (await (await fetch(base + '/about/changelog', { redirect: 'manual' })).headers.get('location')) === '/changelog');
+// Discord is env-gated: with DISCORD_INVITE_URL unset nothing may render a
+// dead invite link. This test runs without the env var set.
+const noDeadInvite = (s: string) => !s.includes('discord.gg') && !s.includes('discord.com/invite');
+ok('no Discord invite link renders when DISCORD_INVITE_URL is unset', noDeadInvite(clog) && noDeadInvite(await get('/about')) && noDeadInvite(await get('/')));
+ok('changelog still lets people ask for features without Discord configured', clog.includes('Tell us what to build'));
 // no round photo rail; the event map is kept as a designed section; big featured EVENT cards
 ok('landing keeps the event map in a designed section (not a round tile)', land.includes('class="mapcard"') && land.includes('Event map') && land.includes('href="/map"') && !land.includes('Creator map'));
 ok('no IG-style round athlete photos on the landing', !land.includes('class="story"') && !land.includes('class="rail"'));
@@ -164,24 +347,31 @@ ok('single dark arena theme: no theme boot script + no toggle on landing', !land
 ok('no light mode anywhere (dark-only guardrail)', !land.includes('data-theme="light"') && !(await get(`/athlete/${rico}`)).includes('data-theme="light"'));
 ok('map filters with taste too (Hamburg boxing excludes Rico everywhere)', !filtered.includes(`/athlete/${rico}`));
 // instagram-like usability: persistent bottom tab bar + verified trust badges
-ok('persistent bottom tab bar, icon-only (labels via aria-label, no text)', land.includes('class="bnav"') && land.includes('aria-label="Home"') && land.includes('aria-label="You"') && !land.includes('class="lbl"') && !land.includes('>Home<'));
+// The mobile bar now mirrors the desktop rail exactly (same five destinations,
+// same labels) instead of having its own Home/Map/You vocabulary.
+ok('persistent bottom tab bar, icon-only (labels via aria-label, no text)', land.includes('class="bnav"') && land.includes('aria-label="Your Horda"') && !land.includes('class="lbl"') && !land.includes('>Home<'));
+ok('mobile bar mirrors the desktop rail (same destinations)', land.includes('aria-label="Your Horda"') && land.includes('aria-label="Following"'));
+ok('mobile bar is a floating translucent glass bar, not an opaque tray', land.includes('backdrop-filter:blur(22px)') && land.includes('border-radius:20px'));
 ok('bottom nav appears on inner pages too (athlete)', (await get(`/athlete/${rico}`)).includes('class="bnav"'));
 ok('verified badge on a claim-verified athlete (Rico is owned)', land.includes('class="vbadge"'));
 // TikTok-style desktop left rail + language toggle + event engagement chips
-ok('desktop left rail: labelled Explore/Following/Create/Profile nav', land.includes('class="drail"') && land.includes('>Explore<') && land.includes('>Following<') && land.includes('>Create event<') && land.includes('>Profile<'));
+// "Explore" → "Your Horda": the logged-in home IS the feed, so the nav says so.
+ok('desktop left rail: labelled Your Horda/Following/Create/Profile nav', land.includes('class="drail"') && land.includes('>Your Horda<') && land.includes('>Following<') && land.includes('>Create event<'));
+ok('no separate "your feed" button (the feed is Your Horda)', !land.includes('Your feed →'));
+ok('search box says just "Search" (you can search clubs + athletes too)', land.includes('placeholder="Search"'));
 ok('rail create link is generic /create (no leaked athlete id)', land.includes('href="/create"') && !land.includes(`/athlete/${rico}/compose`));
 ok('rail carries search + language toggle + dark-mode toggle', land.includes('class="dr-search"') && land.includes('class="lgtog"') && land.includes('/set-lang?l=de') && land.includes('/set-lang?l=en'));
 ok('event cards show engagement stats (going / followers / shares)', land.includes('class="estats"') && land.includes('class="est"'));
 const deLand = await (await fetch(base + '/', { headers: { cookie: 'hz_lang=de' } })).text();
-ok('German locale translates the rail (Erkunden/Gefolgt/Einstellungen)', deLand.includes('>Erkunden<') && deLand.includes('>Gefolgt<') && deLand.includes('lang="de"'));
+ok('German locale translates the rail (Deine Horda/Gefolgt)', deLand.includes('>Deine Horda<') && deLand.includes('>Gefolgt<') && deLand.includes('lang="de"'));
 // language toggle returns to the current page (Referer), not home
 const setLang = await fetch(base + '/set-lang?l=de', { headers: { referer: base + '/about/features' }, redirect: 'manual' });
 ok('switching language stays on the current page (via Referer)', setLang.status === 303 && setLang.headers.get('location') === '/about/features');
 // region default: DACH country header → German even with no cookie
 const dachLand = await (await fetch(base + '/', { headers: { 'cf-ipcountry': 'AT' } })).text();
-ok('DACH visitor (no cookie) defaults to German', dachLand.includes('lang="de"') && dachLand.includes('>Erkunden<'));
+ok('DACH visitor (no cookie) defaults to German', dachLand.includes('lang="de"') && dachLand.includes('>Deine Horda<'));
 const usLand = await (await fetch(base + '/', { headers: { 'cf-ipcountry': 'US' } })).text();
-ok('non-DACH visitor (no cookie) defaults to English', usLand.includes('lang="en"') && usLand.includes('>Explore<'));
+ok('non-DACH visitor (no cookie) defaults to English', usLand.includes('lang="en"') && usLand.includes('>Your Horda<'));
 // no underline on logo/nav; active nav item uses the accent (not underline)
 ok('logo + nav are never underlined; active nav uses the accent', !land.includes('text-decoration:underline') && land.includes('.dr-item.on,.dr-item.on svg{color:var(--acc)}'));
 // one sign-up for everyone: no creator fork on the sign-up page
@@ -234,6 +424,10 @@ ok('support/"root for them" format removed', !mfPage.includes('Root for them') &
 // share buttons on event / athlete / club pages (native share or copy link)
 ok('event page has a Share button (native share / copy link)', mfPage.includes('navigator.share') && /aria-label="Share"/.test(mfPage));
 ok('athlete page has a Share button', athGuest.includes('aria-label="Share"') && athGuest.includes('navigator.clipboard'));
+// Sharing an event sends the CARD, not a bare link: the PNG rides along via Web
+// Share Level 2 (the only route into an Instagram Story) and unfurls as og:image.
+ok('event share carries the matchday card image', /data-img="\/e\/[^"]+\/card\.png"/.test(mfPage));
+ok('share falls back to a link where files are unsupported', mfPage.includes('navigator.canShare') && mfPage.includes('navigator.share'));
 // event create form exposes an "About this event" field
 ok('event create form offers an About this event section', createForm.includes('About this event') && createForm.includes('name="description"'));
 // auto-follow: guest filter → interest on signup
@@ -276,7 +470,7 @@ ok('guest is nudged to log in to share under their name', guestShareView.include
 // dedicated fresh event so no earlier claim interferes with attribution
 const attrId = await mkEvent({ host_kind: 'athlete', host_id: rico, title: 'Bring-a-friend', starts_at: '2027-07-01T19:00', location_kind: 'in_person', location: 'Berlin', admission: 'open', access_mode: 'ticket' });
 const memberShareView = await get(`/e/${attrId}`);   // no guest flag → demo viewer is logged in
-ok('logged-in gets Share AND an attributable "Share under your name" link', memberShareView.includes('Share under your name') && memberShareView.includes(`/e/${attrId}?via=`));
+ok('logged-in gets Share AND an attributable card link', memberShareView.includes('Share the matchday card') && memberShareView.includes(`/e/${attrId}?via=`));
 // a claim through the attributable link is credited to the sharer on the manage view
 const shareTok = (memberShareView.match(/\/e\/[^"?]+\?via=([a-z0-9]+)/) || [])[1] || '';
 await fetch(base + `/claim/${attrId}?via=${shareTok}`, { method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ name: 'Referred Fan', contact: `r${Date.now()}@x.co` }).toString(), redirect: 'manual' });

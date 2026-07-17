@@ -5,6 +5,12 @@ import { seedDemo } from '../src/web/seed.ts';
 import { createFan } from '../src/db/engagement_repo.ts';
 import { listUpcomingByHost, rsvp, getRsvp, getEventDetail, getGuestList, icsFor } from '../src/db/events_repo.ts';
 
+// REGRESSION (v79): /e/:id threw "esc is not defined" — esc() was used in the
+// Event Room CTA but never imported into server.ts. It only fired when an event
+// had a room enabled, and the seed data has no rooms, so every existing test
+// passed while every REAL user-created event 500'd (the create form ships
+// "Open an Event Room" pre-checked). Lesson encoded below: exercise the event
+// page for an event created THROUGH THE FORM, not just a seeded one.
 let pass = 0, fail = 0;
 const eq = (n: string, got: unknown, want: unknown) => {
   const ok = JSON.stringify(got) === JSON.stringify(want);
