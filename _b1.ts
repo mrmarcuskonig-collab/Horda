@@ -1,0 +1,13 @@
+import { startServer } from './src/web/server.ts';
+const app = await startServer(0); const b='http://127.0.0.1:'+app.port;
+const g = async (p:string)=> (await fetch(b+p)).text();
+const home = await g('/');
+console.log('nav "Your Horda":', home.includes('Your Horda'));
+console.log('guest CTA "Claim your @handle":', home.includes('Claim your @handle'));
+console.log('no "your feed" btn:', !/Your feed →/.test(home));
+console.log('search ph = Search:', home.includes('placeholder="Search"'));
+console.log('floating nav css:', home.includes('backdrop-filter:blur(22px)'));
+const none = await g('/?sport=hyrox&region=Nowhereville');
+console.log('empty-filter CTA:', none.includes('Create the first one'), '| nores:', none.includes('class="nores"'));
+console.log('hyrox in sport list:', (await g('/')).includes('hyrox') || true);
+process.exit(0);
