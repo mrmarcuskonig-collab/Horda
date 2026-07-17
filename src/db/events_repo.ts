@@ -13,6 +13,10 @@ export interface EventDetail {
   admission: Admission; priceCents: number | null; currency: string; streams: Streams; ticketUrl: string | null;
   hostKind: string | null; hostId: string | null; hostName: string; capacity: number | null;
   locationKind: string; recurrence: string; accessMode: string;
+  /** IANA zone of the venue; NULL on rows created before 0041. Always render the
+   *  event in THIS zone — a fan in London reading a Berlin "20:00" in their own
+   *  local time would show up an hour late. */
+  timezone: string | null;
   archetype: string; parentEventId: string | null;
   counts: Record<RsvpResponse, number> & { pending: number };
 }
@@ -32,6 +36,16 @@ export async function createScheduledEvent(db: Database, o: {
   ticketUrl?: string; capacity?: number; sportId?: string;
   locationKind?: string; recurrence?: string; recurrenceUntil?: string; accessMode?: string;
   archetype?: string; parentEventId?: string | null;
+  // 0039 — the create-event rework.
+  /** Sport KEY (e.g. 'boxing'), resolved to sport_id here. Unknown keys → null
+   *  rather than an error: a missing sport must never block creating an event. */
+  sport?: string;
+  /** IANA zone of the venue. The wall-clock time in `startsAt` is interpreted in
+   *  THIS zone, not the server's — see src/web/tz.ts for why that mattered. */
+  timezone?: string | null;
+  visibility?: string;
+  waitlistEnabled?: boolean;
+  approvalRequired?: boolean;
 }): Promise<string> {
   const admission: Admission = o.admission ?? (o.priceCents ? 'paid' : 'open');
   const locKind = ['in_person', 'online', 'hybrid'].includes(o.locationKind ?? '') ? o.locationKind! : 'in_person';
@@ -41,14 +55,24 @@ export async function createScheduledEvent(db: Database, o: {
   // 'public' = open link, anyone can watch (no claim). Default: online → claim
   // for the link, in-person → scannable ticket.
   const access = ['link', 'ticket', 'public'].includes(o.accessMode ?? '') ? o.accessMode! : (locKind === 'online' ? 'link' : 'ticket');
+  const visibility = o.visibility === 'unlisted' ? 'unlisted' : 'public';
+  // Resolve the sport key → id. The sport table is the registry; 'other' and any
+  // key we don't carry simply resolve to null (the event still gets created, it
+  // just won't answer a sport filter).
+  let sportId = o.sportId ?? null;
+  if (!sportId && o.sport) {
+    sportId = (await db.query<{ id: string }>(`SELECT id FROM sport WHERE key=$1`, [o.sport])).rows[0]?.id ?? null;
+  }
   const r = await db.query<{ id: string }>(
     `INSERT INTO event (name, sport_id, starts_at, location, description, cover_url, host_kind, host_id, capacity,
-       admission, price_cents, currency, streams, spectator_access, ticket_url, location_kind, recurrence, recurrence_until, access_mode, archetype, parent_event_id, source)
-     VALUES ($1,$2,$3::timestamptz,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13::jsonb,$14,$15,$16,$17,$18::timestamptz,$19,$20,$21,'native') RETURNING id`,
-    [o.title, o.sportId ?? null, o.startsAt, o.location ?? null, o.description ?? null, o.coverUrl ?? null,
+       admission, price_cents, currency, streams, spectator_access, ticket_url, location_kind, recurrence, recurrence_until, access_mode, archetype, parent_event_id,
+       visibility, waitlist_enabled, approval_required, timezone, source)
+     VALUES ($1,$2,$3::timestamptz,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13::jsonb,$14,$15,$16,$17,$18::timestamptz,$19,$20,$21,$22,$23,$24,$25,'native') RETURNING id`,
+    [o.title, sportId, o.startsAt, o.location ?? null, o.description ?? null, o.coverUrl ?? null,
      o.hostKind, o.hostId, o.capacity ?? null, admission, o.priceCents ?? null, o.currency ?? 'EUR',
      JSON.stringify(o.streams ?? {}), admission === 'paid' ? 'paid_ticket' : 'free', o.ticketUrl ?? null,
-     locKind, recur, o.recurrenceUntil ?? null, access, archetype, o.parentEventId ?? null]);
+     locKind, recur, o.recurrenceUntil ?? null, access, archetype, o.parentEventId ?? null,
+     visibility, !!o.waitlistEnabled, !!o.approvalRequired, o.timezone ?? null]);
   return r.rows[0].id;
 }
 
@@ -134,9 +158,14 @@ export async function featureEvent(db: Database, kind: string, id: string, event
 }
 
 export async function getEventDetail(db: Database, eventId: string): Promise<EventDetail | null> {
+  // AT TIME ZONE renders the instant in the VENUE's zone, not the server's.
+  // A bare to_char() on a timestamptz uses the SESSION zone, which is why an
+  // event typed as 20:00 in Berlin displayed as whatever o'clock the server
+  // thought it was. COALESCE → 'UTC' keeps pre-0041 rows exactly as they were.
   const e = (await db.query<any>(
-    `SELECT id, name title, description, cover_url, starts_at,
-            to_char(starts_at,'Dy DD Mon YYYY') date, to_char(starts_at,'HH24:MI') time,
+    `SELECT id, name title, description, cover_url, starts_at, timezone,
+            to_char(starts_at AT TIME ZONE COALESCE(timezone,'UTC'), 'Dy DD Mon YYYY') date,
+            to_char(starts_at AT TIME ZONE COALESCE(timezone,'UTC'), 'HH24:MI') time,
             location, admission, price_cents, currency, streams, ticket_url, host_kind, host_id, capacity,
             location_kind, recurrence, access_mode, archetype, parent_event_id
      FROM event WHERE id=$1`, [eventId])).rows[0];
@@ -150,7 +179,7 @@ export async function getEventDetail(db: Database, eventId: string): Promise<Eve
   }
   const host = e.host_kind ? await hostName(db, e.host_kind, e.host_id) : 'Host';
   return {
-    id: e.id, title: e.title, description: e.description, coverUrl: e.cover_url,
+    id: e.id, title: e.title, description: e.description, coverUrl: e.cover_url, timezone: e.timezone ?? null,
     date: e.date ?? undefined, time: e.time ?? undefined, startsAt: e.starts_at ?? null, location: e.location,
     admission: e.admission, priceCents: e.price_cents ?? null, currency: e.currency ?? 'EUR',
     streams: e.streams ?? {}, ticketUrl: e.ticket_url,
@@ -168,10 +197,10 @@ export async function listProfileEvents(db: Database, kind: string, id: string):
   const liveExpr = `(starts_at IS NOT NULL AND starts_at <= now() AND now() < COALESCE(ends_at, starts_at + interval '3 hours'))`;
   const pastExpr = `(starts_at IS NOT NULL AND now() >= COALESCE(ends_at, starts_at + interval '3 hours'))`;
   const hosted = (await db.query<any>(
-    `SELECT id, name title, to_char(starts_at,'DD Mon') date, starts_at, ${liveExpr} live, ${pastExpr} past FROM event WHERE host_kind=$1 AND host_id=$2`, [kind, id])).rows
+    `SELECT id, name title, to_char(starts_at AT TIME ZONE COALESCE(timezone,'UTC'),'DD Mon') date, starts_at, ${liveExpr} live, ${pastExpr} past FROM event WHERE host_kind=$1 AND host_id=$2`, [kind, id])).rows
     .map(r => ({ id: r.id, title: r.title, date: r.date ?? undefined, startsAt: r.starts_at ?? null, live: !!r.live, past: !!r.past }));
   const featured = (await db.query<any>(
-    `SELECT e.id, e.name title, to_char(e.starts_at,'DD Mon') date, e.starts_at, e.host_kind, e.host_id, ${liveExpr} live, ${pastExpr} past
+    `SELECT e.id, e.name title, to_char(e.starts_at AT TIME ZONE COALESCE(e.timezone,'UTC'),'DD Mon') date, e.starts_at, e.host_kind, e.host_id, ${liveExpr} live, ${pastExpr} past
      FROM event_feature f JOIN event e ON e.id=f.event_id WHERE f.feat_kind=$1 AND f.feat_id=$2`, [kind, id])).rows;
   const feat: ProfileEvent[] = [];
   for (const r of featured) feat.push({ id: r.id, title: r.title, date: r.date ?? undefined, startsAt: r.starts_at ?? null, live: !!r.live, past: !!r.past, featured: true, hostName: r.host_kind ? await hostName(db, r.host_kind, r.host_id) : undefined });
@@ -212,11 +241,14 @@ export async function recordShareClick(db: Database, token: string): Promise<{ f
   return r ? { fanId: r.fan_id } : null;
 }
 // Per-sharer attribution for one event: link opens + claims that arrived via it.
-export interface ShareAttribution { fanId: string; name: string; token: string; clicks: number; claims: number }
+export interface ShareAttribution { fanId: string; name: string; token: string; clicks: number; claims: number; tickets: number }
 export async function shareAttribution(db: Database, eventId: string): Promise<ShareAttribution[]> {
   return (await db.query<any>(
+    // claims = identities captured (one per person who signed up through this
+    // share). tickets = seats those people actually took — the money number.
     `SELECT s.fan_id "fanId", COALESCE(f.display_name,'A fan') name, s.token, s.clicks,
-            (SELECT count(*)::int FROM claim c WHERE c.event_id=s.event_id AND c.source_edge='via:'||s.token AND c.status NOT IN ('refunded','no_show')) claims
+            (SELECT count(*)::int FROM claim c WHERE c.event_id=s.event_id AND c.source_edge='via:'||s.token AND c.status NOT IN ('refunded','no_show')) claims,
+            (SELECT COALESCE(SUM(c.party_size),0)::int FROM claim c WHERE c.event_id=s.event_id AND c.source_edge='via:'||s.token AND c.status NOT IN ('refunded','no_show')) tickets
      FROM event_share s LEFT JOIN fan f ON f.id=s.fan_id
      WHERE s.event_id=$1 ORDER BY claims DESC, s.clicks DESC`, [eventId])).rows;
 }
@@ -290,14 +322,25 @@ export async function parentOf(db: Database, eventId: string): Promise<{ id: str
 // token. Counts claims globally by source_edge='party:<token>' so a sub-event
 // fighter's link that sells a parent ticket still credits them; the parent view
 // rolls up its own parties + all sub-event parties.
-export interface PartyStat { partyId: string; name: string; role: string; side: string | null; token: string; kind: string; status: string; clicks: number; identities: number; ticketBuyers: number; subEvent?: string }
-async function promoCounts(db: Database, token: string): Promise<{ identities: number; ticketBuyers: number }> {
-  const r = (await db.query<{ identities: number; buyers: number }>(
-    `SELECT count(*)::int identities, count(*) FILTER (WHERE price_cents > 0 OR status='paid')::int buyers
+export interface PartyStat { partyId: string; name: string; role: string; side: string | null; token: string; kind: string; status: string; clicks: number; identities: number; ticketBuyers: number; tickets: number; subEvent?: string }
+// The three numbers a promo link drove. They are NOT the same number, and
+// conflating them is how attribution quietly lies:
+//   identities  — PEOPLE WE NOW KNOW. One per claim: if you bring three mates on
+//                 your ticket, Horda learns about you, not about them.
+//   ticketBuyers— people who paid. One per paid claim, for the same reason.
+//   tickets     — SEATS SOLD. sum(party_size). This is the one that maps to
+//                 money, and it was missing: a link selling one 4-ticket claim
+//                 reported "1", under-reporting the reach by 4×. That mattered
+//                 the moment party_size shipped.
+async function promoCounts(db: Database, token: string): Promise<{ identities: number; ticketBuyers: number; tickets: number }> {
+  const r = (await db.query<{ identities: number; buyers: number; tickets: number }>(
+    `SELECT count(*)::int identities,
+            count(*) FILTER (WHERE price_cents > 0 OR status='paid')::int buyers,
+            COALESCE(SUM(party_size),0)::int tickets
      FROM claim WHERE source_edge=$1 AND status NOT IN ('refunded','no_show')`, ['party:' + token])).rows[0];
-  return { identities: r?.identities ?? 0, ticketBuyers: r?.buyers ?? 0 };
+  return { identities: r?.identities ?? 0, ticketBuyers: r?.buyers ?? 0, tickets: r?.tickets ?? 0 };
 }
-export async function partyAttribution(db: Database, eventId: string): Promise<{ rows: PartyStat[]; total: { identities: number; ticketBuyers: number; clicks: number } }> {
+export async function partyAttribution(db: Database, eventId: string): Promise<{ rows: PartyStat[]; total: { identities: number; ticketBuyers: number; tickets: number; clicks: number } }> {
   const own = await listParties(db, eventId);
   const rows: PartyStat[] = [];
   for (const p of own) {
@@ -311,7 +354,7 @@ export async function partyAttribution(db: Database, eventId: string): Promise<{
       rows.push({ partyId: p.id, name: p.name, role: p.role, side: p.side, token: p.promoToken, kind: p.kind, status: p.status, clicks: p.clicks, subEvent: s.title, ...c });
     }
   }
-  const total = rows.reduce((a, r) => ({ identities: a.identities + r.identities, ticketBuyers: a.ticketBuyers + r.ticketBuyers, clicks: a.clicks + r.clicks }), { identities: 0, ticketBuyers: 0, clicks: 0 });
+  const total = rows.reduce((a, r) => ({ identities: a.identities + r.identities, ticketBuyers: a.ticketBuyers + r.ticketBuyers, tickets: a.tickets + (r.tickets ?? 0), clicks: a.clicks + r.clicks }), { identities: 0, ticketBuyers: 0, tickets: 0, clicks: 0 });
   return { rows, total };
 }
 // The party (if any) owned by this viewer for this event — so a participant sees

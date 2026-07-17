@@ -102,7 +102,11 @@ export function renderEventRoom(d: {
   const ownerTools = d.isOwner ? `<div class="card"><div style="font-size:12px;letter-spacing:1px;text-transform:uppercase;color:var(--mut);font-weight:700;margin-bottom:8px">Host controls</div>
       <form method="post" action="/e/${d.eventId}/room/bts"><textarea name="body" required placeholder="Drop a behind-the-scenes note for superfans…" style="${ta};min-height:60px"></textarea><div class="row"><button type="submit">Post behind-the-scenes</button></div></form>
       <form method="post" action="/e/${d.eventId}/room/result" style="margin-top:8px"><input name="result" placeholder="Post the result (e.g. 'Won by TKO, round 4')" style="${inp}" ${d.result ? `value="${esc(d.result)}"` : ''}><div class="row"><button class="ghost" type="submit">Post result → recap</button></div></form>
-      <div class="row" style="margin-top:8px"><a class="tag" href="/e/${d.eventId}/media">✦ AI media studio</a><a class="tag mutd" href="/e/${d.eventId}/manage">Manage event</a></div>
+      ${/* The route is /manage/:id, not /e/:id/manage. This 404'd — the host's
+           own "Manage event" button, on the page they land on straight after
+           creating the event. Found by crawling, not by a test: nobody writes an
+           assertion for a link they believe works. */''}
+      <div class="row" style="margin-top:8px"><a class="tag" href="/e/${d.eventId}/media">✦ AI media studio</a><a class="tag mutd" href="/manage/${d.eventId}">Manage event</a></div>
     </div>` : '';
 
   const resultBlock = d.result ? `<div class="card" style="border-color:var(--bone)"><div style="font-size:12px;letter-spacing:1px;text-transform:uppercase;color:var(--mut);font-weight:700">Result</div><div style="font-size:20px;font-weight:800;margin-top:4px">${esc(d.result)}</div><div class="row" style="margin-top:8px"><a class="tag" href="/share/result/${d.eventId}">Share the result card ↗</a></div></div>` : '';
@@ -126,6 +130,11 @@ export function renderEventRoom(d: {
 // --- AI media studio (human-in-the-loop) -----------------------------------
 export function renderMediaStudio(d: {
   eventId: string; athleteId: string; title: string; label: string; hasResult: boolean;
+  /** The host's KIND. The share-card link hardcoded /athlete/, so a club-hosted
+   *  event's studio linked to /share/supporter/athlete/<club-id> — which rendered,
+   *  then linked on to /athlete/<club-id>, which 404s. A club is not an athlete;
+   *  the id alone can't tell you that, so the kind has to travel with it. */
+  hostKind?: string;
   assets: { graphic: string; hypePost: string; recap: string | null; supporterCard: string };
 }): string {
   const a = d.assets;
@@ -150,7 +159,7 @@ export function renderMediaStudio(d: {
     <div class="draft"><div style="font-size:12px;letter-spacing:1px;text-transform:uppercase;color:var(--mut);font-weight:700;margin-bottom:8px">Free shareable supporter card</div>
       ${a.supporterCard}
       <p class="mut" style="font-size:12.5px">Fans share this — it carries your brand out of the walled garden with a rich link back.</p>
-      <div class="row"><a class="tag" href="/share/supporter/athlete/${d.athleteId}">Open shareable card ↗</a></div>
+      <div class="row"><a class="tag" href="/share/supporter/${esc(d.hostKind || 'athlete')}/${d.athleteId}">Open shareable card ↗</a></div>
     </div>
     <div class="prov">Human-in-the-loop · we draft, you approve. We never invent results, stats or quotes.</div>
   `, { back: `/e/${d.eventId}/room`, nav: { active: 'you', guest: false, fanId: null } });

@@ -42,9 +42,18 @@ export class ConsoleEmailer implements Emailer {
   }
 }
 
+// The one address a human can write to: Impressum, support, legal, footer.
+// Single source of truth — never hardcode a contact address anywhere else.
+// Override per-environment with CONTACT_EMAIL.
+export const CONTACT_EMAIL = process.env.CONTACT_EMAIL || 'marcus@spaghetti.ventures';
+
 export function getEmailer(fetcher: Fetcher = fetch): Emailer {
   const key = process.env.RESEND_API_KEY;
-  const from = process.env.EMAIL_FROM || 'Horda <noreply@joinhorda.com>';
+  // Transactional sender (magic links, receipts). Deliberately the same address
+  // for now so there is exactly one verified sending domain to maintain; set
+  // EMAIL_FROM to move it to joinhorda.com once that domain has SPF/DKIM.
+  // Reply-To is set to the contact address so replies always reach a human.
+  const from = process.env.EMAIL_FROM || `Horda <${CONTACT_EMAIL}>`;
   return key ? new ResendEmailer(key, from, fetcher) : new ConsoleEmailer();
 }
 

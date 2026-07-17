@@ -1,11 +1,21 @@
 // events.ts — Luma-adapted event layer: admission (open/register/apply/paid),
 // payment checkout, online watch channels, cross-posting (feature), and host
 // management with approvals. Built on the shared dark layout().
-import { layout, esc } from './layout.ts';
+import { layout, esc, ogMeta } from './layout.ts';
 import { UPLOAD_SCRIPT } from './shell.ts';
 import { shareButton } from './theme.ts';
+import { mapsChooser } from './maps.ts';
 import { socialIcon } from './icons.ts';
+import { sportSelect } from './pages.ts';
 import { type EventDetail, type EventParty, type SubEvent, priceLabel } from '../db/events_repo.ts';
+
+// The words that ride alongside the card. Kept short and factual — the picture is
+// doing the persuading, and a receiver reading a sales pitch from their mate
+// discounts both.
+export function shareLine(d: EventDetail): string {
+  const bits = [d.date, d.locationKind === 'online' ? 'online' : (d.location || '').split(',')[0]].filter(Boolean);
+  return `${d.title}${bits.length ? ` · ${bits.join(' · ')}` : ''}`;
+}
 
 const hostHref2 = (kind: string | null, id: string | null) =>
   kind === 'athlete' ? `/athlete/${id}` : kind === 'team' ? `/team/${id}` : kind === 'association' ? `/association/${id}` : `/club/${id}`;
@@ -66,6 +76,7 @@ export function renderEventPage(d: EventDetail, ctx: {
   hasAccess?: boolean;       // may the viewer see the watch/join link right now?
   shareRef?: string | null;  // this viewer's attributable ?via= token (logged-in only)
   hostLinks?: Record<string, string>;  // host's public socials — the way to reach them
+  origin?: string;           // absolute origin — og:image MUST be absolute or crawlers drop it
   parties?: EventParty[];    // multi-party line-up (organizers, sides, roster)
   subs?: SubEvent[];         // sub-events (fight card / race-within-race)
   parent?: { id: string; title: string } | null;  // if this is a sub-event
@@ -125,35 +136,47 @@ export function renderEventPage(d: EventDetail, ctx: {
     ? watchLinks
     : (hasStreamLink ? `<div class="lockrow">🔒 <span>Claim your spot to unlock the watch link${d.admission === 'paid' ? ` · ${priceLabel(d)}` : ' — it\'s free'}.</span> <a class="rb sm" href="#claim">Claim to watch</a></div>` : '');
 
-  // ticket: hold → gift / sell; plus any resale listings
-  let ticketSection = '';
-  const t = ctx.myTicket;
-  if (t) {
-    ticketSection = `<div class="h3">Your ticket</div>
-      <div class="tk">🎟 You hold a ticket${t.status === 'listed' ? ` · listed for ${money(t.listPriceCents ?? 0, d.currency)}` : ''}</div>
-      <div class="rsvp">
-        <form method="post" action="/ticket/gift"><input type="hidden" name="ticket_id" value="${t.id}"><input type="hidden" name="event_id" value="${d.id}"><input name="to_handle" placeholder="@handle" class="tkin"><button class="rb" type="submit">Gift</button></form>
-        <form method="post" action="/ticket/list"><input type="hidden" name="ticket_id" value="${t.id}"><input type="hidden" name="event_id" value="${d.id}"><input name="price" type="number" min="0" step="0.5" placeholder="resell €" class="tkin"><button class="rb" type="submit">Sell</button></form>
-      </div>`;
-  }
-  const listings = (ctx.listings ?? []).filter(l => !t || true);
-  const resaleSection = listings.length
-    ? `<div class="h3">Resale</div><div class="rsvp">${listings.map(l => ctx.guest
-        ? `<a class="rb" href="/signup">${money(l.priceCents, d.currency)} · ${esc(l.seller)}</a>`
-        : `<form method="post" action="/ticket/buy"><input type="hidden" name="ticket_id" value="${l.id}"><input type="hidden" name="event_id" value="${d.id}"><input type="hidden" name="fan_id" value="${ctx.fanId}"><button class="rb p" type="submit">Buy ${money(l.priceCents, d.currency)} · from ${esc(l.seller)}</button></form>`).join('')}</div>`
-    : '';
+  // RESALE AND GIFTING ARE NOT OFFERED — and this is where they used to be.
+  //
+  // A "Sell" box and a "Resale" shelf rendered here for months while the AGB
+  // said, in writing, that tickets are personengebunden and resale is not
+  // offered. The page and the contract disagreed; the page was wrong.
+  //
+  // Both are also built on the legacy bearer-`ticket` table, which the claim rail
+  // replaced: they hand over a ticket rather than reissuing it, so the old QR
+  // stays live and one screenshot admits two people. The logic that replaces them
+  // (void + reissue + ledger) lives in src/db/transfer_repo.ts, switched off.
+  //
+  // Nothing renders here on purpose. Don't reintroduce a "coming soon" — a
+  // resale affordance is a promise, and it changes who buys a ticket and why.
+  const ticketSection = '';
+  const resaleSection = '';
 
-  // Plain Share = anonymous (bare /e/:id link). Available to everyone, logged in
-  // or not — the system can't attribute it because it doesn't know who shared.
-  const extras = [shareButton({ title: d.title, cls: 'rb', label: 'Share' }), `<a class="rb" href="/e/${d.id}/ics">＋ Add to calendar</a>`];
+  // SHARING SENDS THE CARD, NOT A LINK.
+  //
+  // `card` is the PNG at /e/:id/card.png — the same picture that unfurls in
+  // WhatsApp (og:image) and the same file the OS share sheet hands to Instagram.
+  // A bare URL asks the receiver to trust a stranger's link; the card tells them
+  // what, when, where and how much before they decide.
+  const cardUrl = `/e/${d.id}/card.png`;
+  const extras = [
+    shareButton({ title: d.title, cls: 'rb', label: 'Share', img: cardUrl, text: shareLine(d) }),
+    `<a class="rb" href="/e/${d.id}/ics">＋ Add to calendar</a>`,
+  ];
   if (ctx.isHost) extras.push(`<a class="rb" href="/manage/${d.id}">Manage</a>`);
 
   // Attributable share = only once we know who you are (logged in). We hand out a
   // personal /e/:id?via=<token> link; every claim through it is credited to you.
+  // The card travels with it — the ?via= token rides in the URL, so the picture
+  // is identical and the credit is intact.
   const attributableShare = (!ctx.guest && ctx.shareRef)
     ? `<div class="cap" style="margin-top:18px">Bring your crowd</div>
-       <div class="rsvp">${shareButton({ title: d.title, cls: 'rb p', label: 'Share under your name', url: `/e/${d.id}?via=${ctx.shareRef}` })}</div>
-       <p class="mut" style="font-size:12px;margin:2px 0 0">Claims from your link are credited to you. A plain Share above stays anonymous.</p>`
+       <div class="rsvp">${shareButton({ title: d.title, cls: 'rb p', label: 'Share the matchday card', url: `/e/${d.id}?via=${ctx.shareRef}`, img: cardUrl, text: shareLine(d) })}</div>
+       <p class="mut" style="font-size:12px;margin:2px 0 0">Sends the whole card. Claims from it are credited to you — a plain Share above stays anonymous.</p>
+       <details style="margin-top:8px"><summary class="mut" style="font-size:12px;cursor:pointer">See the card</summary>
+         <img src="${esc(cardUrl)}" alt="Preview of the shareable matchday card for ${esc(d.title)}" loading="lazy"
+              style="width:100%;max-width:420px;margin-top:8px;border:1px solid var(--b);border-radius:12px;display:block">
+       </details>`
     : (ctx.guest ? `<p class="mut" style="font-size:12px;margin:10px 0 0"><a href="/signup" style="border-bottom:1px solid var(--b)">Log in</a> to share under your name and get credit for who you bring.</p>` : '');
 
   // cross-post: feature this event on one of your own profiles (also attributed)
@@ -166,7 +189,10 @@ export function renderEventPage(d: EventDetail, ctx: {
   const dt = d.startsAt ? new Date(d.startsAt) : null;
   const mon = dt ? dt.toLocaleString('en', { month: 'short', timeZone: 'UTC' }).toUpperCase() : '';
   const day = dt ? dt.getUTCDate() : '';
-  const mapsHref = d.location ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(d.location)}` : null;
+  // Maps: ASK which one, don't guess. See src/web/maps.ts — guessing Google on an
+  // iPhone costs someone the first ten minutes of the event they paid for.
+  const hasVenue = !!d.location && d.locationKind !== 'online';
+  const mapsBtn = (cls: string, label?: string) => hasVenue ? mapsChooser({ query: d.location!, cls, label }) : '';
 
   // host follow (matches Luma's "Folgen")
   const followBtn = ctx.guest
@@ -217,6 +243,10 @@ export function renderEventPage(d: EventDetail, ctx: {
     .myr{font-size:14px;margin:4px 0}.admtag{font-size:10px;font-weight:600;letter-spacing:1px;text-transform:uppercase;border:1px solid var(--b);color:var(--mut);border-radius:999px;padding:3px 10px}
     .tk{font-weight:600;margin:6px 0 10px}.tkin{background:var(--ink);border:1px solid var(--b);border-radius:999px;color:var(--bone);padding:8px 12px;font:inherit;width:120px;margin-right:6px}
     .lockrow{display:flex;align-items:center;gap:9px;flex-wrap:wrap;font-size:13.5px;color:var(--mut);border:1px dashed var(--b);border-radius:12px;padding:11px 14px}
+    /* The inline maps trigger reads as the link it replaced, not as a button —
+       it sits in a line of muted metadata and shouldn't shout. */
+    .maplink{color:var(--mut);border-bottom:1px solid var(--b);font-size:12.5px}
+    .maplink:hover{color:var(--bone)}
   </style>
   <div class="poster">
     ${d.coverUrl ? `<img src="${esc(d.coverUrl)}" alt="">` : `<div style="width:100%;height:100%;background:radial-gradient(130% 130% at 70% 8%,rgba(237,233,223,.12),transparent 55%),var(--ink)"></div>`}
@@ -242,7 +272,7 @@ export function renderEventPage(d: EventDetail, ctx: {
 
       <div class="ww"><div class="wi cal">${dt ? `<span class="m">${mon}</span><span class="d">${day}</span>` : ICON.cal}</div>
         <div><div class="wt">${esc(d.date || 'Date TBA')}</div><div class="ws">${esc(d.time ? d.time + (dt ? '' : '') : 'Time TBA')}${d.capacity ? ` · capacity ${d.capacity}` : ''}${d.recurrence && d.recurrence !== 'none' ? ` · repeats ${esc(d.recurrence)}` : ''}</div></div></div>
-      ${d.location ? `<div class="ww"><div class="wi">${ICON.pin}</div><div><div class="wt">${d.locationKind === 'online' ? 'Online event' : esc(d.location)}</div><div class="ws">${d.locationKind === 'online' ? (canWatch ? `<a href="${esc(d.location)}" target="_blank" rel="noopener">Join link ↗</a>` : `<span class="mut">🔒 Link revealed after you claim</span>`) : d.locationKind === 'hybrid' ? `In person + streamed${mapsHref ? ` · <a href="${mapsHref}" target="_blank" rel="noopener">Maps ↗</a>` : ''}` : (mapsHref ? `<a href="${mapsHref}" target="_blank" rel="noopener">Open in Maps ↗</a>` : '')}</div></div></div>` : (d.locationKind === 'online' ? `<div class="ww"><div class="wi">${ICON.pin}</div><div><div class="wt">Online event</div></div></div>` : '')}
+      ${d.location ? `<div class="ww"><div class="wi">${ICON.pin}</div><div><div class="wt">${d.locationKind === 'online' ? 'Online event' : esc(d.location)}</div><div class="ws">${d.locationKind === 'online' ? (canWatch ? `<a href="${esc(d.location)}" target="_blank" rel="noopener">Join link ↗</a>` : `<span class="mut">🔒 Link revealed after you claim</span>`) : d.locationKind === 'hybrid' ? `In person + streamed${hasVenue ? ` · ${mapsBtn('maplink', 'Maps')}` : ''}` : mapsBtn('maplink')}</div></div></div>` : (d.locationKind === 'online' ? `<div class="ww"><div class="wi">${ICON.pin}</div><div><div class="wt">Online event</div></div></div>` : '')}
 
       ${watch ? `<div class="h3">Watch live</div><div class="rsvp">${watch}</div>` : ''}
 
@@ -258,7 +288,7 @@ export function renderEventPage(d: EventDetail, ctx: {
 
       ${d.description ? `<div class="h3">About this event</div><p class="desc">${esc(d.description)}</p>` : ''}
 
-      ${(d.location && d.locationKind !== 'online') ? `<div class="h3">Location</div><p class="desc" style="margin-bottom:8px">${esc(d.location)}</p><div class="rsvp">${mapsHref ? `<a class="rb" href="${mapsHref}" target="_blank" rel="noopener">Open in Maps ↗</a>` : ''}</div>` : ''}
+      ${hasVenue ? `<div class="h3">Location</div><p class="desc" style="margin-bottom:8px">${esc(d.location)}</p><div class="rsvp">${mapsBtn('rb')}</div>` : ''}
 
       <div class="h3">More</div>
       <div class="rsvp">${extras.join('')}</div>
@@ -267,7 +297,16 @@ export function renderEventPage(d: EventDetail, ctx: {
     </main>
   </div>
   ${ctx.stickyCta ? `<div style="height:76px"></div>${ctx.stickyCta}` : ''}`;
-  return layout(d.title, body, { back: hostHref(d.hostKind, d.hostId) });
+  // og:image MUST be absolute — every crawler drops a relative one, and dropping
+  // it is silent. Without `origin` we emit no image rather than a broken one.
+  const og = ogMeta({
+    title: d.title,
+    description: `${shareLine(d)} · Hosted by ${d.hostName} on Horda.`,
+    url: ctx.origin ? `${ctx.origin}/e/${d.id}` : undefined,
+    image: ctx.origin ? `${ctx.origin}${cardUrl}` : null,
+    type: 'article',
+  });
+  return layout(d.title, body, { back: hostHref(d.hostKind, d.hostId), head: og });
 }
 
 // Organizer payouts (Stripe Connect). The gate for paid ticketing: connect a
@@ -302,107 +341,532 @@ export function renderCheckout(d: EventDetail, fanId: string, live = false): str
 }
 
 // owner: schedule an event. `parent` set when adding a sub-event (bout / race).
-export function renderCreateEvent(hostKind: string, hostId: string, hostName: string, parent?: { id: string; title: string }): string {
+// `defaultSport` = the host's own sport, pre-selected (see the topsel comment).
+export function renderCreateEvent(hostKind: string, hostId: string, hostName: string, parent?: { id: string; title: string }, defaultSport?: string | null): string {
   const fld = 'display:block;margin:12px 0;font-size:13px;color:var(--mut)';
   const inp = 'display:block;width:100%;margin-top:6px;background:var(--s);border:1px solid var(--b);border-radius:10px;color:var(--bone);padding:10px;font:inherit';
   const body = `
   <h1>${parent ? 'Add a sub-event' : 'Schedule an event'}</h1>
   <p class="mut">${parent ? `Under <b style="color:var(--bone)">${esc(parent.title)}</b> — a bout or race-within-the-race. It gets its own sides and promo links; attribution rolls up.` : `As ${esc(hostName)}. Choose the shape, who's on the card, and how fans get in.`}</p>
-  <form method="post" action="/events" onsubmit="return hzPrep(this)">
+  <form method="post" action="/events" id="evform" onsubmit="return hzPrep(this)">
     <input type="hidden" name="host_kind" value="${esc(hostKind)}"><input type="hidden" name="host_id" value="${esc(hostId)}">
     ${parent ? `<input type="hidden" name="parent_id" value="${esc(parent.id)}">` : ''}
-    <label style="${fld}">Title<input style="${inp}" name="title" required placeholder="${parent ? 'Rico vs. Tariq' : 'Open sparring night'}"></label>
+
+    ${/* The two framing choices, small but always visible at the top: who can
+        find this, and what sport it is. Sport defaults to the organiser's — the
+        right answer ~95% of the time — but stays one click from changing, and
+        "Other" exists because a football club throwing a summer party is still
+        an event. Without a sport, the discovery filter silently can't see it. */''}
+    <div class="topsel">
+      <label class="tsel">
+        <select name="visibility" id="ev_vis">
+          <option value="public">🌍 Public — anyone can find it</option>
+          <option value="unlisted">🔒 Private — only people with the link</option>
+        </select>
+      </label>
+      <label class="tsel">
+        ${sportSelect('sport', defaultSport ?? null, 'appearance:none')}
+      </label>
+    </div>
+    <p class="mut" id="ev_vis_hint" style="font-size:12px;margin:0 0 4px">Listed on Horda, in search and on your page.</p>
+
+    <label style="${fld}">Event name<input style="${inp}" name="title" required placeholder="${parent ? 'Rico vs. Tariq' : 'Open sparring night'}"></label>
+
+    ${/* Event image. Deliberately near the top, not buried in the details fold:
+        the picture is what makes a card get clicked, and if you don't ask for it
+        while the organiser is still excited about their event, you never get it.
+        It renders on the event page AND on every feed card. Without one we
+        generate a themed backdrop, so a card is never empty — but a real photo
+        beats generated art every time, so the empty state says so. */''}
+    <div style="${fld}">Event image <span class="mut">(optional)</span>
+      <label class="cvdrop" id="ev_cover_drop">
+        <input type="file" accept="image/*" data-target="cover" id="ev_cover_in" hidden>
+        <img id="ev_cover_prev" alt="" hidden>
+        <span class="cvhint" id="ev_cover_hint">
+          <b>Add a photo</b>
+          <i>Shows on the event page and on every card in the feed. Landscape works best. Skip it and we'll generate one.</i>
+        </span>
+      </label>
+      <button type="button" class="cvclear" id="ev_cover_clear" hidden>Remove image</button>
+    </div>
+    <input type="hidden" name="cover">
     <label style="${fld}">Shape
       <select id="ev_arch" name="archetype" style="${inp}" onchange="var v=this.value;document.getElementById('ev_versus').style.display=v==='versus'?'block':'none';document.getElementById('ev_roster').style.display=v==='multi'?'block':'none'">
         <option value="single">Single — one host, open roster (a run club, a mass race)</option>
         <option value="versus"${parent ? ' selected' : ''}>Versus — two sides (a match, a bout); both promote to their fans</option>
         <option value="multi">Multi-participant — many attending clubs/athletes on the card</option>
       </select></label>
+    ${/* Rival + roster typeahead.
+        Why this is more than a nicety: naming a rival as free text always mints
+        an UNCLAIMED placeholder. If that rival is already on Horda and you type
+        their name a shade differently ("FC Rival" vs "1. FC Rival"), you create
+        a duplicate ghost — and that side's attribution accrues to nobody, which
+        is the one number the whole product sells. Suggesting real entities is
+        what keeps the graph joined up. Free text still works (the whole point is
+        listing rivals who AREN'T here yet) — we just look first. */''}
     <div id="ev_versus" style="display:${parent ? 'block' : 'none'}">
-      <label style="${fld}">Side B (the rival)<input style="${inp}" name="side_b_name" placeholder="FC Rival — they claim their side & fans by joining Horda"></label>
+      <label style="${fld}">Side B (the rival)
+        <input style="${inp}" name="side_b_name" id="ev_sideb" autocomplete="off" placeholder="Start typing — we'll find them on Horda">
+      </label>
+      <input type="hidden" name="side_b_kind" id="ev_sideb_kind">
+      <input type="hidden" name="side_b_id" id="ev_sideb_id">
+      <div class="acbox" id="ev_sideb_ac" hidden></div>
       <p class="mut" style="font-size:12px;margin:-6px 0 0">You're side A. List side B even if they're not on Horda yet — they join to claim their side, their fans and their ticket share.</p>
     </div>
     <div id="ev_roster" style="display:none">
-      <label style="${fld}">On the card (comma-separated)<input style="${inp}" name="roster" placeholder="Rico Vargas, Tariq Bello, Otto Kahn"></label>
-      <p class="mut" style="font-size:12px;margin:-6px 0 0">Each becomes an attending slot with its own promo link; they claim it by joining.</p>
+      <label style="${fld}">On the card
+        <input style="${inp}" id="ev_roster_in" autocomplete="off" placeholder="Start typing a name, then pick or press Enter">
+      </label>
+      <div class="acbox" id="ev_roster_ac" hidden></div>
+      <div class="chips" id="ev_roster_chips"></div>
+      <input type="hidden" name="roster" id="ev_roster_val">
+      <input type="hidden" name="roster_ids" id="ev_roster_ids">
+      <p class="mut" style="font-size:12px;margin:6px 0 0">Each becomes an attending slot with its own promo link; they claim it by joining.</p>
     </div>
-    <label style="${fld}">Date &amp; time<input style="${inp}" type="datetime-local" name="starts_at" required></label>
+    <style>
+      .acbox{position:relative;margin-top:-4px;border:1px solid var(--b);border-radius:12px;background:var(--s);overflow:hidden}
+      .acbox .ac{display:flex;align-items:center;gap:10px;padding:9px 12px;cursor:pointer;border-bottom:1px solid var(--b);font-size:14px}
+      .acbox .ac:last-child{border-bottom:0}
+      .acbox .ac:hover,.acbox .ac.sel{background:rgba(237,233,223,.08)}
+      .acbox .av{width:26px;height:26px;border-radius:8px;object-fit:cover;background:rgba(237,233,223,.12);flex:0 0 auto}
+      .acbox .mt{color:var(--mut);font-size:12px}
+      .acbox .kd{margin-left:auto;font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--mut);border:1px solid var(--b);border-radius:999px;padding:1px 7px}
+      .acbox .new{color:var(--mut)}
+      .chips{display:flex;flex-wrap:wrap;gap:7px;margin-top:9px}
+      .chips .chip{display:inline-flex;align-items:center;gap:7px;border:1px solid var(--b);border-radius:999px;padding:5px 11px;font-size:13px;background:var(--s)}
+      .chips .chip.known{border-color:var(--acc)}
+      .chips .chip b{font-weight:600}
+      .chips .chip .x{cursor:pointer;color:var(--mut);font-weight:700}
+      .chips .chip .onh{font-size:10px;color:var(--acc);text-transform:uppercase;letter-spacing:.06em}
+    </style>
+    <script>(function(){
+      // Shared typeahead against /api/entities. Debounced, keyboard-navigable,
+      // and always offers "use as typed" so an off-Horda rival is never blocked.
+      function look(q, sport, cb){
+        if(q.trim().length < 2){ cb([]); return; }
+        fetch('/api/entities?q='+encodeURIComponent(q)+(sport?'&sport='+encodeURIComponent(sport):''))
+          .then(function(r){ return r.ok ? r.json() : {results:[]} })
+          .then(function(j){ cb(j.results||[]) }).catch(function(){ cb([]) });
+      }
+      function sportNow(){ var s=document.querySelector('[name=sport]'); return s ? s.value : ''; }
+      function row(e){
+        var av = e.avatar ? '<img class="av" src="'+e.avatar+'" alt="">' : '<span class="av"></span>';
+        var meta = [e.sport, e.region].filter(Boolean).join(' · ');
+        return av+'<span><b>'+e.name+'</b>'+(meta?'<br><span class="mt">'+meta+'</span>':'')+'</span>'+
+               '<span class="kd">'+e.kind+(e.verified?' ✓':'')+'</span>';
+      }
+      function attach(input, box, onPick){
+        var t, items=[], idx=-1;
+        function close(){ box.hidden=true; box.innerHTML=''; idx=-1; }
+        function paint(res){
+          items=res;
+          if(!res.length && input.value.trim().length<2){ close(); return; }
+          var h = res.map(function(e,i){ return '<div class="ac" data-i="'+i+'">'+row(e)+'</div>' }).join('');
+          h += '<div class="ac new" data-i="-1">Use "<b>'+input.value.replace(/[<>&]/g,'')+'</b>" — not on Horda yet</div>';
+          box.innerHTML=h; box.hidden=false;
+          Array.prototype.forEach.call(box.querySelectorAll('.ac'), function(el){
+            el.onmousedown=function(ev){ ev.preventDefault(); var i=+el.getAttribute('data-i'); onPick(i>=0?items[i]:null, input.value); close(); };
+          });
+        }
+        input.addEventListener('input', function(){
+          clearTimeout(t); var v=input.value;
+          t=setTimeout(function(){ look(v, sportNow(), paint) }, 180);
+        });
+        input.addEventListener('keydown', function(ev){
+          if(box.hidden) { if(ev.key==='Enter' && input.id==='ev_roster_in'){ ev.preventDefault(); onPick(null, input.value); } return; }
+          var els=box.querySelectorAll('.ac');
+          if(ev.key==='ArrowDown'||ev.key==='ArrowUp'){
+            ev.preventDefault(); idx += (ev.key==='ArrowDown'?1:-1);
+            if(idx<0) idx=els.length-1; if(idx>=els.length) idx=0;
+            Array.prototype.forEach.call(els,function(e,i){ e.classList.toggle('sel', i===idx) });
+          } else if(ev.key==='Enter'){
+            ev.preventDefault(); var i = idx>=0 ? +els[idx].getAttribute('data-i') : -1;
+            onPick(i>=0?items[i]:null, input.value); close();
+          } else if(ev.key==='Escape'){ close(); }
+        });
+        input.addEventListener('blur', function(){ setTimeout(close, 120) });
+      }
+      // --- Side B (single) ---
+      var sb=document.getElementById('ev_sideb');
+      if(sb) attach(sb, document.getElementById('ev_sideb_ac'), function(e, raw){
+        sb.value = e ? e.name : raw;
+        document.getElementById('ev_sideb_kind').value = e ? e.kind : '';
+        document.getElementById('ev_sideb_id').value   = e ? e.id   : '';
+      });
+      // --- Roster (multi → chips) ---
+      var ri=document.getElementById('ev_roster_in'), chips=document.getElementById('ev_roster_chips');
+      var picked=[];
+      function sync(){
+        document.getElementById('ev_roster_val').value = picked.map(function(p){return p.name}).join(', ');
+        document.getElementById('ev_roster_ids').value = picked.map(function(p){return p.id?(p.kind+':'+p.id):''}).join(',');
+        chips.innerHTML = picked.map(function(p,i){
+          return '<span class="chip'+(p.id?' known':'')+'"><b>'+p.name.replace(/[<>&]/g,'')+'</b>'+
+                 (p.id?'<span class="onh">on horda</span>':'')+'<span class="x" data-i="'+i+'">×</span></span>';
+        }).join('');
+        Array.prototype.forEach.call(chips.querySelectorAll('.x'), function(x){
+          x.onclick=function(){ picked.splice(+x.getAttribute('data-i'),1); sync(); };
+        });
+      }
+      if(ri) attach(ri, document.getElementById('ev_roster_ac'), function(e, raw){
+        var nm = e ? e.name : (raw||'').trim();
+        if(!nm) return;
+        if(!picked.some(function(p){ return p.name.toLowerCase()===nm.toLowerCase() }))
+          picked.push({ name:nm, kind:e?e.kind:null, id:e?e.id:null });
+        ri.value=''; sync();
+      });
+    })();</script>
+    ${/* The time the organiser types is WALL-CLOCK at the venue. The browser
+        knows which zone they're in; the server cannot guess it. Without this
+        hidden field the naive string was resolved in the SERVER's zone, and the
+        calendar export sent fans to the venue an hour out. Captured on load, and
+        shown back so it's never a silent assumption. */''}
+    <label style="${fld}">Date &amp; time<input style="${inp}" type="datetime-local" name="starts_at" id="ev_when" required>
+      <small class="mut" id="ev_tzhint" style="display:block;margin-top:5px;font-size:12px"></small></label>
+    <input type="hidden" name="timezone" id="ev_tz">
+
+    ${/* WHERE drives HOW THEY GET IN.
+        The old form asked "How do people get in?" as a free-standing question
+        with three jargon options (ticket / link / public) that only made sense
+        if you already knew the data model — and it sat alongside a SECOND
+        overlapping question ("Admission": open/register/apply/paid) and a THIRD
+        (per-format prices). Three systems, one decision. That's why it read as
+        unclear. Now: pick where it happens, and the get-in options are the ones
+        that can possibly apply. access_mode is derived on submit, not asked. */''}
     <label style="${fld}">Where
-      <select id="ev_loc_kind" name="location_kind" style="${inp}" onchange="hzAccess(this.value)">
-        <option value="in_person">In person (a venue)</option>
-        <option value="online">Online (a stream / call link)</option>
-        <option value="hybrid">Hybrid — in person + streamed</option>
+      <select id="ev_loc_kind" name="location_kind" style="${inp}">
+        <option value="in_person">In person — at a venue</option>
+        <option value="online">Online — a stream or call</option>
+        <option value="hybrid">Both — in person and streamed</option>
       </select></label>
-    <label style="${fld}">Address or link<input style="${inp}" name="location" placeholder="Kreuzberg Boxing Club, Berlin — or a YouTube / Instagram / Zoom URL"></label>
 
-    <label style="${fld}">How do people get in?
-      <select id="ev_access" name="access_mode" style="${inp}">
-        <option value="ticket">🎟 Ticket + QR check-in — they register, get a QR ticket, show it at the door; you scan to confirm who showed up</option>
-        <option value="link">🔒 Claim to get the link — they must claim a spot (free or paid) to unlock the stream/details; you see exactly who's in</option>
-        <option value="public">🌐 Public link — anyone can watch, no sign-up (you won't know who watched)</option>
-      </select></label>
-    <p class="mut" style="font-size:12px;margin:-6px 0 0">Ticket + QR is for in-person events you check people into. "Claim to get the link" gates a stream behind a free/paid claim so you capture who's coming. "Public link" is fully open.</p>
-    <script>function hzAccess(where){var s=document.getElementById('ev_access');if(!s)return;var opts=[].slice.call(s.options);function show(v,on){var o=opts.filter(function(x){return x.value===v})[0];if(o)o.hidden=!on}
-      if(where==='in_person'){show('ticket',true);show('link',false);show('public',false);s.value='ticket'}
-      else{show('ticket',false);show('link',true);show('public',true);if(s.value==='ticket')s.value='link'}}
-      hzAccess(document.getElementById('ev_loc_kind').value);</script>
-    <label style="${fld}">Repeats
-      <select name="recurrence" style="${inp}">
-        <option value="none">One-off</option>
-        <option value="weekly">Weekly</option>
-        <option value="monthly">Monthly</option>
-      </select></label>
-    <label style="${fld}">About this event <span class="mut">(optional)</span><textarea style="${inp};min-height:100px" name="description" placeholder="What's happening, who's invited, what to expect, schedule, rules…"></textarea></label>
-    <label style="${fld}">Cover image<input type="file" accept="image/*" data-target="cover" style="margin-top:6px;color:inherit"></label>
-    <input type="hidden" name="cover">
-    <label style="${fld}">Admission
-      <select name="admission" style="${inp}">
-        <option value="open">Open — free, just show up</option>
-        <option value="register">Free — registration required</option>
-        <option value="apply">Apply — host approves</option>
-        <option value="paid">Paid — buy a ticket</option>
-      </select></label>
-    <label style="${fld}">Price € (paid only)<input style="${inp}" type="number" name="price" min="0" step="0.5" placeholder="15"></label>
-    <label style="${fld}">YouTube live link<input style="${inp}" name="youtube" placeholder="https://youtube.com/…"></label>
-    <label style="${fld}">Twitch link<input style="${inp}" name="twitch" placeholder="https://twitch.tv/…"></label>
-    <label style="${fld}">Instagram Live link<input style="${inp}" name="instagram" placeholder="https://instagram.com/…"></label>
-    <label style="${fld}">TikTok Live link<input style="${inp}" name="tiktok" placeholder="https://tiktok.com/@…/live"></label>
-    <label style="${fld}">Discord link<input style="${inp}" name="discord" placeholder="https://discord.gg/…"></label>
-    <label style="${fld}">Capacity (optional)<input style="${inp}" type="number" name="capacity" min="1"></label>
-
-    <div style="border-top:1px solid var(--b);margin-top:14px;padding-top:12px">
-      <div style="font-weight:700;font-size:15px">Ways to attend</div>
-      <p class="mut" style="font-size:12.5px;margin:4px 0 6px">Offer this event in one or more formats. Horda confirms attendance for each — in-person tickets and stream viewers alike — so you see exactly what to expect and what to optimise for.</p>
-      <label style="${fld};margin-top:4px"><input type="checkbox" name="fmt_inperson" value="1" checked style="vertical-align:-2px;margin-right:6px">In person — attendance confirmed on Horda</label>
-      <label style="${fld}">In-person ticket price € <span class="mut">(blank = free entry)</span><input style="${inp}" name="fmt_inperson_price" inputmode="decimal" placeholder="25"></label>
-      <label style="${fld}">In-person capacity <span class="mut">(optional)</span><input style="${inp}" type="number" name="fmt_inperson_cap" min="1"></label>
-      <label style="${fld}">Stream 1 — label<input style="${inp}" name="fmt_stream1_label" placeholder="TikTok Live"></label>
-      <label style="${fld}">Stream 1 — watch link<input style="${inp}" name="fmt_stream1_url" placeholder="https://tiktok.com/@…/live"></label>
-      <label style="${fld}">Stream 2 — label<input style="${inp}" name="fmt_stream2_label" placeholder="Sportdeutschland.TV / media partner"></label>
-      <label style="${fld}">Stream 2 — watch link<input style="${inp}" name="fmt_stream2_url" placeholder="https://…"></label>
+    <div id="ev_addr_wrap">
+      <label style="${fld}" id="ev_addr_lbl">Address
+        <input style="${inp}" name="location" id="ev_loc" autocomplete="off" placeholder="Start typing a venue or address…">
+      </label>
+      <div class="acbox" id="ev_loc_ac" hidden></div>
     </div>
 
-    <div style="border-top:1px solid var(--b);margin-top:14px;padding-top:12px">
-      <div style="font-weight:700;font-size:15px">Repeat &amp; season schedule</div>
-      <p class="mut" style="font-size:12.5px;margin:4px 0 6px">Repeat this event automatically, or paste a whole season — Horda creates every event for you, each with the formats above.</p>
-      <label style="${fld};margin-top:4px">Repeat for how many times <span class="mut">(uses the “Repeats” setting above; blank/1 = one-off)</span><input style="${inp}" type="number" name="recurrence_count" min="1" max="52" placeholder="e.g. 10"></label>
-      <label style="${fld}">Or paste a season schedule — one per line: <span class="mut">Title | 2026-08-01 19:00 | Venue</span>
-        <textarea style="${inp};min-height:90px" name="season_schedule" placeholder="Round 1 · SC Berlin vs FC Köln | 2026-08-01 19:00 | Olympiastadion
-Round 2 · SC Berlin vs VfB | 2026-08-08 18:30 | Away"></textarea></label>
+    ${/* WAYS TO GET IN — one block per door, not one radio for the event.
+        An event can genuinely have TWO doors: 200 people in the hall AND anyone
+        on the stream, each with its own price and its own capacity, and the FAN
+        picks which one. v80 modelled this as a single radio, which quietly made
+        hybrid events impossible to express — you could say "in person and
+        streamed" under Where and then only offer one way to actually attend.
+        Each block is a format (event_format); the fan's claim binds to one. */''}
+    <div style="${fld}">How do people get in?
+      <p class="mut" style="font-size:12px;margin:2px 0 8px">Offer one or both. Fans pick the one they want and claim a spot — you see who's coming to each.</p>
+
+      <div class="way" id="way_ip">
+        <label class="wayhead"><input type="checkbox" name="fmt_inperson" value="1" checked id="ip_on">
+          <span><b>In person</b><i>They claim a spot and get a QR ticket you scan at the door.</i></span></label>
+        <div class="waybody" id="ip_body">
+          <div class="segs">
+            <label class="seg"><input type="radio" name="ip_cost" value="free" checked><span>Free</span></label>
+            <label class="seg"><input type="radio" name="ip_cost" value="paid"><span>Paid</span></label>
+          </div>
+          <label class="wf" id="ip_price_wrap" hidden>Ticket price €
+            <input name="fmt_inperson_price" inputmode="decimal" placeholder="15"></label>
+          <label class="wf">Spots <span class="mut">(blank = unlimited)</span>
+            <input type="number" name="fmt_inperson_cap" min="1" placeholder="Unlimited"></label>
+          <label class="wf">How many can one person claim?
+            <select name="fmt_inperson_maxpp">
+              <option value="1">Just themselves</option>
+              <option value="2">Up to 2</option>
+              <option value="4">Up to 4</option>
+              <option value="6">Up to 6</option>
+              <option value="10">Up to 10</option>
+            </select>
+            <small>Let fans bring people — they claim the spots in one go.</small></label>
+        </div>
+      </div>
+
+      <div class="way" id="way_st">
+        <label class="wayhead"><input type="checkbox" name="fmt_stream" value="1" id="st_on">
+          <span><b>Watch online</b><i>They claim a spot to unlock the stream — so you know who watched.</i></span></label>
+        <div class="waybody" id="st_body">
+          <div class="segs">
+            <label class="seg"><input type="radio" name="st_cost" value="free" checked><span>Free</span></label>
+            <label class="seg"><input type="radio" name="st_cost" value="paid"><span>Paid</span></label>
+            <label class="seg"><input type="radio" name="st_cost" value="open"><span>Open to all</span></label>
+          </div>
+          <p class="mut segnote" id="st_note" style="font-size:11.5px;margin:2px 0 0"></p>
+          <label class="wf" id="st_price_wrap" hidden>Stream price €
+            <input name="fmt_stream1_price" inputmode="decimal" placeholder="8"></label>
+          <label class="wf">Watch link
+            <input name="fmt_stream1_url" placeholder="https://youtube.com/… · twitch.tv/… · zoom"></label>
+          <label class="wf">What to call it <span class="mut">(optional)</span>
+            <input name="fmt_stream1_label" placeholder="YouTube Live"></label>
+          ${/* Online events have caps too — a webinar licence, a Zoom room, a
+              media deal with a viewer ceiling. Capacity is per DOOR, so a
+              sold-out hall never closes the stream and a full stream never
+              closes the hall. */''}
+          <label class="wf" id="st_cap_wrap">Seats <span class="mut">(blank = unlimited)</span>
+            <input type="number" name="fmt_stream1_cap" min="1" placeholder="Unlimited">
+            <small>For a webinar or a room with a licence limit. Counted separately from the venue.</small></label>
+        </div>
+      </div>
     </div>
 
-    <div style="border-top:1px solid var(--b);margin-top:14px;padding-top:12px">
-      <label style="${fld};margin-top:0"><input type="checkbox" name="room_enabled" value="1" checked style="vertical-align:-2px;margin-right:6px">Open an Event Room (countdown → live → recap)</label>
-      <label style="${fld}">Room name<input style="${inp}" name="room_label" placeholder="Matchday / Fight Night / Race Day"></label>
-      <label style="${fld}">Who gets the live room?
-        <select name="room_tier" style="${inp}">
-          <option value="supporter">★ Supporters &amp; up</option>
-          <option value="clubhouse">✦ Clubhouse only</option>
-          <option value="public">Everyone</option>
+    ${/* Capacity: unlimited is the default and the common case. Asking for a
+        number up front implies a limit exists and invents a decision. You opt
+        IN to a limit, then set it, then choose whether overflow waits. */''}
+    <div style="${fld}">
+      ${/* The hidden 0 makes the field ALWAYS present. Without it an unchecked
+           box submits nothing, and "the user unticked this" becomes
+           indistinguishable from "this caller predates the field" — so the
+           server could not tell whether to honour a posted capacity. */''}
+      <input type="hidden" name="capacity_limited" value="0">
+      <label class="tgl"><input type="checkbox" id="ev_cap_on" name="capacity_limited" value="1">
+        <span><b>Limit how many people can come</b><i>Off = unlimited.</i></span></label>
+      <div id="ev_cap_wrap" hidden style="padding-left:26px">
+        <label style="${fld}">Maximum<input style="${inp}" type="number" name="capacity" min="1" placeholder="120"></label>
+        <label class="tgl"><input type="checkbox" name="waitlist_enabled" value="1" checked>
+          <span><b>Add a waitlist once it's full</b><i>Extra claims queue up instead of being turned away — and you see real demand.</i></span></label>
+      </div>
+      <label class="tgl"><input type="checkbox" name="approval_required" value="1">
+        <span><b>Genehmigung erforderlich — you approve each request</b><i>People request a spot; nobody's in until you say yes.</i></span></label>
+    </div>
+
+    ${/* Everything below is optional. Collapsed so the first screen is the
+        decision, not the paperwork — an event you can create in 20 seconds is an
+        event that gets created. */''}
+    <details class="more">
+      <summary>Add details — description, cover, line-up, repeats</summary>
+      ${/* The cover input lives up top now — two inputs writing the same hidden
+           cover field would race, and the last one to fire would win. */''}
+      <label style="${fld}">About this event<textarea style="${inp};min-height:90px" name="description" placeholder="What's happening, who's invited, what to expect…"></textarea></label>
+      <label style="${fld}">Repeats
+        <select name="recurrence" style="${inp}">
+          <option value="none">One-off</option>
+          <option value="weekly">Weekly</option>
+          <option value="monthly">Monthly</option>
         </select></label>
-    </div>
+      <label style="${fld}">How many times<input style="${inp}" type="number" name="recurrence_count" min="1" max="52" placeholder="10"></label>
+      <label style="${fld}">Or paste a season — one per line: <span class="mut">Title | 2026-08-01 19:00 | Venue</span>
+        <textarea style="${inp};min-height:80px" name="season_schedule" placeholder="Round 1 · SC Berlin vs FC Köln | 2026-08-01 19:00 | Olympiastadion"></textarea></label>
+      <label style="${fld}">Second stream — link<input style="${inp}" name="fmt_stream2_url" placeholder="https://…"></label>
+      <label style="${fld}">Second stream — label<input style="${inp}" name="fmt_stream2_label" placeholder="Media partner"></label>
+    </details>
+
+    <input type="hidden" name="fmt_inperson" value="1">
     <div class="row"><button type="submit">Publish event</button></div>
-  </form>${UPLOAD_SCRIPT}`;
+  </form>
+  <style>
+    .topsel{display:flex;gap:9px;flex-wrap:wrap;margin:4px 0 0}
+    .topsel .tsel{flex:1;min-width:170px}
+    .topsel select{width:100%;background:var(--s);border:1px solid var(--b);border-radius:var(--btnr);color:var(--bone);padding:9px 11px;font:inherit;font-size:13.5px}
+    .way{border:1.5px solid var(--b);border-radius:14px;background:var(--s);margin-bottom:9px;overflow:hidden}
+    .way:has(.wayhead input:checked){border-color:var(--acc)}
+    .way[hidden]{display:none}
+    .wayhead{display:flex;gap:10px;align-items:flex-start;padding:13px 14px;cursor:pointer;margin:0}
+    .wayhead input{margin-top:3px;accent-color:var(--acc);flex:0 0 auto}
+    .wayhead b{display:block;color:var(--bone);font-size:14.5px;font-weight:600}
+    .wayhead i{display:block;color:var(--mut);font-size:12.5px;font-style:normal;line-height:1.5;margin-top:2px}
+    .waybody{padding:0 14px 14px 40px;display:none}
+    .way:has(.wayhead input:checked) .waybody{display:block}
+    .segs{display:inline-flex;border:1px solid var(--b);border-radius:10px;overflow:hidden;margin-bottom:4px}
+    .seg{margin:0;cursor:pointer}
+    .seg input{position:absolute;opacity:0;width:0;height:0}
+    .seg span{display:block;padding:6px 14px;font-size:13px;color:var(--mut);border-right:1px solid var(--b)}
+    .seg:last-child span{border-right:0}
+    .seg:has(input:checked) span{background:var(--acc);color:var(--accink);font-weight:600}
+    .wf{display:block;margin:10px 0 0;font-size:12.5px;color:var(--mut)}
+    .wf input,.wf select{display:block;width:100%;margin-top:5px;background:var(--ink);border:1px solid var(--b);border-radius:10px;color:var(--bone);padding:9px 10px;font:inherit;font-size:14px}
+    .wf small{display:block;color:var(--mut);font-size:11.5px;margin-top:4px}
+    .wf[hidden]{display:none}
+    .tgl{display:flex;gap:10px;align-items:flex-start;margin:10px 0;cursor:pointer}
+    .tgl input{margin-top:3px;accent-color:var(--acc);flex:0 0 auto}
+    .tgl b{display:block;color:var(--bone);font-size:14px;font-weight:600}
+    .tgl i{display:block;color:var(--mut);font-size:12.5px;font-style:normal;line-height:1.5}
+    .cvdrop{display:flex;align-items:center;justify-content:center;position:relative;margin-top:8px;min-height:132px;
+      border:1.5px dashed var(--b);border-radius:16px;background:var(--s);cursor:pointer;overflow:hidden;text-align:center;padding:18px}
+    .cvdrop:hover{border-color:var(--acc)}
+    .cvdrop img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+    .cvhint b{display:block;color:var(--bone);font-size:14.5px;font-weight:600;margin-bottom:4px}
+    .cvhint i{display:block;color:var(--mut);font-size:12.5px;font-style:normal;line-height:1.5;max-width:42ch}
+    .cvclear{margin-top:8px;background:transparent;border:1px solid var(--b);border-radius:var(--btnr);color:var(--mut);padding:6px 12px;font:inherit;font-size:12.5px;cursor:pointer}
+    .cvclear:hover{color:var(--bone);border-color:var(--bone)}
+    .more{border-top:1px solid var(--b);margin-top:16px;padding-top:6px}
+    .more summary{cursor:pointer;font-size:13.5px;font-weight:600;color:var(--bone);padding:8px 0;list-style:none}
+    .more summary::-webkit-details-marker{display:none}
+    .more summary::before{content:"＋ ";color:var(--mut)}
+    .more[open] summary::before{content:"− "}
+  </style>
+  <script>(function(){
+    var form=document.getElementById('evform'); if(!form) return;
+
+    // --- 0. the organiser's timezone --------------------------------------
+    // Everything downstream (the true instant, the ICS, "starts in 2h") depends
+    // on knowing which zone "20:00" was typed in.
+    (function(){
+      var tzf = document.getElementById('ev_tz'), hint = document.getElementById('ev_tzhint');
+      var tz = '';
+      try { tz = Intl.DateTimeFormat().resolvedOptions().timeZone || ''; } catch(e) {}
+      tzf.value = tz;
+      if (hint && tz) hint.textContent = 'Times are in ' + tz.replace(/_/g,' ') + ' — the venue\'s local time, which is what fans will see.';
+    })();
+
+    // --- 1. WHERE → which get-in options can apply -------------------------
+    // The options aren't a fixed menu; they're the subset that makes sense for
+    // the place. Selecting an option that's been hidden would submit nonsense,
+    // so we always re-point the selection at the first visible one.
+    var where=document.getElementById('ev_loc_kind');
+    var addrLbl=document.getElementById('ev_addr_lbl');
+    var wayIp=document.getElementById('way_ip'), wayS=document.getElementById('way_st');
+    var ipOn=document.getElementById('ip_on'), stOn=document.getElementById('st_on');
+    function applyWhere(){
+      var w=where.value;
+      // Where decides which doors can EXIST. Both may be open at once — that's
+      // the whole point of hybrid, and what v80 got wrong.
+      wayIp.hidden = (w==='online');
+      wayS.hidden  = (w==='in_person');
+      if(w==='online'){ ipOn.checked=false; stOn.checked=true; }
+      else if(w==='in_person'){ stOn.checked=false; ipOn.checked=true; }
+      else { ipOn.checked=true; }   // hybrid: in-person on, stream is theirs to add
+      // The address field means different things in different places.
+      var loc=document.getElementById('ev_loc');
+      if(w==='online'){ addrLbl.firstChild.textContent='Stream or call link'; loc.placeholder='https://youtube.com/… · zoom.us/…'; loc.setAttribute('data-noac','1'); }
+      else { addrLbl.firstChild.textContent = w==='hybrid' ? 'Venue address' : 'Address'; loc.placeholder='Start typing a venue or address…'; loc.removeAttribute('data-noac'); }
+      applyCost();
+    }
+    // --- 2. price fields only where a price can exist ----------------------
+    function applyCost(){
+      var ip=(form.querySelector('input[name=ip_cost]:checked')||{}).value;
+      document.getElementById('ip_price_wrap').hidden = ip!=='paid';
+      var st=(form.querySelector('input[name=st_cost]:checked')||{}).value;
+      document.getElementById('st_price_wrap').hidden = st!=='paid';
+      // "Open to all" is the one option that costs you the thing Horda is for,
+      // so say it plainly rather than letting them find out later.
+      document.getElementById('st_note').textContent = st==='open'
+        ? 'Anyone can watch without claiming — you will not know who watched.'
+        : '';
+      // "Open to all" means nobody claims, so there is nothing to count and a
+      // seat limit cannot be enforced. Hiding it is more honest than offering a
+      // number we would silently ignore.
+      document.getElementById('st_cap_wrap').hidden = st==='open';
+    }
+    where.addEventListener('change', applyWhere);
+    form.addEventListener('change', function(e){ if(e.target.name==='ip_cost'||e.target.name==='st_cost') applyCost(); });
+
+    // At least one door must be open, or the event is unattendable. Rather than
+    // block submit with an error, re-open the one they just closed: the only
+    // other interpretation of "no ways in" is a mistake.
+    function guardWays(){
+      if(!ipOn.checked && !stOn.checked){
+        if(where.value==='online') stOn.checked=true; else ipOn.checked=true;
+      }
+    }
+    ipOn.addEventListener('change', guardWays);
+    stOn.addEventListener('change', guardWays);
+
+    // --- 3. capacity: unlimited → opt in to a limit → then a waitlist ------
+    var capOn=document.getElementById('ev_cap_on'), capWrap=document.getElementById('ev_cap_wrap');
+    capOn.addEventListener('change', function(){ capWrap.hidden=!capOn.checked; });
+
+    // --- 4. visibility hint ------------------------------------------------
+    var vis=document.getElementById('ev_vis'), hint=document.getElementById('ev_vis_hint');
+    vis.addEventListener('change', function(){
+      hint.textContent = vis.value==='public'
+        ? 'Listed on Horda, in search and on your page.'
+        : 'Hidden from search and your page. Only people you send the link to can find it.';
+    });
+
+    // --- 5. THE LANGUAGE BUG ----------------------------------------------
+    // Switching language is a full page navigation (/set-lang → back here), so
+    // every field was wiped and the date reset. Nothing about that is obvious to
+    // the person — they just lose their work. We snapshot the form into
+    // sessionStorage on every change and restore it on load. Also covers a stray
+    // back-button or accidental reload. Cleared on successful submit so a second
+    // event doesn't inherit the first one's answers.
+    var KEY='hz_evform_'+location.pathname;
+    function snapshot(){
+      try{
+        var d={};
+        [].forEach.call(form.elements, function(el){
+          if(!el.name || el.type==='file' || el.type==='submit') return;
+          if(el.type==='checkbox'||el.type==='radio'){ if(el.checked) d[el.name]=el.value; }
+          else if(el.value) d[el.name]=el.value;
+        });
+        sessionStorage.setItem(KEY, JSON.stringify(d));
+      }catch(e){}
+    }
+    function restore(){
+      try{
+        var raw=sessionStorage.getItem(KEY); if(!raw) return;
+        var d=JSON.parse(raw);
+        Object.keys(d).forEach(function(n){
+          var els=form.elements[n]; if(!els) return;
+          if(els.length && els[0] && els[0].type==='radio'){
+            [].forEach.call(els, function(r){ r.checked = (r.value===d[n]); });
+          } else {
+            var el = els.length && !els.tagName ? els[0] : els;
+            if(!el || !el.type) return;
+            if(el.type==='checkbox') el.checked = true;
+            else if(el.type!=='file') el.value = d[n];
+          }
+        });
+      }catch(e){}
+    }
+    restore();
+    form.addEventListener('input', snapshot);
+    form.addEventListener('change', snapshot);
+    form.addEventListener('submit', function(){ try{ sessionStorage.removeItem(KEY); }catch(e){} });
+
+    // Re-apply the conditional UI AFTER restoring, so a restored "paid" still
+    // shows its price field.
+    applyWhere();
+    capWrap.hidden = !capOn.checked;
+    vis.dispatchEvent(new Event('change'));
+
+    // --- 5b. cover image preview ------------------------------------------
+    // UPLOAD_SCRIPT reads the file into the hidden cover field as a data URL.
+    // We mirror it into an <img> so the organiser sees the actual card art
+    // before publishing — "upload a file and hope" is how you get sideways
+    // photos on the home screen. The preview also survives a language switch,
+    // because the data URL is part of the form snapshot.
+    var cin=document.getElementById('ev_cover_in'), cimg=document.getElementById('ev_cover_prev'),
+        chint=document.getElementById('ev_cover_hint'), cclear=document.getElementById('ev_cover_clear'),
+        chid=form.elements['cover'];
+    function paintCover(){
+      var v=chid && chid.value;
+      if(v){ cimg.src=v; cimg.hidden=false; chint.hidden=true; cclear.hidden=false; }
+      else { cimg.hidden=true; chint.hidden=false; cclear.hidden=true; }
+    }
+    if(cin){
+      // UPLOAD_SCRIPT writes the hidden field asynchronously (FileReader), so
+      // poll briefly after a pick rather than guessing when it lands.
+      cin.addEventListener('change', function(){
+        var tries=0, iv=setInterval(function(){
+          if((chid && chid.value) || ++tries>40){ clearInterval(iv); paintCover(); snapshot(); }
+        }, 50);
+      });
+      cclear.addEventListener('click', function(){ if(chid) chid.value=''; cin.value=''; paintCover(); snapshot(); });
+      paintCover();   // restore a snapshotted image after a language switch
+    }
+
+    // --- 6. address autofill ----------------------------------------------
+    // Reuses the same /api/geo the discover filter uses, so "type a coffee shop
+    // and pick it" works the same everywhere.
+    var loc=document.getElementById('ev_loc'), lac=document.getElementById('ev_loc_ac'), lt;
+    function closeAc(){ lac.hidden=true; lac.innerHTML=''; }
+    loc.addEventListener('input', function(){
+      if(loc.hasAttribute('data-noac')) return;         // online → it's a URL, not a place
+      clearTimeout(lt); var q=loc.value.trim();
+      if(q.length<3){ closeAc(); return; }
+      lt=setTimeout(function(){
+        fetch('/api/geo?q='+encodeURIComponent(q)).then(function(r){return r.ok?r.json():{results:[]}}).then(function(j){
+          var rs=(j.results||[]).slice(0,6);
+          if(!rs.length){ closeAc(); return; }
+          lac.innerHTML = rs.map(function(p){ return '<div class="ac" data-v="'+String(p.label||'').replace(/"/g,'&quot;')+'">'+String(p.label||'').replace(/[<>&]/g,'')+'</div>' }).join('');
+          lac.hidden=false;
+          [].forEach.call(lac.querySelectorAll('.ac'), function(el){
+            el.onmousedown=function(ev){ ev.preventDefault(); loc.value=el.getAttribute('data-v'); snapshot(); closeAc(); };
+          });
+        }).catch(closeAc);
+      }, 220);
+    });
+    loc.addEventListener('blur', function(){ setTimeout(closeAc, 120); });
+  })();</script>${UPLOAD_SCRIPT}`;
   return layout('Schedule an event', body, { back: hostHref(hostKind, hostId) });
 }
 

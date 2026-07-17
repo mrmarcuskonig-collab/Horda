@@ -7,13 +7,20 @@ export function normLang(v: string | undefined | null): Lang { return v === 'de'
 
 const DICT: Record<string, { en: string; de: string }> = {
   explore:      { en: 'Explore',          de: 'Erkunden' },
+  // The logged-in home is the feed, so the nav says so. Guests see the same
+  // slot; the content behind it just isn't personalised yet.
+  your_horda:   { en: 'Your Horda',       de: 'Deine Horda' },
+  // Guests have no profile to visit — they have a handle worth taking.
+  claim_handle_nav: { en: 'Claim your @handle', de: '@Handle sichern' },
   following:    { en: 'Following',         de: 'Gefolgt' },
   create_event: { en: 'Create event',     de: 'Event erstellen' },
   profile:      { en: 'Profile',          de: 'Profil' },
   settings:     { en: 'Settings',         de: 'Einstellungen' },
   language:     { en: 'Language',         de: 'Sprache' },
   dark_mode:    { en: 'Dark mode',        de: 'Dunkler Modus' },
-  search_ph:    { en: 'Search city or sport', de: 'Stadt oder Sportart' },
+  // Just "Search": you can also search clubs, athletes and events — naming only
+  // city and sport made the box look narrower than it is.
+  search_ph:    { en: 'Search',            de: 'Suchen' },
   login:        { en: 'Log in',           de: 'Anmelden' },
   join_free:    { en: 'Join free',        de: 'Kostenlos beitreten' },
   your_feed:    { en: 'Your feed',        de: 'Dein Feed' },

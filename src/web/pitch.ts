@@ -3,6 +3,9 @@
 import { esc } from './layout.ts';
 import { THEME_BOOT, THEME_VARS, THM_CSS, themeToggle, bottomNav } from './theme.ts';
 import { ravenMarkCurrent } from './brand.ts';
+import { SHIPPED, BUILDING } from '../content/changelog.ts';
+import { entryId } from './feeds.ts';
+import { discordModule, discordFootLink, discordBtn, hasDiscord, DSC_CSS } from './community.ts';
 
 interface Benefit { t: string; d: string }
 interface PitchCfg { kicker: string; headline: string; sub: string; ctaLabel: string; ctaPath: (guest: boolean) => string; benefits: Benefit[]; steps: string[]; close: string; other: { href: string; label: string } }
@@ -141,17 +144,23 @@ const FEATURES: Benefit[] = [
   { t: 'A record of real presence', d: 'Checked‑in fans get an “I was there” stamp — a passport of where they actually showed up, and a shareable card that pulls the next fan in.' },
 ];
 
-type AboutPage = 'about' | 'creators' | 'features' | 'pricing';
+type AboutPage = 'about' | 'creators' | 'features' | 'pricing' | 'changelog';
 const NAV: { key: AboutPage; label: string; href: string; dd: [string, string][] }[] = [
   { key: 'creators', label: 'Who it’s for', href: '/about/creators', dd: [['Clubs & organisers', '/about/creators#clubs'], ['Athletes', '/about/creators#athletes'], ['Federations', '/about/creators#federations'], ['Fans', '/about/creators#fans']] },
   { key: 'features', label: 'What you can do', href: '/about/features', dd: [['See who drove your tickets', '/about/features'], ['Free & paid tickets', '/about/features'], ['QR check‑in', '/about/features'], ['Two‑sided events', '/about/features'], ['Fight cards & sub‑events', '/about/features'], ['Verified presence', '/about/features']] },
   { key: 'pricing', label: 'Pricing', href: '/about/pricing', dd: [['Free events — free', '/about/pricing'], ['Paid tickets — flat 10%', '/about/pricing'], ['Attribution — always free', '/about/pricing']] },
+  // Built in the open: the changelog is a top-level marketing surface, not a
+  // buried footer link. Shipping velocity IS the pitch.
+  { key: 'changelog', label: 'Changelog', href: '/changelog', dd: [['What we just shipped', '/changelog'], ['What we’re building now', '/changelog#building'], ['Ask for a feature', '/changelog#ask']] },
 ];
 
-function aboutShell(active: AboutPage, guest: boolean, title: string, body: string): string {
+// `head` lets a page add <link rel="alternate"> etc. The changelog uses it to
+// advertise its RSS/JSON twins — a feed nobody can discover is a feed nobody
+// reads, and autodiscovery is how readers and agents find one without being told.
+function aboutShell(active: AboutPage, guest: boolean, title: string, body: string, head = ''): string {
   const createHref = '/create';   // events-first: primary CTA everywhere is "Create an event"
   const navItem = (n: typeof NAV[number]) => `<div class="navitem${active === n.key ? ' on' : ''}"><a class="topl" href="${n.href}">${esc(n.label)}</a><div class="dd">${n.dd.map(([l, h]) => `<a href="${h}">${esc(l)}</a>`).join('')}</div></div>`;
-  return `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><link rel="icon" href="/favicon.svg"><title>${esc(title)} — Horda</title>${THEME_BOOT}
+  return `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><link rel="icon" href="/favicon.svg"><title>${esc(title)} — Horda</title>${head}${THEME_BOOT}
 <link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
 <style>
   ${THEME_VARS}
@@ -215,6 +224,25 @@ function aboutShell(active: AboutPage, guest: boolean, title: string, body: stri
   .closeb .btn{background:var(--ink);color:var(--bone);border-color:var(--ink)}
   .foot{max-width:1000px;margin:34px auto 0;padding:0 22px;color:var(--mut);font-size:12px}
   .foot a{color:var(--mut);border-bottom:1px solid var(--b)}.foot .fl{display:flex;gap:18px;margin-bottom:10px;flex-wrap:wrap}
+  ${DSC_CSS}
+  /* changelog */
+  .cl{max-width:760px}
+  .clhead .kick{color:var(--acc);font-weight:700;font-size:12px;letter-spacing:.14em;text-transform:uppercase;margin-bottom:10px}
+  .bld{display:grid;gap:11px;margin-bottom:8px}
+  .bldi{border:1px dashed var(--b);border-radius:14px;padding:17px 19px;background:transparent}
+  .bldi h4{font-size:16.5px;font-weight:700;margin:0 0 5px;display:flex;gap:9px;align-items:center;flex-wrap:wrap}
+  .bldi p{color:var(--mut);font-size:14px;line-height:1.55;margin:0}
+  .eta{font-size:10.5px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--mut);border:1px solid var(--b);border-radius:999px;padding:2px 8px}
+  .cle{display:flex;gap:16px;padding:22px 0;border-top:1px solid var(--b)}
+  .cle .when{flex:0 0 92px;color:var(--mut);font-size:12.5px;font-variant-numeric:tabular-nums;padding-top:3px}
+  .cle h4{font-size:17px;font-weight:700;margin:0 0 6px;letter-spacing:-.01em}
+  .cle p{color:var(--mut);font-size:14.5px;line-height:1.6;margin:0}
+  .tg{display:inline-block;font-size:10px;font-weight:800;letter-spacing:.09em;text-transform:uppercase;border-radius:999px;padding:2px 8px;margin-bottom:8px}
+  .tg.new{background:var(--acc);color:var(--accink)}
+  .tg.better{border:1px solid var(--b);color:var(--mut)}
+  .tg.fixed{border:1px solid var(--b);color:var(--mut)}
+  .cred{margin-top:9px;font-size:13px;color:var(--mut)}.cred b{color:var(--bone);font-weight:600}
+  @media(max-width:600px){.cle{flex-direction:column;gap:5px}.cle .when{flex:none}}
 </style></head><body>
   <header class="mnav">
     <nav class="links">${NAV.map(navItem).join('')}</nav>
@@ -222,7 +250,7 @@ function aboutShell(active: AboutPage, guest: boolean, title: string, body: stri
     <div class="right">${themeToggle()}${guest ? `<a class="btn ghost sm" href="/login">Log in</a>` : ''}<a class="btn sm" href="${createHref}">Create an event</a></div>
   </header>
   <div class="wrap">${body}</div>
-  <div class="foot"><div class="fl"><a href="/about/creators">Who it’s for</a><a href="/about/features">Features</a><a href="/about/pricing">Pricing</a><a href="/about">Overview</a></div>The events home for sports and competitive culture. joinhorda.com</div>
+  <div class="foot"><div class="fl"><a href="/about/creators">Who it’s for</a><a href="/about/features">Features</a><a href="/about/pricing">Pricing</a><a href="/about">Overview</a><a href="/changelog">Changelog</a>${discordFootLink()}<a href="/agb">AGB</a><a href="/impressum">Impressum</a><a href="/datenschutz">Datenschutz</a></div>The events home for sports and competitive culture. joinhorda.com</div>
   ${bottomNav({ guest, fanId: null })}
 </body></html>`;
 }
@@ -251,6 +279,15 @@ export function renderAbout(guest: boolean): string {
       <a class="pillar" href="/about/features"><div class="pn">What you can do</div><p>Sell tickets, scan people in, and see exactly who drove them.</p><span class="go">The features →</span></a>
       <a class="pillar" href="/about/pricing"><div class="pn">Pricing</div><p>Free events are free. Paid tickets: a flat 10%. Attribution always free.</p><span class="go">What it costs →</span></a>
     </div>
+
+    <h2 class="sec">Built in the open</h2>
+    <p class="secsub">We ship every week and we publish it — including what isn’t built yet.</p>
+    <div class="pillars" style="margin-bottom:2px">
+      <a class="pillar" href="/changelog"><div class="pn">Changelog</div><p>Everything we’ve shipped, dated. Plus what we’re building next, listed before it exists.</p><span class="go">See what we shipped →</span></a>
+      <a class="pillar" href="/changelog#building"><div class="pn">Now building</div><p>Our next moves, in public. Hold us to them.</p><span class="go">What’s coming →</span></a>
+      <a class="pillar" href="/changelog#ask"><div class="pn">Ask for a feature</div><p>Most of what’s on the changelog exists because someone asked for it.</p><span class="go">Tell us →</span></a>
+    </div>
+    ${discordModule()}
 
     <div class="manifesto">
       <p class="ln">Every match has <b>two sides</b>. A tournament has <b>many</b>. Both bring their own fans.</p>
@@ -344,4 +381,98 @@ export function renderAboutPricing(guest: boolean): string {
 
     <div class="closeb"><h3>Start free. Sell tickets when you’re ready.</h3><a class="btn" href="${createHref}">Create an event →</a></div>`;
   return aboutShell('pricing', guest, 'Pricing', body);
+}
+
+// /changelog — built in the open. Shipping velocity is the pitch: a founder-led
+// product that visibly ships weekly, credits the people who asked, and states
+// what's next BEFORE it exists. Reads from src/content/changelog.ts so the log
+// is edited as copy, not as code.
+const TAG_LABEL: Record<string, string> = { new: 'New', better: 'Better', fixed: 'Fixed' };
+
+// "2026-07-16" → "16 Jul". Hand-rolled: no locale dependency, no surprises.
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+function shortDate(iso: string): string {
+  const [y, m, d] = iso.split('-');
+  const mi = Number(m) - 1;
+  if (!y || !d || mi < 0 || mi > 11) return iso;   // malformed entry → show it raw rather than lie
+  return `${Number(d)} ${MONTHS[mi]}`;
+}
+// Group shipped entries by date so a day of shipping reads as one push.
+function groupByDate(entries: typeof SHIPPED): [string, typeof SHIPPED][] {
+  const out: [string, typeof SHIPPED][] = [];
+  for (const e of entries) {
+    const last = out[out.length - 1];
+    if (last && last[0] === e.date) last[1].push(e);
+    else out.push([e.date, [e]]);
+  }
+  return out;
+}
+
+export function renderChangelog(guest: boolean): string {
+  const credit = (asked?: string) =>
+    asked ? `<div class="cred">Asked for by <b>@${esc(asked)}</b> in Discord.</div>` : '';
+
+  // data-status marks these as promises, not shipped work. Without it, a parser
+  // seeing a page of headlines has no way to tell "we built this" from "we said
+  // we would" — and publishing the second as the first is the exact trust
+  // failure this page exists to avoid.
+  const building = BUILDING.map(b => `
+    <article class="bldi" data-status="building">
+      <h4>${esc(b.title)}${b.eta ? `<span class="eta">${esc(b.eta)}</span>` : ''}</h4>
+      <p>${esc(b.body)}</p>
+      ${credit(b.asked)}
+    </article>`).join('');
+
+  // EVERY entry carries its own machine-readable date, even when the human sees
+  // it once per day.
+  //
+  // This used to be `i === 0 ? shortDate(date) : ''` — the date printed on the
+  // first entry of a day and left EMPTY on the rest, because to a reader it's
+  // obviously the same day. To anything parsing the page it wasn't obvious at
+  // all: most entries had no date, and the ones that did said "17 Jul" with no
+  // year. <time datetime="2026-07-17"> gives the machine the full ISO date on
+  // every entry while the human still sees the grouped "17 Jul" — same layout,
+  // no lost data. `visibility:hidden` rather than omission: it holds its space
+  // so the grid doesn't shift, and it stays in the DOM to be read.
+  const shipped = groupByDate(SHIPPED).map(([date, entries]) => entries.map((e, i) => `
+    <article class="cle" id="${esc(entryId(e))}">
+      <div class="when"><time datetime="${esc(date)}"${i === 0 ? '' : ' style="visibility:hidden"'}>${esc(shortDate(date))}</time></div>
+      <div>
+        <span class="tg ${e.tag}" data-tag="${esc(e.tag)}">${TAG_LABEL[e.tag] ?? esc(e.tag)}</span>
+        <h4>${esc(e.title)}</h4>
+        <p>${esc(e.body)}</p>
+        ${credit(e.asked)}
+      </div>
+    </article>`).join('')).join('');
+
+  // The "ask" block degrades gracefully: with Discord configured it points there;
+  // without it, it still lets people ask via the existing feature-request form.
+  const ask = hasDiscord()
+    ? `<div id="ask">${discordModule()}</div>`
+    : `<div id="ask" class="pcard"><h3>Tell us what to build.</h3><p>Horda is built in the open. If something is missing, say so — the things on this page mostly exist because someone asked.</p><a class="btn" href="/about">About Horda →</a></div>`;
+
+  const body = `
+    <section class="phero clhead">
+      <div class="kick">Built in the open</div>
+      <h1 class="hl">What we shipped. What we’re building.</h1>
+      <p class="lead">We build Horda in public, one week at a time. Everything below is live right now — and everything under “now building” is a promise we made before we kept it. If you want something on this page, ${hasDiscord() ? 'ask in our Discord' : 'tell us'}; when we build it, your name goes on the entry.</p>
+      <div class="ctarow">${discordBtn('Ask for a feature', 'btn')}<a class="btn ghost" href="#shipped">See what shipped</a></div>
+    </section>
+
+    <h2 class="sec" id="building">Now building</h2>
+    <p class="secsub">Not live yet. Listed here so you can hold us to it.</p>
+    <div class="bld">${building}</div>
+
+    <h2 class="sec" id="shipped">Shipped</h2>
+    <p class="secsub">Newest first. All of it is live on joinhorda.com today.</p>
+    <div class="cl">${shipped}</div>
+
+    ${ask}`;
+  // Autodiscovery: the standard way a feed reader, a Slack unfurler or an agent
+  // finds the machine version of a page it was pointed at.
+  const head = `
+<link rel="alternate" type="application/rss+xml" title="Horda — changelog" href="/feed.xml">
+<link rel="alternate" type="application/feed+json" title="Horda — changelog" href="/changelog.json">
+<link rel="alternate" type="text/markdown" title="Horda — changelog (markdown)" href="/changelog.md">`;
+  return aboutShell('changelog', guest, 'Changelog', body, head);
 }

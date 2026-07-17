@@ -3,11 +3,12 @@
 import { esc } from './layout.ts';
 import { socialIcon, kindIcon } from './icons.ts';
 import { ravenMark, ravenMarkCurrent } from './brand.ts';
-import { THEME_BOOT, THEME_VARS, THM_CSS, themeToggle, bottomNav, backButton, deskRail, shareButton } from './theme.ts';
+import { THEME_BOOT, THEME_VARS, THM_CSS, themeToggle, bottomNav, backButton, deskRail, shareButton, SHARE_SCRIPT } from './theme.ts';
 
 export interface ListItem { kind: string; label: string; href: string | null; tag?: string }
 export interface ProfileVM {
   kindLabel: string;                  // "Club" / "Team" / "Association"
+  entityId?: string;                  // needed by the hero Follow POST (see followCta)
   guest: boolean; fanId: string | null;
   name: string; handle?: string | null; nickname?: string | null;
   tagline?: string | null; avatarUrl?: string | null; bannerUrl?: string | null;
@@ -23,7 +24,7 @@ export interface ProfileVM {
   secondary?: { title: string; items: ListItem[] };  // optional 2nd sidebar list (competitions)
   editAction?: string;                // owner edit endpoint (shows the upload panel)
   canEdit?: boolean;                  // viewer owns this entity
-  events?: { id: string; title: string; date?: string; featured?: boolean; hostName?: string }[];  // scheduled + featured
+  events?: { id: string; title: string; date?: string; featured?: boolean; hostName?: string; mine?: boolean }[];  // scheduled + featured (mine = viewer holds a spot)
   scheduleHref?: string;              // owner: create-event endpoint
   parent?: { label: string; href: string | null };   // e.g. team -> its club
   about?: string;
@@ -66,15 +67,39 @@ export function renderEntityProfile(vm: ProfileVM): string {
   const socials = Object.entries(vm.links ?? {}).filter(([, v]) => v)
     .map(([k, v]) => `<a class="ic" aria-label="${esc(k)}" ${ext(v)}>${socialIcon(k)}</a>`).join('');
 
+  // THE PRIMARY CTA ON EVERY CLUB, TEAM AND ASSOCIATION PAGE DID NOTHING.
+  //
+  // It was `href="${gate('#join')}"` — for a guest, gate() sends them to /signup,
+  // which works. For a LOGGED-IN fan it returned "#join"… and no element with
+  // id="join" has ever existed on this shell. (The athlete page has one — the
+  // membership block — and this shell was copied from it before that block was
+  // removed by the pivot.) So the single biggest button on the page scrolled
+  // nowhere for exactly the people most likely to press it.
+  //
+  // Now it does the thing it says: follow the crowd. Same verb as everywhere else
+  // in the app, and a real POST.
+  const followCta = vm.guest
+    ? `<a class="btn" href="/signup">Join the Horda</a>`
+    : `<form method="post" action="/follow" style="display:inline"><input type="hidden" name="fan_id" value="${esc(vm.fanId ?? '')}"><input type="hidden" name="target_type" value="${esc(vm.kindLabel.toLowerCase())}"><input type="hidden" name="target_id" value="${esc(vm.entityId ?? '')}"><button class="btn" type="submit">Join the Horda</button></form>`;
   const hero = `<div class="hero">
     ${vm.bannerUrl ? `<img class="bg" src="${esc(vm.bannerUrl)}" alt="">` : `<div class="bg ph"><span class="kick">${esc(vm.nickname || vm.name)}</span></div>`}
-    <div class="heroin"><span class="kindtag">${esc(vm.kindLabel)}</span><h1>${esc(vm.name)}</h1><div style="display:flex;gap:8px;flex-wrap:wrap"><a class="btn" href="${gate('#join')}">Join the Horda</a>${shareButton({ title: vm.name, cls: 'btn ghost' })}</div></div>
+    <div class="heroin"><span class="kindtag">${esc(vm.kindLabel)}</span><h1>${esc(vm.name)}</h1><div style="display:flex;gap:8px;flex-wrap:wrap">${followCta}${shareButton({ title: vm.name, cls: 'btn ghost' })}</div></div>
   </div>`;
 
-  const tab = (label: string, on = false, shop = false) => shop
-    ? `<a class="tab" href="${gate('#shop')}">${esc(label)} ↗</a>`
-    : `<a class="tab${on ? ' on' : ''}" href="${on ? '#' : gate('#')}">${esc(label)}</a>`;
-  const tabs = `<nav class="tabs">${vm.tabs.map((t, i) => tab(t.label, i === 0, t.shop)).join('')}</nav>`;
+  // TABS — the entity's sections, as anchors into ONE page.
+  //
+  // Every tab here used to link to "#" or "#shop": a row of things that looked
+  // clickable, weren't, and implied pages (Squad, Fixtures, Shop) that don't
+  // exist. Now they're real anchors to the sections actually rendered below, in
+  // the order the entity chose, and a section with nothing to show gets no tab.
+  const secs = [
+    vm.upcoming ? { key: 'nextup', label: 'Next up' } : null,
+    (vm.events && vm.events.length) || (vm.scheduleHref && vm.canEdit) ? { key: 'events', label: 'Events' } : null,
+    (vm.members && vm.members.items.length) || (vm.secondary && vm.secondary.items.length) ? { key: 'connected', label: 'Connected' } : null,
+  ].filter(Boolean) as { key: string; label: string }[];
+  const tabs = secs.length > 1
+    ? `<nav class="tabs">${secs.map((s, i) => `<a class="tab${i === 0 ? ' on' : ''}" href="#sec-${s.key}">${esc(s.label)}</a>`).join('')}</nav>`
+    : '';
 
   const notice = vm.notice ? `<div class="card notice"><span class="meg">▸</span><span>${esc(vm.notice)}</span></div>` : '';
 
@@ -82,7 +107,10 @@ export function renderEntityProfile(vm: ProfileVM): string {
     <p class="feednote">Open updates for everyone · members unlock the inside ones.</p>
     <div class="post"><div class="pa"><span class="dot"></span><strong>${esc(vm.post.author)}</strong> <span class="vchip open">Open</span></div>
     <p>${esc(vm.post.body)}</p><div class="dt">${esc(vm.post.date ?? '')}</div></div>
-    <a class="more" href="${gate('#posts')}">View more</a></section>` : '';
+    ${/* "View more" pointed at #posts — an id that doesn't exist here either.
+         There is no posts page on an entity shell (the pivot removed content),
+         so the honest thing is no button at all. */''}
+    </section>` : '';
 
   let attend = '';
   if (vm.upcoming) {
@@ -100,20 +128,29 @@ export function renderEntityProfile(vm: ProfileVM): string {
       if (u.streamUrl) b.push(`<a class="btn ghost" ${ext(u.streamUrl)}>Stream live</a>`);
       cta = `<div class="notyet">You're not attending yet.</div><div class="opts">${b.join('')}</div>`;
     }
-    attend = `<section class="card"><h2>Next up</h2><div class="evt"><strong>${esc(u.title)}</strong><span class="dt">${esc(u.date ?? '')}</span></div>${cta}
-      <div class="row"><a class="more" style="display:inline;padding:6px 12px" href="/share/fight/${u.eventId}">Share the matchday card ↗</a></div></section>`;
+    // The card is the event's own /e/:id/card.png — one card, generated from the
+    // live event, rather than a second "share" page to keep in sync with it.
+    attend = `<section id="sec-nextup" class="secanchor card"><h2>Next up</h2><div class="evt"><strong>${esc(u.title)}</strong><span class="dt">${esc(u.date ?? '')}</span></div>${cta}
+      <div class="row">${shareButton({ title: u.title, cls: 'more', label: 'Share the matchday card', url: `/e/${u.eventId}`, img: `/e/${u.eventId}/card.png` })}</div></section>`;
   }
 
-  const merch = vm.merch ? `<section class="card"><h2>Shop</h2><div class="shelf">${
-    ['Home shirt — €55', 'Crest scarf — €25', 'Matchday cap — €22'].map(m => `<a class="mItem" href="#shop"><div class="mImg"></div><div class="mName">${esc(m)}</div></a>`).join('')
-  }</div><a class="more" href="#shop">View more</a></section>` : '';
+  // SHOP — GONE. It was a hardcoded shelf of three imaginary products ("Home
+  // shirt — €55") linking to "#shop", an anchor that goes nowhere. A club page
+  // was advertising merch that does not exist and cannot be bought.
+  //
+  // Same doctrine as the athlete page: an entity page is next up + events +
+  // connected. Squad, fixtures and shop are the old Superfan build.
+  const merch = '';
 
-  const list = (l?: { title: string; items: ListItem[] }) => l && l.items.length ? `<div class="card listc"><h2>${esc(l.title)}</h2><div class="affs">${
+  const list = (l?: { title: string; items: ListItem[] }, id?: string) => l && l.items.length ? `<div ${id ? `id="${id}" class="secanchor card listc"` : 'class="card listc"'}><h2>${esc(l.title)}</h2><div class="affs">${
     l.items.map(it => `<a class="aff" href="${it.href ? gate(it.href) : gate('#')}"><span class="ai">${kindIcon(it.kind)}</span><span class="al">${esc(it.label)}</span>${it.tag ? `<span class="av">${esc(it.tag)}</span>` : ''}</a>`).join('')
   }</div></div>` : '';
 
+  // Claimed events are marked here too — same reason as the athlete page: the
+  // first question a fan has scanning a club's fixtures is which ones they're
+  // already going to.
   const eventsCard = ((vm.events && vm.events.length) || (vm.scheduleHref && vm.canEdit))
-    ? `<section class="card"><h2>Events</h2><div class="affs">${(vm.events ?? []).map(e => `<a class="aff" href="/e/${e.id}"><span class="ai">${kindIcon('event')}</span><span class="al">${esc(e.title)}${e.featured ? ` <span style="color:var(--mut)">· via ${esc(e.hostName ?? '')}</span>` : ''}</span><span class="av">${e.featured ? 'Featured' : esc(e.date ?? '')}</span></a>`).join('') || '<div style="color:var(--mut);font-size:13px;padding:6px 0">No upcoming events.</div>'}</div>${vm.scheduleHref && vm.canEdit ? `<div class="row"><a class="more" style="display:inline;padding:7px 12px" href="${vm.scheduleHref}">＋ Schedule an event</a></div>` : ''}</section>`
+    ? `<section id="sec-events" class="secanchor card"><h2>Events</h2><div class="affs">${(vm.events ?? []).map(e => `<a class="aff" href="/e/${e.id}"><span class="ai">${kindIcon('event')}</span><span class="al">${esc(e.title)}${e.featured ? ` <span style="color:var(--mut)">· via ${esc(e.hostName ?? '')}</span>` : ''}</span>${e.mine ? '<span class="av" style="border-color:var(--bone);color:var(--bone)">✓ You\'re in</span>' : ''}<span class="av">${e.featured ? 'Featured' : esc(e.date ?? '')}</span></a>`).join('') || '<div style="color:var(--mut);font-size:13px;padding:6px 0">No upcoming events.</div>'}</div>${vm.scheduleHref && vm.canEdit ? `<div class="row"><a class="more" style="display:inline;padding:7px 12px" href="${vm.scheduleHref}">＋ Schedule an event</a></div>` : ''}</section>`
     : '';
 
   const aside = `<aside class="side">
@@ -125,7 +162,7 @@ export function renderEntityProfile(vm: ProfileVM): string {
       ${(vm.about || vm.tagline) ? `<p class="about">${esc(vm.about || vm.tagline!)}</p>` : ''}
       ${vm.statLine ? `<div class="recline"><span class="rk">${esc(vm.statLine.label)}</span><span class="rv">${esc(vm.statLine.value)}</span>${vm.statLine.sub ? `<span class="rl">${esc(vm.statLine.sub)}</span>` : ''}</div>` : ''}
     </div>
-    ${list(vm.members)}${list(vm.secondary)}
+    ${list(vm.members, 'sec-connected')}${list(vm.secondary)}
   </aside>`;
 
   const gatebar = vm.guest
@@ -141,6 +178,7 @@ export function renderEntityProfile(vm: ProfileVM): string {
   ${gatebar}
   <div class="prov">${esc(vm.kindLabel)} profile · owner-controlled identity · system of record, no fan-to-fan venue. Social &amp; affiliation links are owner-chosen and point out.</div>
   ${bottomNav({ guest: vm.guest, fanId: vm.fanId })}
+  ${SHARE_SCRIPT}
   ${(vm.editAction && vm.canEdit) ? UPLOAD_SCRIPT : ''}
 </body></html>`;
 }
@@ -176,6 +214,7 @@ export const DARK_CSS = `
   .heroin h1{font-size:44px;line-height:1;letter-spacing:.5px;text-transform:uppercase;margin-bottom:14px}
   .btn{display:inline-block;background:var(--bone);color:var(--ink);font-weight:800;letter-spacing:.4px;border:1.5px solid var(--bone);border-radius:999px;padding:10px 20px;font-size:14px;cursor:pointer}
   .btn.ghost{background:transparent;color:var(--bone)}button.btn{font:inherit}
+  .secanchor{scroll-margin-top:96px}
   .tabs{display:flex;gap:18px;padding:12px 20px;border-bottom:1px solid var(--b);overflow-x:auto}
   .tab{color:var(--mut);font-weight:700;font-size:14px;white-space:nowrap;padding:4px 0}.tab.on{color:var(--bone);border-bottom:2px solid var(--bone)}
   .grid{display:block;max-width:680px;margin:16px auto;padding:0 16px}

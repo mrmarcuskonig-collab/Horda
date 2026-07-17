@@ -67,7 +67,7 @@ export async function getDiscover(db: Database, filter: { sport?: string; region
   // the LIMIT lands on matching rows, not the first 8 of everything.
   const evRows = (await db.query<any>(
     `SELECT * FROM (
-       SELECT e.id, e.name title, to_char(e.starts_at,'DD Mon') date, e.host_kind, e.host_id, e.admission, e.cover_url, e.starts_at, e.location,
+       SELECT e.id, e.name title, to_char(e.starts_at AT TIME ZONE COALESCE(e.timezone,'UTC'),'DD Mon') date, e.host_kind, e.host_id, e.admission, e.cover_url, e.starts_at, e.location,
               (e.starts_at IS NOT NULL AND e.starts_at <= now() AND now() < COALESCE(e.ends_at, e.starts_at + interval '3 hours')) live,
               COALESCE(
                 (SELECT s.key FROM sport s WHERE s.id=e.sport_id),
@@ -78,6 +78,10 @@ export async function getDiscover(db: Database, filter: { sport?: string; region
                    WHEN e.host_kind='club' THEN (SELECT region FROM club WHERE id=e.host_id) END hostregion
        FROM event e
        WHERE e.host_kind IS NOT NULL
+         -- "Private" has to MEAN private. Unlisted events never surface in
+         -- discovery, search or the map — direct link only. Enforced here, in
+         -- the query, not by hoping no UI links to them.
+         AND e.visibility <> 'unlisted'
          AND (e.starts_at IS NULL OR now() < COALESCE(e.ends_at, e.starts_at + interval '3 hours'))
      ) q
      WHERE ($1::text IS NULL OR q.evsport = $1)
@@ -91,7 +95,7 @@ export async function getDiscover(db: Database, filter: { sport?: string; region
   }
 
   const results = (await db.query<any>(
-    `SELECT DISTINCT r.headline, to_char(e.starts_at,'DD Mon') date FROM result r JOIN event e ON e.id=r.event_id
+    `SELECT DISTINCT r.headline, to_char(e.starts_at AT TIME ZONE COALESCE(e.timezone,'UTC'),'DD Mon') date FROM result r JOIN event e ON e.id=r.event_id
      ORDER BY 2 DESC NULLS LAST LIMIT 6`)).rows.map(r => ({ headline: r.headline, date: r.date ?? undefined }));
 
   return {
@@ -100,4 +104,93 @@ export async function getDiscover(db: Database, filter: { sport?: string; region
     clubs: clubRows.filter(matches).map(c => ({ id: c.id, name: c.name, region: c.region, sport: c.sport, avatar: c.avatar ?? null, verified: !!c.verified })),
     upcoming, results,
   };
+}
+
+// --- entity typeahead -------------------------------------------------------
+// Powers the rival / roster pickers on the create-event form, and the search on
+// /following. One function so "who exists on Horda" always means the same thing.
+//
+// Why this matters beyond convenience: an event that names a rival as free text
+// creates an unclaimed placeholder. If the rival is ALREADY on Horda and the
+// organiser types their name slightly differently ("FC Rival" vs "1. FC Rival"),
+// we mint a duplicate placeholder instead of linking the real entity — and the
+// attribution for that side goes nowhere. Recommending real entities first is
+// what keeps the graph connected.
+export interface EntitySuggestion {
+  kind: 'athlete' | 'club' | 'team' | 'association';
+  id: string;
+  name: string;
+  region: string | null;
+  sport: string | null;
+  avatar: string | null;
+  verified: boolean;
+}
+
+export async function searchEntities(
+  db: Database,
+  q: string,
+  opts: { kinds?: EntitySuggestion['kind'][]; sport?: string | null; limit?: number } = {},
+): Promise<EntitySuggestion[]> {
+  const term = (q || '').trim();
+  if (term.length < 2) return [];            // 1 char matches everything — not a suggestion
+  const like = '%' + term.toLowerCase() + '%';
+  const pre = term.toLowerCase() + '%';      // prefix hits rank above substring hits
+  const kinds = opts.kinds ?? ['athlete', 'club', 'team', 'association'];
+  const limit = Math.min(20, Math.max(1, opts.limit ?? 8));
+  const out: EntitySuggestion[] = [];
+
+  if (kinds.includes('athlete')) {
+    out.push(...(await db.query<any>(
+      `SELECT a.id, a.display_name name, a.region, a.avatar_url avatar,
+              (a.account_id IS NOT NULL OR EXISTS (SELECT 1 FROM ownership o WHERE o.owner_kind='athlete' AND o.owner_id=a.id)) verified,
+              COALESCE(a.sport, (SELECT s.key FROM entity_sport es JOIN sport s ON s.id=es.sport_id
+                                  WHERE es.entity_type='athlete' AND es.entity_id=a.id
+                                  ORDER BY es.is_default DESC LIMIT 1)) sport
+         FROM athlete a
+        WHERE lower(a.display_name) LIKE $1
+        ORDER BY (lower(a.display_name) LIKE $2) DESC, a.display_name
+        LIMIT $3`, [like, pre, limit])).rows.map(r => ({
+      kind: 'athlete' as const, id: r.id, name: r.name, region: r.region ?? null,
+      sport: r.sport ?? null, avatar: r.avatar ?? null, verified: !!r.verified,
+    })));
+  }
+  if (kinds.includes('club')) {
+    out.push(...(await db.query<any>(
+      `SELECT c.id, c.name, c.region,
+              (SELECT eb.avatar_url FROM entity_branding eb WHERE eb.entity_type='club' AND eb.entity_id=c.id) avatar,
+              EXISTS (SELECT 1 FROM ownership o WHERE o.owner_kind='club' AND o.owner_id=c.id) verified,
+              (SELECT s.key FROM team t JOIN sport s ON s.id=t.sport_id WHERE t.club_id=c.id LIMIT 1) sport
+         FROM club c
+        WHERE lower(c.name) LIKE $1
+        ORDER BY (lower(c.name) LIKE $2) DESC, c.name
+        LIMIT $3`, [like, pre, limit])).rows.map(r => ({
+      kind: 'club' as const, id: r.id, name: r.name, region: r.region ?? null,
+      sport: r.sport ?? null, avatar: r.avatar ?? null, verified: !!r.verified,
+    })));
+  }
+  if (kinds.includes('team')) {
+    out.push(...(await db.query<any>(
+      `SELECT t.id, t.name, NULL::text region, NULL::text avatar, false verified,
+              (SELECT s.key FROM sport s WHERE s.id=t.sport_id) sport
+         FROM team t WHERE lower(t.name) LIKE $1
+        ORDER BY (lower(t.name) LIKE $2) DESC, t.name LIMIT $3`, [like, pre, limit])).rows.map(r => ({
+      kind: 'team' as const, id: r.id, name: r.name, region: null,
+      sport: r.sport ?? null, avatar: null, verified: false,
+    })));
+  }
+  if (kinds.includes('association')) {
+    out.push(...(await db.query<any>(
+      `SELECT id, name, NULL::text region, NULL::text avatar, false verified, NULL::text sport
+         FROM association WHERE lower(name) LIKE $1
+        ORDER BY (lower(name) LIKE $2) DESC, name LIMIT $3`, [like, pre, limit])).rows.map(r => ({
+      kind: 'association' as const, id: r.id, name: r.name, region: null,
+      sport: null, avatar: null, verified: false,
+    })));
+  }
+
+  // Same-sport first: on a boxing event, boxers should outrank a same-named
+  // footballer. Stable within a group, so prefix/verified ranking survives.
+  const sport = (opts.sport || '').toLowerCase();
+  const rank = (e: EntitySuggestion) => (sport && e.sport?.toLowerCase() === sport ? 0 : 1);
+  return out.map((e, i) => ({ e, i })).sort((a, b) => rank(a.e) - rank(b.e) || a.i - b.i).map(x => x.e).slice(0, limit);
 }

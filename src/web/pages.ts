@@ -3,11 +3,12 @@ import { layout, esc, linkify } from './layout.ts';
 import { socialIcon, kindIcon } from './icons.ts';
 import { editPanel, UPLOAD_SCRIPT } from './shell.ts';
 import { ravenMark, ravenMarkCurrent } from './brand.ts';
-import { THEME_BOOT, THEME_VARS, THM_CSS, themeToggle, bottomNav, verifiedBadge, actionBar, langToggle, backButton, deskRail, shareButton } from './theme.ts';
+import { THEME_BOOT, THEME_VARS, THM_CSS, themeToggle, bottomNav, verifiedBadge, actionBar, langToggle, backButton, deskRail, shareButton, SHARE_SCRIPT } from './theme.ts';
 import { t, type Lang } from './i18n.ts';
 import { bannerSvg, defaultThemeForSport, svgDataUri } from './theme_engine.ts';
 import { oauthProviders } from './oauth.ts';
 import { SECTIONS } from './sections.ts';
+import { discordFootLink, discordUrl, hasDiscord, discordMark, DISCORD_PATH } from './community.ts';
 
 // "Continue with Google / …" buttons — only render the providers configured via env
 function oauthButtons(next: string): string {
@@ -143,7 +144,23 @@ export function renderDiscover(d: {
   }</div>` : '';
   // Results intentionally omitted: Horda is a superfan platform (drops, exclusive
   // access, tiers, events) — not a scores/standings product. We lead with events.
-  const empty = (!d.data.athletes.length && !d.data.clubs.length) ? `<p class="mut" style="margin-top:14px">Nothing here for that filter yet — try another sport or region.</p>` : '';
+  // An empty filter is the single best moment to ask someone to create an event:
+  // they've just told us the exact sport and city they care about, and we've just
+  // told them nobody is serving it. "Nothing here" is a dead end; "nothing here
+  // YET — be the first" is an invitation, and it converts the person with the
+  // strongest possible reason to host. Works for guests too (→ signup → create).
+  const isFiltered = !!(d.sport || d.region);
+  const noEvents = !d.data.upcoming.length;
+  const where = d.region ? ` in ${esc(d.region)}` : ' near you';
+  const whatSport = d.sport ? `${esc(sportLabel(d.sport))} ` : '';
+  const empty = (isFiltered && noEvents)
+    ? `<div class="nores">
+        <div class="nrt">No ${whatSport}events${where} yet.</div>
+        <p>Be the first. It takes a minute and it's free — and everyone following ${d.sport ? esc(sportLabel(d.sport)) : 'this sport'}${d.region ? ` around ${esc(d.region)}` : ''} will see it.</p>
+        <a class="btn" href="${esc(d.createHref || '/create')}">Create the first one →</a>
+       </div>`
+    : ((!d.data.athletes.length && !d.data.clubs.length)
+        ? `<p class="mut" style="margin-top:14px">Nothing here for that filter yet — try another sport or region.</p>` : '');
 
   // Logged-in home leads with YOUR events — the upcoming, claimable events from the
   // athletes & clubs you follow. Empty → a nudge to follow. (No "create feed" banner.)
@@ -250,6 +267,11 @@ export function renderDiscover(d: {
   .joinb strong{font-weight:600;font-size:15px}
   .joinb .bsub{font-size:12.5px;opacity:.66;margin-top:3px}
   .prov{max-width:900px;margin:24px auto 0;padding:0 20px;color:var(--mut);font-size:11.5px;line-height:1.6}
+  .provl{display:flex;gap:16px;margin-top:8px;flex-wrap:wrap}
+  .provl a{color:var(--mut);border-bottom:1px solid var(--b)}
+  .nores{border:1px dashed var(--b);border-radius:18px;padding:26px 22px;margin-top:14px;text-align:center}
+  .nores .nrt{font-size:19px;font-weight:800;letter-spacing:-.01em;margin-bottom:7px}
+  .nores p{color:var(--mut);font-size:14px;line-height:1.6;margin:0 auto 16px;max-width:46ch}
 </style></head><body class="deskrail">
   ${deskRailHtml}
   <div class="wrap">
@@ -260,8 +282,10 @@ export function renderDiscover(d: {
     ${clubs}
     ${empty}
   </div>
-  <div class="prov">The events home for sports and competitive culture.<br><a href="/about" style="border-bottom:1px solid var(--b)">For athletes &amp; clubs — see what you get →</a></div>
+  <div class="prov">The events home for sports and competitive culture.<br><a href="/about" style="border-bottom:1px solid var(--b)">For athletes &amp; clubs — see what you get →</a>
+    <span class="provl"><a href="/changelog">Changelog</a>${discordFootLink()}<a href="/agb">AGB</a><a href="/impressum">Impressum</a><a href="/datenschutz">Datenschutz</a></span></div>
   ${bottomNav({ active: 'home', guest: d.guest, fanId: d.fanId, createHref: d.createHref })}
+${SHARE_SCRIPT}
 </body></html>`;
 }
 
@@ -324,6 +348,7 @@ export function renderMap(d: { guest: boolean; fanId: string | null; createHref?
     });
   })();
   </script>
+${SHARE_SCRIPT}
 </body></html>`;
 }
 
@@ -334,7 +359,7 @@ export function renderAthletePage(d: {
   upcoming: UpcomingView | null;
   attendance: { mode: string } | null;
   affiliations: { kind: string; label: string; href: string | null }[];
-  events?: { id: string; title: string; date?: string; featured?: boolean; hostName?: string; live?: boolean; past?: boolean; startsAt?: string | null }[];
+  events?: { id: string; title: string; date?: string; featured?: boolean; hostName?: string; live?: boolean; past?: boolean; startsAt?: string | null; mine?: boolean }[];
   connections?: { kind: string; id: string; name: string; logoUrl: string | null; role?: string }[];
   scheduleHref?: string;
   tiers?: { level: string; name: string; priceCents: number; priceAnnualCents: number | null; currency: string; perks: string[] }[];
@@ -388,11 +413,18 @@ export function renderAthletePage(d: {
     ${socials ? `<div class="icons">${socials}</div>` : ''}
     ${p.tagline ? `<p class="tagline">${esc(p.tagline)}</p>` : ''}`;
 
-  // Tabs are the athlete's chosen sections, in order — they scroll to each section.
-  const order = d.sections ?? [{ key: 'nextup', on: true }, { key: 'events', on: true }, { key: 'drops', on: true }, { key: 'media', on: true }, { key: 'merch', on: true }, { key: 'connected', on: true }];
-  // Result statistics (Win/Loss/Draw) and "Recent results" are intentionally not
-  // shown — Horda leads with events + presence, not a scores product.
-  const enabled = order.filter(s => s.on && SECTIONS[s.key] && s.key !== 'record' && s.key !== 'results');
+  // ONE PAGE, IN THE ENTITY'S OWN ORDER. Tabs are anchors into the same scroll —
+  // not separate pages.
+  //
+  // The default used to list drops/media/merch. SECTIONS has carried exactly
+  // three keys — nextup, events, connected — since the pivot, so those extras
+  // were filtered out one line later and the list was pure decoration: it looked
+  // like the product still had a media tab and a shop. It doesn't.
+  const order = d.sections ?? [{ key: 'nextup', on: true }, { key: 'events', on: true }, { key: 'connected', on: true }];
+  // SECTIONS is the single gate. Anything not in it — squad, fixtures, shop,
+  // media, sponsors, drops, Win/Loss/Draw, recent results — is legacy Superfan
+  // and does not render. Add a section by adding it THERE, not by widening this.
+  const enabled = order.filter(s => s.on && SECTIONS[s.key]);
   const tabs = `<nav class="tabs">${enabled.map((s, i) => `<a class="tab${i === 0 ? ' on' : ''}" href="#sec-${s.key}">${esc(SECTIONS[s.key].short)}</a>`).join('')}</nav>`;
 
   // Follow lives next to the profile only (no duplicate "Join crowd" banner).
@@ -502,8 +534,11 @@ export function renderAthletePage(d: {
 
   // Events split into Live (top) / Upcoming / Past. Associated (participated-in)
   // events are labelled — the athlete isn't the organizer, just competing.
-  const evRow = (e: { id: string; title: string; date?: string; featured?: boolean; hostName?: string; live?: boolean }) =>
-    `<li style="display:flex;gap:10px;align-items:center;padding:9px 0;border-bottom:1px solid var(--b)"><span class="tag ${e.live ? 'win' : 'mutd'}">${e.live ? 'LIVE' : e.featured ? 'PLAYING' : 'EVENT'}</span><a class="hl" style="flex:1" href="/e/${e.id}">${esc(e.title)}${e.featured ? ` · <span class="dt">${esc(e.hostName ?? '')}</span>` : ''}</a><span class="dt">${esc(e.date ?? '')}</span></li>`;
+  // "You're in" is the most useful thing this list can tell YOU. Scanning an
+  // athlete's events, the first question is "which of these am I already going
+  // to?" — without the mark you have to open each one to find out.
+  const evRow = (e: { id: string; title: string; date?: string; featured?: boolean; hostName?: string; live?: boolean; mine?: boolean }) =>
+    `<li style="display:flex;gap:10px;align-items:center;padding:9px 0;border-bottom:1px solid var(--b)"><span class="tag ${e.live ? 'win' : 'mutd'}">${e.live ? 'LIVE' : e.featured ? 'PLAYING' : 'EVENT'}</span><a class="hl" style="flex:1" href="/e/${e.id}">${esc(e.title)}${e.featured ? ` · <span class="dt">${esc(e.hostName ?? '')}</span>` : ''}</a>${e.mine ? '<span class="tag ok" title="You have a spot at this event">✓ You\'re in</span>' : ''}<span class="dt">${esc(e.date ?? '')}</span></li>`;
   const evAll = d.events ?? [];
   const evLive = evAll.filter(e => e.live);
   const evUpcoming = evAll.filter(e => !e.live && !e.past);
@@ -546,7 +581,15 @@ export function renderAthletePage(d: {
     ? `<section class="card"><h2>Clubs &amp; Leagues</h2><style>.conngrid{display:grid;gap:10px;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));margin-top:8px}.conncard{display:flex;align-items:center;gap:11px;border:1px solid var(--b);border-radius:14px;padding:11px 12px;background:var(--s);transition:border-color .15s}.conncard:hover{border-color:var(--bone)}.connlogo{width:40px;height:40px;border-radius:10px;overflow:hidden;flex:0 0 auto;border:1px solid var(--b)}.connlogo img,.connlogo svg{width:100%;height:100%;object-fit:cover;display:block}.connname{font-weight:700;font-size:14px;display:block}.connrole{font-size:11px;color:var(--mut);text-transform:capitalize}</style><div class="conngrid">${conns.map(connCard).join('')}</div>${d.canEdit ? `<div class="row"><a class="more" style="display:inline;padding:7px 12px" href="/athlete/${p.athleteId}/connections">Manage connections</a></div>` : ''}</section>`
     : (d.canEdit ? `<section class="card"><h2>Clubs &amp; Leagues</h2><p class="mut" style="font-size:13px">Request to join the clubs, leagues and series you compete in — they admit you and it shows here. <a href="/athlete/${p.athleteId}/connections" style="border-bottom:1px solid var(--b)">Manage connections →</a></p></section>` : '');
 
-  const sectionMap: Record<string, string> = { record: recordBlock, nextup: attendBlock, drops: postsBlock, media: mediaBlock, events: eventsBlock, results: resultsBlock, merch, sponsors: sponsorsBlock, connected: connectionsBlock };
+  // The whole page, in three keys. Squad, fixtures, shop, media, sponsors, drops
+  // and the W/L/D record are all Superfan-era furniture — an entity page here is
+  // its next event, its events, and who it's connected to. Nothing else.
+  //
+  // Those blocks are still BUILT above (recordBlock, postsBlock, mediaBlock,
+  // resultsBlock, merch, sponsorsBlock) and simply never mapped. Left standing on
+  // purpose rather than ripped out in the same pass: they're dead HTML, not dead
+  // data, and deleting them is a separate change with its own diff to read.
+  const sectionMap: Record<string, string> = { nextup: attendBlock, events: eventsBlock, connected: connectionsBlock };
   const sectionsHtml = enabled.map(s => `<div id="sec-${s.key}" class="secanchor">${sectionMap[s.key] ?? ''}</div>`).join('\n');
   // Create lives in the nav (the "+"); the page keeps only page-management actions.
   const customizeBtn = d.canEdit ? `<div class="row" style="margin:6px 0 0"><a class="btn ghost sm" href="/athlete/${p.athleteId}/customize">Edit page</a><a class="btn ghost sm" href="/athlete/${p.athleteId}?as=fan">View as fan</a><a class="btn ghost sm" href="/athlete/${p.athleteId}/insights">Insights</a></div>` : '';
@@ -674,6 +717,7 @@ export function renderAthletePage(d: {
   ${d.canEdit ? '<div style="height:76px"></div>' + actionBar({ title: 'Your Crowd', sub: 'Create an event or booking', cta: `<a class="btn" href="/athlete/${p.athleteId}/compose">＋ Create</a>` }) : ''}
   ${bottomNav({ guest: d.guest, fanId: d.fanId, createHref: d.canEdit ? `/athlete/${p.athleteId}/compose` : d.createHref })}
   ${d.canEdit ? UPLOAD_SCRIPT : ''}
+${SHARE_SCRIPT}
 </body></html>`;
 }
 
@@ -691,6 +735,12 @@ const SPORTS: [string, string][] = [
   ['motorsport', 'Motorsport'], ['karting', 'Karting'], ['motocross', 'Motocross'], ['rally', 'Rally'],
   ['equestrian', 'Equestrian'], ['archery', 'Archery'], ['shooting', 'Shooting'], ['darts', 'Darts'], ['bowling', 'Bowling'], ['pool', 'Pool / billiards'],
   ['esports', 'Esports'], ['chess', 'Chess'], ['cheerleading', 'Cheerleading'], ['dance', 'Dance'],
+  // Hybrid racing — its own category, not a flavour of running or CrossFit.
+  // This is where the mass-participation events actually are right now.
+  ['hyrox', 'HYROX'], ['hybrid', 'Hybrid sports'], ['obstacle_racing', 'Obstacle racing (OCR)'], ['spartan', 'Spartan Race'], ['deka', 'DEKA'],
+  // The escape hatch: a football club throwing a summer party is still an event
+  // worth hosting. Without this the sport picker blocks the create flow.
+  ['other', 'Other / not a sport'],
 ];
 export function sportSelect(name: string, current?: string | null, style = ''): string {
   const cur = (current || '').toLowerCase();
@@ -825,15 +875,37 @@ export function renderCustomize(d: { athleteId: string; fanId: string | null; sp
       </form>
     </div>
 
+    ${/* Missing something? → Discord.
+        Lovable shut down feedback.lovable.dev in Oct 2025 and pushed everything
+        into Discord for a reason: a suggestion box is a black hole (you post,
+        nothing visibly happens, you never post again), while a room is a
+        conversation you can watch. So the Discord CTA leads; the form stays
+        underneath as a fallback for people who won't join a chat server, and
+        as the only path if Discord is ever unconfigured. */''}
     <div class="card" style="margin-top:26px">
       <h2 style="font-size:13px;letter-spacing:1px;text-transform:uppercase;margin-bottom:6px">Missing something?</h2>
+      ${hasDiscord() ? `
+      <p class="mut" style="font-size:13px;line-height:1.6">Tell us in our Discord — that's where we decide what to build next. Ask for it, and if we ship it your name goes on the <a href="/changelog" style="color:var(--bone);border-bottom:1px solid var(--b)">changelog</a>.</p>
+      <div class="row" style="margin-top:12px;gap:9px;flex-wrap:wrap">
+        <a class="btn" href="${DISCORD_PATH}" style="display:inline-flex;align-items:center;gap:8px">${discordMark(15)} Ask in Discord ↗</a>
+        <a class="btn ghost" href="/changelog">See what we shipped</a>
+      </div>
+      <details style="margin-top:14px">
+        <summary class="mut" style="font-size:12.5px;cursor:pointer">Not on Discord? Send it here instead</summary>
+        <form method="post" action="/feature-request" style="margin-top:10px">
+          <input type="hidden" name="context" value="athlete-page">
+          <input type="hidden" name="sport" value="${esc(d.sport ?? '')}">
+          <textarea name="body" required placeholder="e.g. a sponsors section, a highlight reel, a head-to-head vs an opponent…" style="${ta}"></textarea>
+          <div class="row"><button type="submit">Send suggestion</button></div>
+        </form>
+      </details>` : `
       <p class="mut" style="font-size:13px">Suggest a feature for your page — it goes straight into our product roadmap.</p>
       <form method="post" action="/feature-request">
         <input type="hidden" name="context" value="athlete-page">
         <input type="hidden" name="sport" value="${esc(d.sport ?? '')}">
         <textarea name="body" required placeholder="e.g. a sponsors section, a highlight reel, a head-to-head vs an opponent, my training stats…" style="${ta}"></textarea>
         <div class="row"><button type="submit">Send suggestion</button></div>
-      </form>
+      </form>`}
     </div>
     <script>(function(){
       var list=document.getElementById('seclist'); if(!list)return;
@@ -904,7 +976,10 @@ export function renderSettings(d: { fanId: string; fanName: string; email?: stri
     </div>
     ${creatorRows}
     ${group('Your Horda', row('Your Record', '/record', 'Where you actually showed up') + row('Your profile & feed', `/fan/${esc(d.fanId)}`) + row('Following — My Hordas', `/fan/${esc(d.fanId)}#hordas`))}
-    ${group('Support', row('About Horda', '/about') + row('Reserve a handle', '/claim-handle'))}
+    ${group('Support', row('About Horda', '/about')
+      + row('Changelog — what we just shipped', '/changelog', 'And what we’re building next')
+      + (hasDiscord() ? row('Join our Discord ↗', discordUrl(), 'Ask for a feature, argue with our decisions') : '')
+      + row('Reserve a handle', '/claim-handle'))}
     <div class="setgroup">
       <a class="setrow danger" href="/logout"><span>Log out</span></a>
     </div>
@@ -1187,6 +1262,23 @@ export function renderOnboardFan(d: { fanId: string; sport?: string; sports: { k
     </form>`, { back: '/' });
 }
 
+// --- post-signup welcome: the one moment to pull someone into Discord -------
+// Only rendered when DISCORD_INVITE_URL is set; otherwise the route redirects
+// straight through as before. "Skip" is a plain, equal-weight link on purpose:
+// a community you have to trick people into joining isn't a community.
+export function renderWelcome(d: { fanId: string; createHref?: string }): string {
+  const next = `/fan/${esc(d.fanId)}`;
+  return layout('You’re in', `
+    <div style="max-width:520px;margin:0 auto;text-align:center;padding:18px 0">
+      <div style="color:#5865F2;line-height:0;margin-bottom:16px">${discordMark(38)}</div>
+      <h1 style="font-size:29px;font-weight:900;letter-spacing:-.02em;margin-bottom:12px">You’re in. Now come tell us what to build.</h1>
+      <p class="mut" style="line-height:1.6;margin-bottom:22px">Horda is built in the open — we ship every week and publish every change. Our Discord is where fans, athletes and organisers tell us what’s missing. Ask for something; when we build it, your name goes on the <a href="/changelog" style="color:var(--bone);border-bottom:1px solid var(--b)">changelog</a>.</p>
+      <a class="btn" href="${esc(discordUrl())}" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:9px">${discordMark(16)} Join the Discord ↗</a>
+      <div style="margin-top:18px"><a class="mut" href="${next}" style="font-size:14px;border-bottom:1px solid var(--b)">Skip — take me to Horda</a></div>
+    </div>
+  `, { nav: { active: 'home', guest: false, fanId: d.fanId, createHref: d.createHref } });
+}
+
 // --- onboarding: AI-first. Describe yourself → we generate a polished page. ---
 export function renderAiPrompt(d: { title: string; lead: string; placeholder: string; generateAction: string; hidden?: string; back: string; altLink?: string }): string {
   const ta = 'display:block;width:100%;margin-top:8px;background:var(--s);border:1px solid var(--b);border-radius:12px;color:var(--bone);padding:13px;font:inherit;min-height:150px;line-height:1.55';
@@ -1369,13 +1461,30 @@ export function renderClaimQueue(d: { claims: { id: string; accountEmail: string
 }
 
 // --- fan home (closeness to who you follow) ------------------------------
-export function renderFanHome(d: { fanId: string; fanName: string; home: FanHome; follows: { type: string; id: string; name: string }[]; activation?: string; createHref?: string; doors?: { eventId: string; title: string; date: string | null; hostKind: string | null; hostId: string | null; remaining: number | null; tier: string; mine: boolean }[]; morningAfter?: { title: string; date: string; recordTotal: number } | null; pages?: { kind: string; id: string; name: string; events: { id: string; title: string; date?: string }[] }[] }): string {
+export function renderFanHome(d: { fanId: string; fanName: string; home: FanHome; follows: { type: string; id: string; name: string }[]; activation?: string; createHref?: string; doors?: { eventId: string; title: string; date: string | null; hostKind: string | null; hostId: string | null; remaining: number | null; tier: string; mine: boolean }[]; morningAfter?: { title: string; date: string; recordTotal: number } | null; pages?: { kind: string; id: string; name: string; events: { id: string; title: string; date?: string }[] }[];
+  /** Events you hold a spot at — see the three-band note below. */
+  attending?: { eventId: string; title: string; date: string | null; status: string; passToken: string | null; partySize: number; formatLabel: string | null }[];
+}): string {
   const { home } = d;
   const ehref = (k: string, id: string) => k === 'athlete' ? `/athlete/${id}` : `/${k}/${id}`;
+
+  // THREE BANDS, THREE DIFFERENT JOBS. This page used to have one list, "Your
+  // doors", which mixed all three — so the event you're RUNNING on Saturday sat
+  // in the same list, styled the same way, as an event you might fancy.
+  //
+  //   You're running   — you are responsible. If it's wrong, it's your problem.
+  //   You're going to  — you already have a ticket. Nothing to decide; get in.
+  //   Might be for you — you have not committed. This is the only band that sells.
+  //
+  // Order is deliberate: obligation, then commitment, then browsing. You should
+  // never have to scroll past things you might do to find the thing you promised.
+  // "Organised by me" vs "attending" was ambiguous mostly because the words were
+  // doing work the LAYOUT should do.
+
   // "Your pages" = the creator side of this same account: a switcher between the
   // fan feed and each page you run, plus where you manage that page's events.
   const pagesBlock = (d.pages && d.pages.length)
-    ? `<h2>Your pages</h2><p class="mut" style="font-size:12.5px;margin:-4px 0 8px">One login — your fan feed plus the pages you run. Switch between them anytime.</p>${d.pages.map(pg => {
+    ? `<h2>You're running</h2><p class="mut" style="font-size:12.5px;margin:-4px 0 8px">The pages you run and their events — you're the organiser here.</p>${d.pages.map(pg => {
         const next = pg.events[0];
         const nextUp = next
           ? `<div class="row" style="margin:8px 0 0;padding:9px 11px;border:1px solid var(--bone);border-radius:10px;justify-content:space-between"><span style="font-size:13px">⏱ Next: <strong>${esc(next.title)}</strong>${next.date ? ` · ${esc(next.date)}` : ''}</span><a class="tag" href="/e/${next.id}/room">Open room</a></div>`
@@ -1403,9 +1512,33 @@ export function renderFanHome(d: { fanId: string; fanName: string; home: FanHome
     const scar = dr.remaining == null ? '' : (dr.remaining <= 0 ? '<span class="tag mutd">Full · waitlist</span>' : `<span class="tag mutd">${dr.remaining} left</span>`);
     return `<a class="doorcard" href="/e/${dr.eventId}"><div style="flex:1"><div class="hl">${esc(dr.title)}</div><div class="dt">${esc(dr.date ?? 'soon')} · ${esc(tierBadge[dr.tier] ?? 'event')}</div></div><div style="text-align:right">${dr.mine ? '<span class="tag ok">Claimed</span>' : scar}<div style="margin-top:6px" class="tag">${dr.mine ? 'View pass' : 'Claim →'}</div></div></a>`;
   };
-  const feed = doors.length
-    ? `<h2>Your doors</h2><div class="doorlist">${doors.map(doorCard).join('')}</div><div class="uptodate">You're up to date.</div>`
-    : `<h2>Your doors</h2><p class="mut">Follow a crowd and their claimable events show up here. <a href="/" style="border-bottom:1px solid var(--b)">Find your scene →</a></p>`;
+  // Band 3: browsing. An event you've already claimed is filtered OUT of it — it
+  // has its own band above, and leaving it here is what made "organised vs
+  // attending vs available" mush in the first place. Also drops the scarcity
+  // count for claimed events by construction (the countdown rule, again).
+  const attending = d.attending ?? [];
+  const claimedIds = new Set(attending.map(a => a.eventId));
+  const open = doors.filter(dr => !claimedIds.has(dr.eventId));
+  const feed = open.length
+    ? `<h2>Might be for you</h2><p class="mut" style="font-size:12.5px;margin:-4px 0 8px">Claimable events from the crowds you follow.</p><div class="doorlist">${open.map(doorCard).join('')}</div><div class="uptodate">You're up to date.</div>`
+    : `<h2>Might be for you</h2><p class="mut">Follow a crowd and their claimable events show up here. <a href="/" style="border-bottom:1px solid var(--b)">Find your scene →</a></p>`;
+
+  // Band 2: you already hold a spot. Nothing to sell — the only job is getting
+  // you through the door, so the action is the pass and nothing competes with it.
+  const attRow = (a: NonNullable<typeof d.attending>[number]) => {
+    const wait = a.status === 'waitlisted';
+    const pend = a.status === 'approved';
+    const chip = wait ? '<span class="tag mutd">Waitlisted</span>'
+      : pend ? '<span class="tag mutd">Awaiting approval</span>'
+      : '<span class="tag ok">✓ You\'re in</span>';
+    const via = [a.formatLabel, a.partySize > 1 ? `${a.partySize} tickets` : null].filter(Boolean).join(' · ');
+    return `<a class="doorcard" href="${a.passToken && !wait ? `/pass/${a.passToken}` : `/e/${a.eventId}`}">
+      <div style="flex:1"><div class="hl">${esc(a.title)}</div><div class="dt">${esc(a.date ?? 'soon')}${via ? ` · ${esc(via)}` : ''}</div></div>
+      <div style="text-align:right">${chip}<div style="margin-top:6px" class="tag">${a.passToken && !wait ? 'View pass' : 'Details'}</div></div></a>`;
+  };
+  const attendingBlock = attending.length
+    ? `<h2>You're going to</h2><p class="mut" style="font-size:12.5px;margin:-4px 0 8px">You hold a spot at these. Your pass is one tap away.</p><div class="doorlist">${attending.map(attRow).join('')}</div>`
+    : '';
 
   return layout(`${d.fanName}'s Horda`, `
     <style>
@@ -1419,6 +1552,7 @@ export function renderFanHome(d: { fanId: string; fanName: string; home: FanHome
     ${d.activation ?? ''}
     ${d.morningAfter ? `<div class="card" style="border-color:var(--bone)"><div style="font-size:11px;letter-spacing:1.5px;text-transform:uppercase;color:var(--mut);font-weight:800">The morning after</div><strong style="font-size:16px">You were at ${esc(d.morningAfter.title)} · ${esc(d.morningAfter.date)}.</strong><div class="mut" style="font-size:13px;margin-top:4px">Your Record is now <strong>${d.morningAfter.recordTotal}</strong> verified ${d.morningAfter.recordTotal === 1 ? 'presence' : 'presences'}. Here's what's next.</div><div class="row" style="margin-top:8px"><a class="tag" href="/record">Your Record →</a></div></div>` : ''}
     ${pagesBlock}
+    ${attendingBlock}
     ${feed}${following}${notifs}
     <h2>Account</h2>
     <div class="row"><a class="tag" href="/settings">Settings</a><a class="tag mutd" href="/logout">Log out</a></div>

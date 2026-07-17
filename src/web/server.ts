@@ -4,10 +4,15 @@
 import { createServer, type Server } from 'node:http';
 import { randomUUID } from 'node:crypto';
 import { oauthProviders, authUrl as oauthAuthUrl, exchange as oauthExchange, isEnabled as oauthEnabled } from './oauth.ts';
-import { renderAbout, renderAboutCreators, renderAboutFeatures, renderAboutPricing } from './pitch.ts';
+import { renderAbout, renderAboutCreators, renderAboutFeatures, renderAboutPricing, renderChangelog } from './pitch.ts';
+import { discordUrl, hasDiscord, discordFootLink, discordBtn } from './community.ts';
+import { renderImpressum, renderDatenschutz } from './legal.ts';
+import { renderTerms, renderWithdrawal } from './terms.ts';
+import { lookupPlaces } from './geo.ts';
+import { zonedToUtc, isValidZone, inZone, zoneLabel } from './tz.ts';
 import { openDatabase, applySchema } from '../db/index.ts';
 import type { Database } from '../db/index.ts';
-import { getClubPage } from '../db/repo.ts';
+import { getClubPage, getOrCreateSport } from '../db/repo.ts';
 import {
   getAthleteProfile, getFanHome, getFollows, getUpcomingBout, getPrediction,
   followEntity, unfollowEntity, makePrediction, attend, getAttendance, getAffiliations, getLatestPost, setAthleteProfile, createAthlete, createPost,
@@ -22,12 +27,15 @@ import { buildResultShare, buildFightShare, buildWeekDrop } from '../content/ind
 import { createScheduledEvent, rsvp, getRsvp, getEventDetail, getGuestList, listUpcomingByHost, listProfileEvents, hostName, icsFor, approveRegistration, markPaid, featureEvent, getTicketFor, giftTicket, listTicket, getListings, buyListing, priceLabel, getOrCreateShareToken, recordShareClick, shareAttribution, addParty, listParties, claimSide, removeParty, recordPromoClick, subEvents, parentOf, partyAttribution, myParty } from '../db/events_repo.ts';
 import { getTier, getTiers, setTier, joinMembership, cancelMembershipBySub, getMembership, memberCount, recordLoyalty, loyaltyScore, isSuperfan, topSuperfans, type TierLevel } from '../db/membership_repo.ts';
 import { signup, verifyLogin, createSession, sessionAccount, deleteSession, fanForAccount, owns, ownedEntities, grantOwnership, accountRole, setOnboarded, upsertOauthAccount, createPasswordReset, resetPassword, activateCreatorLayer, setBirthYear, accountFlags, isAdultYear, startLogin, consumeLogin } from '../db/auth_repo.ts';
-import { getDiscover, REGIONS } from '../db/discover_repo.ts';
+import { getDiscover, REGIONS, searchEntities } from '../db/discover_repo.ts';
 import { renderEventPage, renderCreateEvent, renderManage, renderCheckout, renderPayouts } from './events.ts';
 import { seedDemo, type DemoIds } from './seed.ts';
-import { renderIndex, renderDiscover, renderMap, renderAthletePage, renderCustomize, renderCompose, renderFanHome, renderSignup, renderLogin, renderForgot, renderReset, renderSharePage, renderMemberWelcome, renderClaimPending, renderClaimQueue, renderOnboardFan, renderAiPrompt, renderProfilePreview, renderOnboardClaim, renderCreatorEntry, renderClaimHandle, sportsLabel, renderSettings, renderPros, renderCreatePicker, renderCreateAge, renderMagicSent, renderFollowing } from './pages.ts';
+import { renderIndex, renderDiscover, renderMap, renderAthletePage, renderCustomize, renderCompose, renderFanHome, renderSignup, renderLogin, renderForgot, renderReset, renderSharePage, renderMemberWelcome, renderClaimPending, renderClaimQueue, renderOnboardFan, renderAiPrompt, renderProfilePreview, renderOnboardClaim, renderCreatorEntry, renderClaimHandle, sportsLabel, renderSettings, renderPros, renderCreatePicker, renderCreateAge, renderMagicSent, renderFollowing, renderWelcome, sportLabel } from './pages.ts';
 import { getEmailer, resetEmail, loginEmail } from './email.ts';
-import { ogMeta } from './layout.ts';
+// `esc` is required here: the event route builds a little HTML inline for the
+// Event Room CTA. It was used without being imported, which crashed /e/:id with
+// "esc is not defined" for any event that had a room enabled. Guarded by a test.
+import { ogMeta, esc } from './layout.ts';
 import { storeImage } from './storage.ts';
 import { fanChecklist, athleteChecklist, entityChecklist, renderChecklist } from './activation.ts';
 import { getAthleteSport, setAthleteSport, getAthleteSports, setAthleteSports, getAthleteLayout, setAthleteLayout, createFeatureRequest, getAthleteTheme, setAthleteTheme } from '../db/layout_repo.ts';
@@ -35,7 +43,7 @@ import { parseTheme, serializeTheme, autoContrast, bannerSvg, svgDataUri, THEME_
 import { listMedia, addMedia, deleteMedia, listSponsors, addSponsor, deleteSponsor, subscribeNewsletter, reserveHandle, getBannerStyle, setBannerStyle, listShopItems, addShopItem, deleteShopItem } from '../db/extras_repo.ts';
 import { track, conversionRate, metricCounts, defaultRoomLabel, roomState, setRoomConfig, setResult, getRoomConfig, listRoomMessages, postRoomMessage, canSeeLiveRoom, createGoal, listGoals, activeGoalProgress, getGoal, maybeGoalSignup, trackConversion, roomPresence } from '../db/hook_repo.ts';
 import { renderEventRoom, renderMediaStudio, renderInsights, goalBar } from './hook_web.ts';
-import { spotsInfo, getClaim, createClaim, getPass, verifyPass, fanRecord, recordCount, crowdStanding, grantConsent, feedDoors, recentPresence } from '../db/claim_rail_repo.ts';
+import { spotsInfo, formatSpots, getClaim, createClaim, getPass, verifyPass, fanRecord, recordCount, crowdStanding, grantConsent, feedDoors, recentPresence, attendingEvents, myClaimedIn } from '../db/claim_rail_repo.ts';
 import { listFormats, addFormat, formatCounts, setClaimFormat, getFormat } from '../db/event_format_repo.ts';
 import { notify, listNotifications, unreadCount, markAllRead } from '../db/notif_repo.ts';
 import { parseSeasonLines, shiftDate } from '../db/events_repo.ts';
@@ -51,6 +59,32 @@ import { generateProfile, getModel, coverDataUri } from './profilegen.ts';
 import { requestClaim, verifyByChannelCode, listClaimsForReviewer, decideClaim, officialDomain, isAdmin as accountIsAdmin, type ClaimKind } from '../db/claim_repo.ts';
 import { getPayments, verifyWebhook } from './payments.ts';
 import { getPayoutAccount, upsertPayoutAccount, setPayoutStatus, isPayoutsEnabled } from '../db/payouts_repo.ts';
+import { changelogFeed, changelogMarkdown, rssFeed, sitemapXml, robotsTxt, llmsTxt } from './feeds.ts';
+import { eventCardSvg } from './card.ts';
+import { svgToPng, inlineImage } from './raster.ts';
+import { walletStatus, googleWalletUrl, buildPkpass, type PassData } from './wallet.ts';
+import type { PassView } from '../db/claim_rail_repo.ts';
+
+// Everything a wallet pass needs, from a pass the fan already holds. One place,
+// so the Apple and Google passes can never describe the same ticket differently.
+async function passDataFor(db: Database, p: PassView, origin: string): Promise<PassData> {
+  const fanName = (await db.query<{ n: string }>(`SELECT display_name n FROM fan WHERE id=$1`, [p.fanId])).rows[0]?.n ?? 'Guest';
+  return {
+    token: p.token, eventTitle: p.eventTitle, hostName: p.hostKind ? await hostName(db, p.hostKind, p.hostId!) : 'Horda',
+    startsAt: p.startsAt, timezone: p.timezone,
+    // A wallet pass surfaces on the lock screen BY LOCATION — an online event's
+    // "location" is a URL, and handing that to the OS would geolocate nonsense.
+    location: p.locationKind === 'online' ? null : p.location,
+    formatLabel: p.formatLabel, fanName, eventUrl: `${origin}/e/${p.eventId}`,
+  };
+}
+
+// Tag each event with whether the viewer already holds a spot — the "✓ You're in"
+// mark on club/team/association pages. Guests get everything false, no query.
+async function withMine<T extends { id: string }>(db: Database, fanId: string | null, evs: T[]): Promise<(T & { mine: boolean })[]> {
+  const mine = await myClaimedIn(db, fanId, evs.map(e => e.id));
+  return evs.map(e => ({ ...e, mine: mine.has(e.id) }));
+}
 
 const payments = getPayments();
 const TAKE_RATE = 0.10;   // Horda's flat 10% platform fee on paid tickets (locked)
@@ -75,6 +109,12 @@ const FOOTBALL_TABLE: StandingDef = { name: 'League table', unit: 'team', engine
 
 const html = (res: any, body: string, code = 200) => { res.writeHead(code, { 'content-type': 'text/html; charset=utf-8' }); res.end(body); };
 const redirect = (res: any, to: string) => { res.writeHead(303, { location: to }); res.end(); };
+// JSON for the in-app typeahead endpoints. no-store: suggestions reflect who
+// exists right now, and we never want a proxy holding a stale people list.
+const json = (res: any, body: unknown, code = 200) => {
+  res.writeHead(code, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' });
+  res.end(JSON.stringify(body));
+};
 
 // Env-gated Slack/Discord notifier. Sends both `text` (Slack) and `content`
 // (Discord) so one URL works for either; a no-op when FEATURE_WEBHOOK_URL is unset.
@@ -211,6 +251,10 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
       }
       if (path === '/onboarding/done') {
         if (account) await setOnboarded(db, account.id);
+        // The highest-intent moment we get: they just joined. Invite them into
+        // Discord once, here — never nag again. No Discord configured → the
+        // original straight-through redirect, unchanged.
+        if (hasDiscord()) return html(res, renderWelcome({ fanId: viewer }));
         return redirect(res, `/fan/${viewer}`);
       }
       // AI-first athlete onboarding: describe → generate → preview → publish
@@ -232,13 +276,9 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
       if (req.method === 'POST' && path === '/onboarding/athlete') {
         if (!account) return redirect(res, '/signup');
         const f = await parseForm(req);
-        // §1a 18+ gate: a person-level Creathor page requires 18+ (base accounts are exempt).
-        const by = Number(f.birth_year);
-        if (Number.isFinite(by)) await setBirthYear(db, account.id, by);
-        const flags = await accountFlags(db, account.id);
-        if (!isAdultYear(Number.isFinite(by) ? by : flags.birthYear)) {
-          return html(res, renderAiPrompt({ title: 'Create my page', lead: 'Athlete pages on Horda are for people 18 or older. Youth athletes appear only under their club, without names. Enter your birth year to continue.', placeholder: 'Describe yourself in a sentence…', generateAction: '/onboarding/athlete/generate', hidden: '', back: '/', altLink: '' }));
-        }
+        // No 18+ gate on making a page — see the note on /create. Youth sport is
+        // a first-class use case, not an edge case to be walled off. Age only
+        // matters at the payout boundary, which Stripe enforces itself.
         const aId = await createAthlete(db, f.name || 'Athlete', (f.handle || '').replace(/^@/, '') || undefined);
         await db.query(`UPDATE athlete SET account_id=$1 WHERE id=$2`, [account.id, aId]);
         await grantOwnership(db, account.id, 'athlete', aId);
@@ -251,7 +291,10 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
         if (f.sport) await setAthleteSport(db, aId, f.sport);   // drives sport-appropriate default sections
         if (f.bio) await createPost(db, 'athlete', aId, f.bio);
         await setOnboarded(db, account.id);
-        await activateCreatorLayer(db, account.id, flags.creatorVerified);   // publishing = you're a Creathor
+        // `flags` used to be read for the (now-removed) age check; fetch it here
+        // so the verified state still carries across when the page publishes.
+        const pubFlags = await accountFlags(db, account.id);
+        await activateCreatorLayer(db, account.id, pubFlags.creatorVerified);   // publishing = you're a Creathor
         return redirect(res, `/athlete/${aId}`);
       }
       // AI-first branding for a claimed club/federation (owner only)
@@ -438,26 +481,140 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
         if (f.tiktok) streams.tiktok = f.tiktok;
         if (f.discord) streams.discord = f.discord;
         const coverUrl = (await storeImage(f.cover, 'events')) || undefined;
-        // reusable args so recurrence + season children are identical to the base
+
+        // WAYS IN. The form defines one block per door (in person / stream);
+        // each becomes an event_format and the FAN picks one at claim time.
+        // v80 modelled this as a single event-wide radio, which made hybrid
+        // impossible: you could say "in person and streamed" and then only offer
+        // one way to actually attend. admission + access_mode are event-level
+        // legacy columns, so they're DERIVED from the doors rather than asked.
+        const toCents2 = (x?: string) => { const v = parseFloat(String(x || '').replace(',', '.')); return isFinite(v) && v > 0 ? Math.round(v * 100) : null; };
+        const where = ['in_person', 'online', 'hybrid'].includes(f.location_kind) ? f.location_kind : 'in_person';
+        // Where constrains which doors may exist, regardless of what was posted.
+        const wantIp = f.fmt_inperson === '1' && where !== 'online';
+        // A posted stream URL IS intent to have a stream door, with or without the
+        // checkbox — callers that predate the checkbox just send the link. And an
+        // explicit link beats our inference from `where`: "in person" + a stream
+        // link is a hybrid event however it was labelled.
+        const wantSt = (f.fmt_stream === '1' && where !== 'in_person') || !!(f.fmt_stream1_url || '').trim();
+        // A price IS the paid signal. Requiring the radio too would silently make
+        // a priced door free for every caller that just sends an amount.
+        const ipPaid = f.ip_cost === 'paid' || !!toCents2(f.fmt_inperson_price);
+        const stCost = ['free', 'paid', 'open'].includes(f.st_cost) ? f.st_cost : 'free';
+
+        // A caller that posted NO door fields at all predates this model (the
+        // sub-event flow, scripts, the old form). Honour what it DID post rather
+        // than overriding it with a derivation of nothing — same principle as
+        // capacity_limited: never discard an explicit instruction just because
+        // the shape of the form changed underneath it.
+        const postedDoors = f.fmt_inperson !== undefined || f.fmt_stream !== undefined;
+        const ways: { kind: string; label: string; channelUrl: string | null; requiresTicket: boolean; priceCents: number | null; capacity: number | null; maxPerPerson: number }[] = [];
+        if (wantIp) ways.push({
+          kind: 'in_person', label: 'In person', channelUrl: null,
+          requiresTicket: ipPaid && !!toCents2(f.fmt_inperson_price),
+          priceCents: ipPaid ? toCents2(f.fmt_inperson_price) : null,
+          capacity: f.fmt_inperson_cap ? Number(f.fmt_inperson_cap) : null,
+          maxPerPerson: Math.max(1, Math.min(50, Number(f.fmt_inperson_maxpp) || 1)),
+        });
+        if (wantSt) ways.push({
+          kind: 'stream', label: (f.fmt_stream1_label || '').trim() || 'Watch online',
+          channelUrl: (f.fmt_stream1_url || '').trim() || null,
+          requiresTicket: stCost === 'paid' && !!toCents2(f.fmt_stream1_price),
+          priceCents: stCost === 'paid' ? toCents2(f.fmt_stream1_price) : null,
+          // Streams have real caps too (a webinar licence, a Zoom room). The
+          // organiser decides — this used to be hardcoded to unlimited, which
+          // was us making their decision for them. 'open to all' means nobody
+          // claims, so there is nothing to count and a cap is meaningless.
+          capacity: (stCost !== 'open' && f.fmt_stream1_cap) ? Number(f.fmt_stream1_cap) : null,
+          // One person, one stream seat — and this one IS ours to decide: a
+          // stream seat unlocks the link FOR THE CLAIMER. Buying three wouldn't
+          // give three people access, because the other two have no claim and no
+          // link. Each viewer claims their own seat, which is also the only way
+          // we learn who watched.
+          maxPerPerson: 1,
+        });
+        // NOTE: a caller that posted no doors gets NO formats — deliberately.
+        // It then renders the single-button claim CTA, which is the behaviour
+        // those callers (sub-events, scripts) have always had. Minting a door for
+        // them would silently switch them to the picker and change their wording.
+        // A second stream from the details fold, if given.
+        if (wantSt && (f.fmt_stream2_url || '').trim()) ways.push({
+          kind: 'stream', label: (f.fmt_stream2_label || '').trim() || 'Second stream',
+          channelUrl: (f.fmt_stream2_url || '').trim(), requiresTicket: false, priceCents: null, capacity: null, maxPerPerson: 1,
+        });
+
+        // Derive the event-level columns from the doors:
+        //  paid if ANY door costs money · approval wins over everything ·
+        //  otherwise you register (we learn who came) unless the only door is an
+        //  open stream, where by definition we learn nothing.
+        const anyPaid = ways.some(w => w.requiresTicket && (w.priceCents ?? 0) > 0);
+        const onlyOpenStream = !wantIp && wantSt && stCost === 'open';
+        const gi = postedDoors
+          ? {
+              admission: anyPaid ? 'paid' : onlyOpenStream ? 'open' : 'register',
+              // in-person → a scannable QR ticket. Online only → the claim
+              // unlocks the link, unless the stream is open to all.
+              access: wantIp ? 'ticket' : (onlyOpenStream ? 'public' : 'link'),
+            }
+          : { admission: (f.admission as string) || 'open', access: f.access_mode as string };
+
+        // Sport: the `sport` TABLE is a registry that only held the sports the
+        // demo seeded, so a plain lookup silently returned null for HYROX — the
+        // event existed but no sport filter could find it. getOrCreateSport makes
+        // the registry self-populating: the first person to host a HYROX event
+        // puts HYROX on the map, chips included. 'other' = deliberately no sport.
+        const sportId = (f.sport && f.sport !== 'other')
+          ? await getOrCreateSport(db, f.sport, sportLabel(f.sport))
+          : undefined;
+
+        // Approval composes with any of the above — it used to be a fourth,
+        // mutually-exclusive admission value, so "paid AND approved" was unsayable.
+        const approval = f.approval_required === '1';
+        const admission = approval ? 'apply' : (gi?.admission ?? (f.admission as any) ?? 'open');
+        const accessMode = gi?.access ?? f.access_mode;
+        // Capacity: NULL = unlimited, and that's the default.
+        //   field '1'      → the organiser opted into a limit
+        //   field '0'      → they explicitly chose unlimited; ignore any stale number
+        //   field ABSENT   → a caller that predates the toggle (the old form, the
+        //                    sub-event flow, scripts): honour a posted capacity
+        //                    rather than silently dropping it. Never discard an
+        //                    explicit instruction just because a checkbox is new.
+        const capLimited = f.capacity_limited === undefined ? !!f.capacity : f.capacity_limited === '1';
+        const capacity = capLimited && f.capacity ? Number(f.capacity) : undefined;
+
+        // The posted time is WALL-CLOCK in the organiser's zone. Resolve it to a
+        // true instant HERE — handing the naive string to ::timestamptz made
+        // Postgres resolve it in the SERVER's zone, which is how the calendar
+        // export ended up an hour out. Unknown zone → previous behaviour, so
+        // nothing already scheduled silently shifts.
+        const evTz = isValidZone(f.timezone) ? f.timezone : null;
+        const startsAtUtc = f.starts_at
+          ? (evTz ? zonedToUtc(f.starts_at, evTz).toISOString() : f.starts_at)
+          : new Date().toISOString();
+
         const baseArgs = {
           hostKind: f.host_kind as any, hostId: f.host_id, title: f.title || 'Untitled event',
-          startsAt: f.starts_at || new Date().toISOString(), location: f.location, description: f.description,
-          coverUrl, admission: (f.admission as any) || 'open',
-          priceCents: f.price ? Math.round(Number(f.price) * 100) : undefined, streams,
-          capacity: f.capacity ? Number(f.capacity) : undefined,
-          locationKind: f.location_kind, accessMode: f.access_mode,
+          startsAt: startsAtUtc, timezone: evTz, location: f.location, description: f.description,
+          coverUrl, admission: admission as any,
+          // Event-level price mirrors the cheapest paid door. For a caller that
+          // posted no doors, fall back to its own `price` field.
+          priceCents: postedDoors
+            ? ((ways.find(w => w.requiresTicket && (w.priceCents ?? 0) > 0)?.priceCents) ?? undefined)
+            : (f.price ? Math.round(Number(String(f.price).replace(',', '.')) * 100) : undefined),
+          streams,
+          capacity,
+          locationKind: f.location_kind, accessMode,
           archetype: ['single', 'versus', 'multi'].includes(f.archetype) ? f.archetype : 'single',
+          visibility: f.visibility === 'unlisted' ? 'unlisted' : 'public',
+          waitlistEnabled: capLimited && f.waitlist_enabled === '1',
+          approvalRequired: approval,
+          sportId,
         };
-        // Attendance formats (multi-format): in-person (ticketed on Horda) + up to
-        // two streams (e.g. TikTok Live, a media provider). Every format's
-        // attendance is confirmed on Horda → clean per-format organizer counts.
-        const toCents = (s?: string) => { const v = parseFloat((s || '').replace(',', '.')); return isFinite(v) && v > 0 ? Math.round(v * 100) : null; };
-        const specs: { kind: string; label: string; channelUrl: string | null; requiresTicket: boolean; priceCents: number | null; capacity: number | null }[] = [];
-        if (f.fmt_inperson === '1') { const p = toCents(f.fmt_inperson_price); specs.push({ kind: 'in_person', label: 'In person', channelUrl: null, requiresTicket: !!p, priceCents: p, capacity: f.fmt_inperson_cap ? Number(f.fmt_inperson_cap) : null }); }
-        for (const [lab, u] of [[f.fmt_stream1_label, f.fmt_stream1_url], [f.fmt_stream2_label, f.fmt_stream2_url]] as [string, string][]) {
-          if ((u || '').trim()) specs.push({ kind: 'stream', label: (lab || 'Live stream').trim(), channelUrl: u.trim(), requiresTicket: false, priceCents: null, capacity: null });
-        }
-        const applyFormats = async (evId: string) => { let i = 0; for (const s of specs) await addFormat(db, { eventId: evId, sort: i++, ...s }); };
+        // `ways` (built above from the door blocks) IS the format list — this
+        // used to be a SECOND, parallel derivation from the same fields, which
+        // is how the price on the in-person block and the event price could
+        // disagree. One source, one meaning.
+        const applyFormats = async (evId: string) => { let i = 0; for (const w of ways) await addFormat(db, { eventId: evId, sort: i++, ...w }); };
 
         const parentId = (f.parent_id || '').trim() || undefined;
         const id = await createScheduledEvent(db, { ...baseArgs, recurrence: f.recurrence, parentEventId: parentId });
@@ -467,13 +624,36 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
         // an optional roster of attending athletes seeds unclaimed slots. Every party
         // auto-gets a promo link. Measurement only — no money moves.
         await addParty(db, { eventId: id, role: 'organizer', entityKind: f.host_kind, entityId: f.host_id, status: 'accepted' });
+        // Side B / roster: if the organiser picked a REAL entity from the
+        // typeahead, link it (kind+id) instead of minting a placeholder — a
+        // duplicate ghost would strand that side's attribution. Free text still
+        // works and stays 'unclaimed': listing rivals who aren't here yet is the
+        // growth loop, not an error case.
+        const ENT_KINDS = ['athlete', 'club', 'team', 'association'];
+        const pickedEntity = (kind?: string, eid?: string) =>
+          kind && eid && ENT_KINDS.includes(kind) && /^[0-9a-f-]{36}$/i.test(eid) ? { kind, id: eid } : null;
+
         if (baseArgs.archetype === 'versus') {
           await addParty(db, { eventId: id, role: 'side', side: 'A', entityKind: f.host_kind, entityId: f.host_id, status: 'accepted' });
           const sideB = (f.side_b_name || '').trim();
-          if (sideB) await addParty(db, { eventId: id, role: 'side', side: 'B', placeholder: sideB, status: 'unclaimed' });
+          const bEnt = pickedEntity(f.side_b_kind, f.side_b_id);
+          if (bEnt) {
+            // Real entity → they own this side. Still 'invited', not 'accepted':
+            // being named in someone else's event isn't consent to appear in it.
+            await addParty(db, { eventId: id, role: 'side', side: 'B', entityKind: bEnt.kind, entityId: bEnt.id, status: 'invited' });
+          } else if (sideB) {
+            await addParty(db, { eventId: id, role: 'side', side: 'B', placeholder: sideB, status: 'unclaimed' });
+          }
         }
-        for (const nm of (f.roster || '').split(',').map(s => s.trim()).filter(Boolean).slice(0, 20)) {
-          await addParty(db, { eventId: id, role: 'attending_athlete', placeholder: nm, status: 'unclaimed' });
+        // roster_ids is positionally aligned with roster names; '' = free text.
+        const rosterNames = (f.roster || '').split(',').map(s => s.trim()).filter(Boolean).slice(0, 20);
+        const rosterIds = (f.roster_ids || '').split(',').map(s => s.trim());
+        for (let i = 0; i < rosterNames.length; i++) {
+          const [rk, rid] = (rosterIds[i] || '').split(':');
+          const ent = pickedEntity(rk, rid);
+          await addParty(db, ent
+            ? { eventId: id, role: 'attending_athlete', entityKind: ent.kind, entityId: ent.id, status: 'invited' }
+            : { eventId: id, role: 'attending_athlete', placeholder: rosterNames[i], status: 'unclaimed' });
         }
         // Event Room config (Build Order #3) — extends the event, no parallel system.
         if (f.room_enabled === '1') {
@@ -526,17 +706,24 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
         await trackConversion(db, f.owner_kind, f.owner_id, viewer);
         return redirect(res, `/member/${f.owner_kind}/${f.owner_id}`);
       }
-      if (req.method === 'POST' && path === '/ticket/gift') {
-        const f = await parseForm(req); await giftTicket(db, f.ticket_id, f.to_handle || '');
-        return redirect(res, `/e/${f.event_id}`);
-      }
-      if (req.method === 'POST' && path === '/ticket/list') {
-        const f = await parseForm(req); await listTicket(db, f.ticket_id, Math.round(Number(f.price || 0) * 100));
-        return redirect(res, `/e/${f.event_id}`);
-      }
-      if (req.method === 'POST' && path === '/ticket/buy') {
-        const f = await parseForm(req); await buyListing(db, f.ticket_id, viewer);
-        return redirect(res, `/e/${f.event_id}`);
+      // /ticket/gift · /ticket/list · /ticket/buy — REMOVED, not hidden.
+      //
+      // These were live routes with no UI left pointing at them. That is worse
+      // than a visible feature: an unlinked POST endpoint is still an endpoint,
+      // and these took a ticket_id from the form and NEVER CHECKED THE CALLER
+      // OWNED IT — anyone who could guess an id could gift away someone else's
+      // ticket, or list it for sale.
+      //
+      // They also sold a bearer ticket: hand the row to a new holder, leave the
+      // old QR live. The AGB says tickets are personengebunden and resale is not
+      // offered; these three routes contradicted both.
+      //
+      // The replacement (void + reissue + ledger, ownership checked, price capped
+      // at face value) is src/db/transfer_repo.ts, and it is switched off. When
+      // resale is a decision rather than an accident, wire THAT — don't restore
+      // these.
+      if (req.method === 'POST' && /^\/ticket\/(gift|list|buy)$/.test(path)) {
+        return html(res, '<p>Tickets on Horda are personal and non-transferable. <a href="/agb">Why</a></p>', 404);
       }
       let mm;
       if ((mm = path.match(/^\/member\/(athlete|club|team|association)\/([^/]+)$/))) {
@@ -681,18 +868,41 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
           const token = await createSession(db, r.accountId);
           res.setHeader('set-cookie', sessionCookie(token));
         }
-        // price comes from the chosen format (in-person ticket) if any, else event-level.
+        // Everything about a claim now comes from the DOOR the fan chose: the
+        // price, the capacity it counts against, and how many spots they may
+        // take. Falling back to event-level only for events with no doors
+        // defined (legacy, and sub-events).
         let priceCents: number | null = d.admission === 'paid' ? d.priceCents : null;
         let fmtLabel = '';
-        if (formatId) { const fmt = await getFormat(db, formatId); if (fmt) { priceCents = fmt.requiresTicket ? (fmt.priceCents ?? null) : null; fmtLabel = fmt.label; } }
+        let fmtCapacity: number | null = null;
+        let maxPerPerson = 1;
+        const chosen = formatId ? await getFormat(db, formatId) : null;
+        if (chosen) {
+          priceCents = chosen.requiresTicket ? (chosen.priceCents ?? null) : null;
+          fmtLabel = chosen.label;
+          fmtCapacity = chosen.capacity;
+          maxPerPerson = chosen.maxPerPerson;
+        }
         const evRow = (await db.query<any>(`SELECT capacity, registration_mode FROM event WHERE id=$1`, [eid])).rows[0];
         // Attribution: a participant promo link (?p=) takes precedence over a fan
         // share (?via=). source_edge is what the attribution roll-ups count.
         const promo = url.searchParams.get('p');
         const via = url.searchParams.get('via');
         const sourceEdge = promo ? `party:${promo}` : via ? `via:${via}` : 'direct';
-        const cl = await createClaim(db, { eventId: eid, fanId: claimFan, capacity: evRow?.capacity ?? null, mode: evRow?.registration_mode ?? 'open', priceCents, sourceEdge });
-        if (formatId) await setClaimFormat(db, cl.id, formatId);
+        const cl = await createClaim(db, {
+          eventId: eid, fanId: claimFan,
+          // Per-door capacity when a door was chosen: the hall selling out must
+          // not close the stream. Event-level only when there are no doors.
+          capacity: chosen ? fmtCapacity : (evRow?.capacity ?? null),
+          mode: evRow?.registration_mode ?? 'open',
+          priceCents, sourceEdge,
+          formatId: formatId || null,
+          // Each door posts its own party_size_<formatId> (one shared form means
+          // the guest types their details once) — read the one for the door they
+          // actually submitted. Falls back to a plain party_size.
+          partySize: Number(f[`party_size_${formatId}`] ?? f.party_size) || 1,
+          maxPerPerson,
+        });
         await track(db, 'claim_created', { ownerKind: d.hostKind ?? undefined, ownerId: d.hostId ?? undefined, fanId: claimFan, eventId: eid, props: { status: cl.status, format: fmtLabel } });
         // Notify the organizer that someone confirmed (per-format), unless self-claim.
         if (d.hostKind && d.hostId) {
@@ -708,10 +918,35 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
         if (cl.status === 'claimed') await notify(db, { fanId: claimFan, kind: 'claim_confirmed', headline: `You're confirmed for ${d.title}${fmtLabel ? ` — ${fmtLabel}` : ''}.`, href: `/pass/${cl.passToken}`, eventId: eid });
         return redirect(res, `/pass/${cl.passToken}`);
       }
+      // Apple Wallet — a signed .pkpass. 404s until the Pass Type certificate is
+      // configured (Apple Developer Program, €99/yr). See src/web/wallet.ts.
+      if ((em = path.match(/^\/pass\/([^/]+)\.pkpass$/))) {
+        const p = await getPass(db, em[1]);
+        if (!p) return html(res, 'Not found', 404);
+        // The pass IS the credential — only its owner may download it. The web
+        // pass at /pass/:token is already token-gated (holding the token is the
+        // proof), so the same rule applies and no extra check is possible or
+        // needed: a wallet pass built from a token you hold is your own ticket.
+        const buf = await buildPkpass(await passDataFor(db, p, origin));
+        if (!buf) return html(res, 'Apple Wallet is not configured yet.', 404);
+        res.writeHead(200, { 'content-type': 'application/vnd.apple.pkpass', 'content-disposition': `attachment; filename="horda-ticket.pkpass"` });
+        res.end(buf);
+        return;
+      }
       if ((em = path.match(/^\/pass\/([^/]+)$/))) {
         const p = await getPass(db, em[1]);
         if (!p) return html(res, '<p>Pass not found. <a href="/">Home</a></p>', 404);
-        return html(res, renderPass({ pass: p, verifyUrl: `${origin}/pass/${em[1]}`, guest: viewerGuest, fanId: viewerGuest ? null : viewer }));
+        // Wallet links are computed per-request, not stored: the Google JWT is
+        // time-stamped and both depend on env that can change without a deploy.
+        const ws = walletStatus();
+        const pd = await passDataFor(db, p, origin);
+        return html(res, renderPass({
+          pass: p, verifyUrl: `${origin}/pass/${em[1]}`, guest: viewerGuest, fanId: viewerGuest ? null : viewer,
+          wallet: {
+            google: ws.google ? googleWalletUrl(pd) : null,
+            apple: ws.apple ? `/pass/${em[1]}.pkpass` : null,
+          },
+        }));
       }
       if ((em = path.match(/^\/e\/([^/]+)\/check-in$/))) {
         const d = await getEventDetail(db, em[1]);
@@ -847,7 +1082,7 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
         const rc = await getRoomConfig(db, em[1]);
         const brief = await eventBrief(d);
         const assets = await generateEventAssets({ ...brief, result: rc?.result ?? null }, getModel());
-        return html(res, renderMediaStudio({ eventId: em[1], athleteId: d.hostId ?? '', title: d.title, label: rc?.label || brief.label, hasResult: !!rc?.result, assets }));
+        return html(res, renderMediaStudio({ eventId: em[1], athleteId: d.hostId ?? '', hostKind: d.hostKind ?? 'athlete', title: d.title, label: rc?.label || brief.label, hasResult: !!rc?.result, assets }));
       }
       if (req.method === 'POST' && (em = path.match(/^\/e\/([^/]+)\/media\/post$/))) {
         const d = await getEventDetail(db, em[1]);
@@ -861,6 +1096,61 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
         await track(db, 'ai_asset_posted', { ownerKind: d.hostKind, ownerId: d.hostId!, eventId: em[1], props: { kind: f.post_kind || 'post' } });
         return redirect(res, `/e/${em[1]}/room`);
       }
+      // THE MATCHDAY CARD — the picture that unfurls in WhatsApp and the file the
+      // OS share sheet hands to Instagram. Public and uncredentialed on purpose:
+      // a crawler fetching an og:image has no cookie, and an og:image behind auth
+      // simply never renders.
+      //
+      // It shows only what the event page already shows a logged-out visitor —
+      // title, host, when, where, price. Never who is coming (fan activity is
+      // private), never the watch link (that's what claiming is for).
+      if ((em = path.match(/^\/e\/([^/]+)\/card\.(png|svg)$/))) {
+        const d = await getEventDetail(db, em[1]);
+        if (!d) return html(res, 'Not found', 404);
+        // Unlisted events must not have a shareable card sitting on a guessable
+        // URL — "unlisted" is a promise about where this event appears.
+        const vis = (await db.query<{ visibility: string }>(`SELECT visibility FROM event WHERE id=$1`, [em[1]])).rows[0];
+        if (vis?.visibility === 'unlisted') return html(res, 'Not found', 404);
+
+        const evFmts = await formatCounts(db, em[1]);
+        const evCap = (await db.query<{ capacity: number | null }>(`SELECT capacity FROM event WHERE id=$1`, [em[1]])).rows[0];
+        const sp = await spotsInfo(db, em[1], evCap?.capacity ?? null);
+        // The card is a stranger's first look, so scarcity here is the honest
+        // public number — the countdown rule (claim_web.ts) is about the viewer
+        // who already holds a ticket, and a crawler never does.
+        const brief = {
+          title: d.title, hostName: d.hostName, startsAt: d.startsAt, timezone: d.timezone,
+          location: d.location, locationKind: d.locationKind,
+          priceLabel: d.admission === 'paid' ? priceLabel(d) : 'Free',
+          ways: evFmts.map(f => f.kind === 'stream' ? f.label : 'In person'),
+          remaining: sp.remaining, full: sp.full,
+          coverUrl: d.coverUrl && /^https?:\/\//i.test(d.coverUrl) ? d.coverUrl : null,
+        };
+        if (em[2] === 'svg') {
+          res.writeHead(200, { 'content-type': 'image/svg+xml; charset=utf-8', 'cache-control': 'public, max-age=300' });
+          res.end(eventCardSvg(brief));
+          return;
+        }
+        // Inline the cover before rasterising — resvg does no network I/O, and it
+        // must not: this route is on the path of an unfurl, and a slow image host
+        // would hold the crawler (and the socket) open.
+        const inlined = await inlineImage(brief.coverUrl);
+        const png = await svgToPng(eventCardSvg({ ...brief, coverUrl: inlined }));
+        if (!png) {
+          // Rasteriser unavailable (wrong platform, missing binary). Serve the SVG
+          // rather than a 500: the <img> preview on the page still works, and the
+          // crawler simply gets no card — degraded, not broken.
+          res.writeHead(200, { 'content-type': 'image/svg+xml; charset=utf-8', 'cache-control': 'public, max-age=60' });
+          res.end(eventCardSvg(brief));
+          return;
+        }
+        // Five minutes: long enough that an unfurl storm doesn't re-render per
+        // crawler, short enough that "7 left" isn't a lie for the rest of the day.
+        res.writeHead(200, { 'content-type': 'image/png', 'cache-control': 'public, max-age=300' });
+        res.end(png);
+        return;
+      }
+
       if ((em = path.match(/^\/e\/([^/]+)$/))) {
         const guest = viewerGuest;
         const d = await getEventDetail(db, em[1]);
@@ -881,19 +1171,35 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
         // The claim rail (the pivot): the primary CTA on every event is "Claim your spot".
         const evRow = (await db.query<any>(`SELECT capacity, registration_mode, standing_threshold FROM event WHERE id=$1`, [em[1]])).rows[0];
         const spots = await spotsInfo(db, em[1], evRow?.capacity ?? null);
+        // The doors, each with its OWN remaining count. Per-door because a full
+        // hall must not read as "this event is full" when the stream is wide open.
+        const evFormats = await formatCounts(db, em[1]);
+        const claimWays = await Promise.all(evFormats.map(async w => {
+          const s = await formatSpots(db, w.id, w.capacity);
+          return {
+            id: w.id, kind: w.kind, label: w.label, requiresTicket: w.requiresTicket,
+            priceCents: w.priceCents, capacity: w.capacity, maxPerPerson: w.maxPerPerson,
+            going: w.going, remaining: s.remaining, full: s.full,
+          };
+        }));
         const mineClaim = guest ? null : await getClaim(db, em[1], viewer);
         let minePass: { status: string; token: string } | null = null;
         if (mineClaim) { const pv = (await db.query<{ token: string }>(`SELECT token FROM pass WHERE claim_id=$1`, [mineClaim.id])).rows[0]; minePass = { status: mineClaim.status, token: pv?.token ?? '' }; }
         const standHave = (!guest && d.hostKind) ? await crowdStanding(db, viewer, d.hostKind, d.hostId!) : 0;
         // Multi-format: if the organizer offered formats, fans pick how they'll attend.
-        const evFormats = await formatCounts(db, em[1]);
+        // (evFormats already fetched above for the door list — one query, one truth)
         const mineFormatId = mineClaim ? ((await db.query<{ format_id: string | null }>(`SELECT format_id FROM claim WHERE id=$1`, [mineClaim.id])).rows[0]?.format_id ?? null) : null;
         const claimBlock = isHost
           ? `<div class="card"><strong>You host this.</strong><div class="row" style="margin-top:8px"><a class="btn" href="/e/${em[1]}/check-in">Open check-in →</a><a class="btn ghost" href="/manage/${em[1]}">Manage &amp; attendance →</a></div></div>`
           : evFormats.length
-            ? formatPicker({ eventId: em[1], guest, full: spots.full, fanId: guest ? null : viewer, via: viaTok, promo: promoTok, formats: evFormats, mine: minePass ? { status: minePass.status, token: minePass.token, formatId: mineFormatId } : null })
-            : claimCta({ eventId: em[1], remaining: spots.remaining, full: spots.full, mine: minePass, guest, priceLabel: d.admission === 'paid' ? priceLabel(d) : 'Free', mode: evRow?.registration_mode ?? 'open', accessMode: d.accessMode, via: viaTok, promo: promoTok, standing: { have: standHave, need: evRow?.standing_threshold ?? 0 } });
+            // claimWays = the same doors, each carrying its OWN remaining count
+            // and per-person limit, so the picker can show real scarcity per door
+            // and offer a quantity only where the organiser allows one.
+            ? formatPicker({ eventId: em[1], guest, full: spots.full, fanId: guest ? null : viewer, via: viaTok, promo: promoTok, isHost, formats: claimWays.map(w => ({ ...w, channelUrl: evFormats.find(f => f.id === w.id)?.channelUrl ?? null })), mine: minePass ? { status: minePass.status, token: minePass.token, formatId: mineFormatId } : null })
+            : claimCta({ eventId: em[1], remaining: spots.remaining, full: spots.full, mine: minePass, guest, priceLabel: d.admission === 'paid' ? priceLabel(d) : 'Free', mode: evRow?.registration_mode ?? 'open', accessMode: d.accessMode, via: viaTok, promo: promoTok, standing: { have: standHave, need: evRow?.standing_threshold ?? 0 }, ways: claimWays });
         // Persistent primary-action bar (the IG/TikTok pattern) — scarcity + one tap.
+        // Only reached when the viewer has NOT claimed (the minePass branch below
+        // replaces it entirely), so the countdown rule holds here by construction.
         const barSub = spots.remaining == null ? (d.admission === 'paid' ? priceLabel(d) : 'Free') : (spots.full ? 'Full — join the waitlist' : `${spots.remaining} spot${spots.remaining === 1 ? '' : 's'} left${d.admission === 'paid' ? ' · ' + priceLabel(d) : ''}`);
         const stickyCta = isHost
           ? actionBar({ title: d.title, sub: `${spots.claimed} claimed`, cta: `<a class="btn" href="/e/${em[1]}/check-in">Check-in</a>` })
@@ -923,7 +1229,7 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
         const mine = guest ? null : await myParty(db, em[1], myEntities);
         const myPromoToken = mine?.promoToken ?? null;
         const myPromoDraw = myPromoToken ? (await partyAttribution(db, em[1])).rows.find(r => r.token === myPromoToken) : undefined;
-        return html(res, renderEventPage(d, { guest, fanId: guest ? null : viewer, myRsvp, isHost, myEntities, myTicket, listings, extraTop: topBlock, stickyCta: barBlock, hasAccess, shareRef, hostLinks, parties, subs, parent, canClaim, myPromoToken, myPromoDraw: myPromoDraw ? { identities: myPromoDraw.identities, ticketBuyers: myPromoDraw.ticketBuyers } : undefined }));
+        return html(res, renderEventPage(d, { guest, fanId: guest ? null : viewer, myRsvp, isHost, myEntities, myTicket, listings, extraTop: topBlock, stickyCta: barBlock, hasAccess, shareRef, hostLinks, parties, subs, parent, canClaim, origin, myPromoToken, myPromoDraw: myPromoDraw ? { identities: myPromoDraw.identities, ticketBuyers: myPromoDraw.ticketBuyers } : undefined }));
       }
       if ((em = path.match(/^\/manage\/([^/]+)$/))) {
         const d = await getEventDetail(db, em[1]);
@@ -936,7 +1242,9 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
         const parentId = url.searchParams.get('parent');
         const pe = parentId ? await getEventDetail(db, parentId) : null;
         const parent = pe ? { id: pe.id, title: pe.title } : undefined;
-        return html(res, renderCreateEvent(em[1], em[2], await hostName(db, em[1], em[2]), parent));
+        // Pre-select the host's own sport — right ~95% of the time, one click to change.
+        const hostSport = em[1] === 'athlete' ? await getAthleteSport(db, em[2]) : null;
+        return html(res, renderCreateEvent(em[1], em[2], await hostName(db, em[1], em[2]), parent, hostSport));
       }
       // Multi-party: claim an unclaimed side/roster slot (the two-sided growth loop).
       const pmClaim = path.match(/^\/e\/([^/]+)\/party\/([^/]+)\/claim$/);
@@ -976,6 +1284,75 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
         await loyaltyForEvent(f.fan_id, f.event_id, 'rsvp');
         return redirect(res, req.headers.referer ?? '/');
       }
+      // Place lookup for every address field. Server-side proxy: keeps any API
+      // key off the client and keeps the user's typing between them and us.
+      if (path === '/api/geo') {
+        if (viewerGuest) return json(res, { results: [] }, 401);
+        return json(res, { results: await lookupPlaces(url.searchParams.get('q') || '') });
+      }
+
+      // Entity typeahead for the rival / roster pickers on the create form.
+      // JSON, logged-in only (it's an authoring aid, not a public directory —
+      // fan privacy doctrine means we don't hand out a browsable people index).
+      if (path === '/api/entities') {
+        if (viewerGuest) return json(res, { results: [] }, 401);
+        const q = url.searchParams.get('q') || '';
+        const kindsRaw = (url.searchParams.get('kinds') || '').split(',').filter(Boolean);
+        const allowed = ['athlete', 'club', 'team', 'association'];
+        const kinds = kindsRaw.filter(k => allowed.includes(k)) as any[];
+        const results = await searchEntities(db, q, {
+          kinds: kinds.length ? kinds : undefined,
+          sport: url.searchParams.get('sport'),
+          limit: 8,
+        });
+        return json(res, { results });
+      }
+
+      // Legal. Must be reachable from anywhere, unauthenticated, always — an
+      // Impressum has to be "leicht erkennbar, unmittelbar erreichbar und
+      // ständig verfügbar" (§ 5 DDG). Never gate these behind anything.
+      if (path === '/impressum') return html(res, renderImpressum());
+      if (path === '/agb' || path === '/terms') return html(res, renderTerms());
+      if (path === '/widerruf' || path === '/withdrawal') return html(res, renderWithdrawal());
+      if (path === '/datenschutz') return html(res, renderDatenschutz());
+      if (path === '/privacy') return redirect(res, '/datenschutz');
+      if (path === '/legal') return redirect(res, '/impressum');
+
+      // joinhorda.com/discord → the live invite. One indirection so the invite
+      // can be rotated in env without touching a single published link.
+      if (path === '/discord') {
+        const inv = discordUrl();
+        return inv ? redirect(res, inv) : redirect(res, '/changelog#ask');
+      }
+
+      // Public ship log. No auth, no gating — the whole point is that anyone,
+      // including someone who has never heard of us, can see what we ship.
+      if (path === '/changelog') return html(res, renderChangelog(viewerGuest));
+      if (path === '/about/changelog') return redirect(res, '/changelog');
+
+      // --- MACHINE-READABLE SURFACES -------------------------------------
+      // All public, all uncredentialed: an agent or crawler has no cookie, and a
+      // machine surface behind auth is a machine surface nobody reads. Nothing
+      // here exposes anything a logged-out visitor can't already see.
+      //
+      // Every one of these derives from src/content/changelog.ts at request time
+      // — no cache, no second copy. A JSON feed's characteristic failure is
+      // silently drifting from the page it describes; the fix is having nothing
+      // to drift from.
+      const serve = (body: string, type: string, maxAge = 300) => {
+        res.writeHead(200, { 'content-type': type, 'cache-control': `public, max-age=${maxAge}` });
+        res.end(body);
+      };
+      if (path === '/changelog.json') {
+        // Pretty-printed on purpose: this gets read by humans debugging agents at
+        // least as often as by the agents, and the bytes are irrelevant at this size.
+        return serve(JSON.stringify(changelogFeed(origin), null, 2), 'application/json; charset=utf-8');
+      }
+      if (path === '/changelog.md') return serve(changelogMarkdown(origin), 'text/markdown; charset=utf-8');
+      if (path === '/feed.xml' || path === '/rss.xml') return serve(rssFeed(origin), 'application/rss+xml; charset=utf-8');
+      if (path === '/sitemap.xml') return serve(sitemapXml(origin), 'application/xml; charset=utf-8', 3600);
+      if (path === '/robots.txt') return serve(robotsTxt(origin), 'text/plain; charset=utf-8', 3600);
+      if (path === '/llms.txt') return serve(llmsTxt(origin, { discordUrl: hasDiscord() ? discordUrl() : undefined }), 'text/plain; charset=utf-8', 3600);
       if (path === '/about') return html(res, renderAbout(viewerGuest));
       if (path === '/about/creators') return html(res, renderAboutCreators(viewerGuest));
       if (path === '/about/features') return html(res, renderAboutFeatures(viewerGuest));
@@ -991,28 +1368,20 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
         return html(res, renderCreatorEntry({ guest: viewerGuest }));
       }
       // Create an event — the events-first doctrine: any logged-in person can host.
-      // Owns pages → pick which hosts it; owns none → spin up a personal page (18+).
+      //
+      // NO AGE GATE HERE, deliberately. Doctrine is "gate money, not creation":
+      // a 16-year-old running a Kreisliga fixture or a school tournament is
+      // exactly who this is for. The 18+ requirement lives where money actually
+      // moves — connecting a payout account — because that's Stripe's rule, not
+      // ours. See /manage-payouts. (Under-16s additionally need parental consent
+      // under Art. 8 DSGVO; that's covered in /datenschutz.)
       if (path === '/create' || (req.method === 'POST' && path === '/create')) {
         if (viewerGuest || !account) return redirect(res, '/signup?next=/create');
         const hostable = await ownedEntities(db, account.id);
-        // POST = they just submitted the one-time birth-year check to create a personal page.
-        if (req.method === 'POST') {
-          const f = await parseForm(req);
-          const by = Number(f.birth_year);
-          if (Number.isFinite(by)) await setBirthYear(db, account.id, by);
-          const flags = await accountFlags(db, account.id);
-          if (!isAdultYear(Number.isFinite(by) ? by : flags.birthYear)) return html(res, renderCreateAge({ name: account.displayName || 'You', error: true }));
-          const aId = await createAthlete(db, account.displayName || 'My events');
-          await db.query(`UPDATE athlete SET account_id=$1 WHERE id=$2`, [account.id, aId]);
-          await grantOwnership(db, account.id, 'athlete', aId);
-          await activateCreatorLayer(db, account.id, false);
-          return redirect(res, `/host/athlete/${aId}/new`);
-        }
         if (hostable.length === 1) return redirect(res, `/host/${hostable[0].kind}/${hostable[0].id}/new`);
         if (hostable.length > 1) return html(res, renderCreatePicker({ fanId: viewer, pages: hostable }));
-        // no page yet → confirm 18+ once, then auto-provision a personal host page
-        const flags = await accountFlags(db, account.id);
-        if (!isAdultYear(flags.birthYear)) return html(res, renderCreateAge({ name: account.displayName || 'You' }));
+        // No page yet → auto-provision a personal host page and go straight to
+        // the event form. Nothing between wanting an event and writing one.
         const aId = await createAthlete(db, account.displayName || 'My events');
         await db.query(`UPDATE athlete SET account_id=$1 WHERE id=$2`, [account.id, aId]);
         await grantOwnership(db, account.id, 'athlete', aId);
@@ -1274,7 +1643,9 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
       if (req.method === 'POST' && path === '/feature-request') {
         const f = await parseForm(req);
         await createFeatureRequest(db, account?.id ?? null, f.sport || null, f.context || null, f.body || '');
-        await notifyWebhook(`💡 Feature request${f.sport ? ` [${f.sport}]` : ''}: ${(f.body || '').slice(0, 400)}`);
+        // Post it where the team argues about it. Kept fire-and-forget: a wedged
+        // webhook must never cost the user their submission.
+        void notifyWebhook(`💡 **Feature request**${f.sport ? ` [${f.sport}]` : ''}\n> ${(f.body || '').slice(0, 400)}\n_Triage → if we build it, add it to src/content/changelog.ts and credit the asker._`);
         return redirect(res, req.headers.referer ?? '/');
       }
       // newsletter opt-in (public). Owner_kind 'horda' = platform-wide list.
@@ -1315,9 +1686,12 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
           ? await Promise.all((await ownedEntities(db, account.id)).map(async e => ({ ...e, events: await listProfileEvents(db, e.kind, e.id) })))
           : [];
         const doors = await feedDoors(db, m[1]);
+        // The three bands (see renderFanHome): what you run, what you hold a
+        // ticket for, what you might still claim.
+        const attending = await attendingEvents(db, m[1]);
         const rp = await recentPresence(db, m[1]);
         const morningAfter = rp ? { title: rp.title, date: rp.date, recordTotal: (await recordCount(db, m[1])).total } : null;
-        return html(res, renderFanHome({ fanId: m[1], fanName: 'You', home, follows, activation: fanAct, pages: ownPages, createHref: viewerCreateHref, doors, morningAfter }));
+        return html(res, renderFanHome({ fanId: m[1], fanName: 'You', home, follows, activation: fanAct, pages: ownPages, createHref: viewerCreateHref, doors, attending, morningAfter }));
       }
       // §4a/§6: hosted themed OG image for an athlete (rich share cards). SVG for
       // now; PNG rasterization is a follow-up once an image lib is added.
@@ -1340,7 +1714,11 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
         const upcoming = await getUpcomingBout(db, m[1]);
         const attendance = (!guest && upcoming) ? await getAttendance(db, viewer, upcoming.eventId) : null;
         const affiliations = await getAffiliations(db, m[1]);
-        const events = await listProfileEvents(db, 'athlete', m[1]);
+        const rawAthEvents = await listProfileEvents(db, 'athlete', m[1]);
+        // Mark the ones this viewer already holds a spot at (one query for the
+        // whole list — see myClaimedIn).
+        const athMine = await myClaimedIn(db, guest ? null : viewer, rawAthEvents.map(e => e.id));
+        const events = rawAthEvents.map(e => ({ ...e, mine: athMine.has(e.id) }));
         const tiers = await getTiers(db, 'athlete', m[1]);
         const membership = await getMembership(db, fanId, 'athlete', m[1]);
         const members = await memberCount(db, 'athlete', m[1]);
@@ -1388,14 +1766,14 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
         }
         const cp = await getLatestPost(db, 'club', m[1]);
         return html(res, renderEntityProfile({
-          kindLabel: 'Club', guest, fanId: guest ? null : viewer, name: club.name, nickname: club.name,
+          kindLabel: 'Club', entityId: m[1], guest, fanId: guest ? null : viewer, name: club.name, nickname: club.name,
           tagline: brand.tagline, avatarUrl: brand.avatarUrl, bannerUrl: brand.bannerUrl, links: brand.links,
           tabs: [{ label: 'Highlight' }, { label: 'Squad' }, { label: 'Fixtures' }, { label: 'Shop', shop: true }],
           statLine, notice, post: cp ? { author: club.name, body: cp.body, date: cp.date } : undefined,
           upcoming, attendance, tableHtml, merch: true, backHref: '/', editAction: `/entity/club/${m[1]}/branding`, canEdit: await canEdit('club', m[1]),
           ogTags: ogMeta({ title: `${club.name} on Horda`, description: brand.tagline || `Follow ${club.name} on Horda — matchdays, members-only news and tickets.`, url: `${origin}/club/${m[1]}`, image: brand.bannerUrl || brand.avatarUrl, type: 'profile' }),
           activation: (await canEdit('club', m[1])) ? renderChecklist(await entityChecklist(db, 'club', m[1])) : '',
-          events: await listProfileEvents(db, 'club', m[1]), scheduleHref: `/host/club/${m[1]}/new`,
+          events: await withMine(db, viewerGuest ? null : viewer, await listProfileEvents(db, 'club', m[1])), scheduleHref: `/host/club/${m[1]}/new`,
           members: { title: 'Teams', items: teams.map(t => ({ kind: 'team', label: t.name + (t.division ? ` · ${t.division}` : ''), href: `/team/${t.id}`, tag: t.gender || undefined })) },
         }));
       }
@@ -1413,7 +1791,7 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
         const upcoming = nf ? { title: `${team.name} vs ${nf.opp}`, eventId: nf.eventId, date: nf.date, access: nf.access, ticketUrl: nf.ticketUrl, streamUrl: nf.streamUrl } : null;
         const attendance = (!guest && nf) ? await getAttendance(db, viewer, nf.eventId) : null;
         return html(res, renderEntityProfile({
-          kindLabel: 'Team', guest, fanId: guest ? null : viewer, name: team.name,
+          kindLabel: 'Team', entityId: m[1], guest, fanId: guest ? null : viewer, name: team.name,
           tagline: brand.tagline, avatarUrl: brand.avatarUrl, bannerUrl: brand.bannerUrl, links: brand.links,
           parent: { label: team.club_name, href: `/club/${team.club_id}` },
           about: `${team.sport} · ${[team.division, team.gender].filter(Boolean).join(' · ')}`,
@@ -1422,7 +1800,7 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
           upcoming, attendance, tableHtml, merch: true, backHref: `/club/${team.club_id}`, editAction: `/entity/team/${m[1]}/branding`, canEdit: await canEdit('team', m[1]),
           ogTags: ogMeta({ title: `${team.name} on Horda`, description: brand.tagline || `Follow ${team.name} on Horda — matchdays, members-only news and tickets.`, url: `${origin}/team/${m[1]}`, image: brand.bannerUrl || brand.avatarUrl, type: 'profile' }),
           activation: (await canEdit('team', m[1])) ? renderChecklist(await entityChecklist(db, 'team', m[1])) : '',
-          events: await listProfileEvents(db, 'team', m[1]), scheduleHref: `/host/team/${m[1]}/new`,
+          events: await withMine(db, viewerGuest ? null : viewer, await listProfileEvents(db, 'team', m[1])), scheduleHref: `/host/team/${m[1]}/new`,
           members: { title: 'Squad', items: roster.map(p => ({ kind: 'athlete', label: p.name, href: `/athlete/${p.id}`, tag: p.handle ? '@' + p.handle : undefined })) },
         }));
       }
@@ -1434,7 +1812,7 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
         const leagues = await getAssociationLeagues(db, m[1]);
         const clubs = await getAssociationClubs(db, m[1]);
         return html(res, renderEntityProfile({
-          kindLabel: 'Association', guest, fanId: guest ? null : viewer, name: assoc.name,
+          kindLabel: 'Association', entityId: m[1], guest, fanId: guest ? null : viewer, name: assoc.name,
           tagline: brand.tagline, avatarUrl: brand.avatarUrl, bannerUrl: brand.bannerUrl, links: brand.links,
           about: brand.tagline ?? undefined,
           tabs: [{ label: 'Highlight' }, { label: 'Members' }, { label: 'Competitions' }, { label: 'Notice' }],
@@ -1443,7 +1821,7 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
           merch: false, backHref: '/', editAction: `/entity/association/${m[1]}/branding`, canEdit: await canEdit('association', m[1]),
           ogTags: ogMeta({ title: `${assoc.name} on Horda`, description: brand.tagline || `${assoc.name} on Horda — the home for its clubs, competitions and fans.`, url: `${origin}/association/${m[1]}`, image: brand.bannerUrl || brand.avatarUrl, type: 'profile' }),
           activation: (await canEdit('association', m[1])) ? renderChecklist(await entityChecklist(db, 'association', m[1])) : '',
-          events: await listProfileEvents(db, 'association', m[1]), scheduleHref: `/host/association/${m[1]}/new`,
+          events: await withMine(db, viewerGuest ? null : viewer, await listProfileEvents(db, 'association', m[1])), scheduleHref: `/host/association/${m[1]}/new`,
           members: { title: 'Member clubs', items: clubs.map(c => ({ kind: 'club', label: c.name, href: `/club/${c.id}` })) },
           secondary: { title: 'Competitions', items: leagues.map(l => ({ kind: 'league', label: l.name, href: '#' })) },
         }));

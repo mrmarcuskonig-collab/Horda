@@ -1,7 +1,8 @@
 // layout.ts — shared chrome for the lighter pages (home, fan feed, sign-up).
 // Dark Ink/Bone, matching the profile shell so the whole app is one theme.
 import { ravenMark, ravenMarkCurrent } from './brand.ts';
-import { THEME_BOOT, THEME_VARS, THM_CSS, themeToggle, bottomNav, backButton, deskRail } from './theme.ts';
+import { THEME_BOOT, THEME_VARS, THM_CSS, themeToggle, bottomNav, backButton, deskRail, SHARE_SCRIPT } from './theme.ts';
+import { MAPS_CSS, MAPS_SCRIPT } from './maps.ts';
 import { type Lang } from './i18n.ts';
 // map the bottom-nav active key to the labelled rail's active key
 const railActive = (a?: string) => a === 'you' ? 'profile' : a === 'home' ? 'explore' : a;
@@ -34,10 +35,14 @@ export function ogMeta(o: { title: string; description: string; url?: string; im
   ].filter(Boolean).join('\n');
 }
 
-export function layout(title: string, body: string, opts: { back?: string; nav?: { active?: string; guest: boolean; fanId: string | null; createHref?: string; lang?: Lang; unread?: number } } = {}): string {
+// `head` injects per-page <meta> — in practice the OG/Twitter card tags. The
+// event page went without them entirely, so every event link ever shared unfurled
+// as a bare URL: no picture, no title, nothing to tap toward. Pages that call
+// layout() are the shareable ones; they need a way in.
+export function layout(title: string, body: string, opts: { back?: string; head?: string; nav?: { active?: string; guest: boolean; fanId: string | null; createHref?: string; lang?: Lang; unread?: number } } = {}): string {
   const nv = opts.nav ?? { guest: true, fanId: null };
   return `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1"><link rel="icon" href="/favicon.svg"><title>${esc(title)} — Horda</title>${THEME_BOOT}
+<meta name="viewport" content="width=device-width, initial-scale=1"><link rel="icon" href="/favicon.svg"><title>${esc(title)} — Horda</title>${opts.head ?? ''}${THEME_BOOT}
 <style>
   ${THEME_VARS}
   ${THM_CSS}
@@ -75,6 +80,7 @@ export function layout(title: string, body: string, opts: { back?: string; nav?:
   .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:12px 0}
   .prov{margin-top:28px;color:var(--mut);font-size:11px;border-top:1px solid var(--b);padding-top:12px}
   .backx{display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:999px;border:1.5px solid var(--b);color:var(--bone);font-size:22px;line-height:1;text-decoration:none;padding-bottom:2px}.backx:hover{border-color:var(--bone)}
+  ${MAPS_CSS}
 </style></head><body class="deskrail">
   ${deskRail({ guest: nv.guest, fanId: nv.fanId, lang: nv.lang, unread: nv.unread, active: railActive(nv.active) })}
   ${opts.back ? backButton(opts.back) : ''}
@@ -83,5 +89,7 @@ export function layout(title: string, body: string, opts: { back?: string; nav?:
   ${body}
   </div>
   ${bottomNav(nv)}
+  ${SHARE_SCRIPT}
+  ${MAPS_SCRIPT}
 </body></html>`;
 }
