@@ -38,8 +38,54 @@ Everything else is done. No persistent disk needed — the database lives in Pos
 | `S3_PUBLIC_BASE` | `https://cdn.joinhorda.com` | optional — public URL prefix for stored images (e.g. an R2 public bucket or CDN). Defaults to `S3_ENDPOINT/S3_BUCKET`. |
 | `S3_REGION` | `auto` (R2) / `us-east-1` (AWS) | optional — bucket region; `auto` for Cloudflare R2. |
 | `RESEND_API_KEY` | `re_…` | optional — enables real transactional email (password reset) via Resend. Unset = a dev emailer that surfaces the reset link on-screen instead of sending. |
-| `EMAIL_FROM` | `Horda <noreply@joinhorda.com>` | optional — the From address for sent email. Must be a domain you've verified in Resend. |
+| `EMAIL_FROM` | `Horda <marcus@spaghetti.ventures>` | optional — the From address for sent email. **Must be a domain you've verified in Resend (SPF + DKIM).** Defaults to `CONTACT_EMAIL`. Move this to `noreply@joinhorda.com` once that domain is verified — see the note below. |
+| `CONTACT_EMAIL` | `marcus@spaghetti.ventures` | optional — the human contact address used by the Impressum, support links and the email footer. Single source of truth; defaults to `marcus@spaghetti.ventures`. |
 | `HORDA_URL` | `https://joinhorda.com` | optional — canonical origin used to build Stripe return URLs **and password-reset links**. If unset, derived from the request host (fine on Render). |
+
+| `GEO_PROVIDER` | `photon` (default) | optional — venue/address autocomplete. `photon` = komoot's public OSM geocoder, no key, works out of the box. `mapbox` = commercial (needs `MAPBOX_TOKEN`). `off` = curated city list only, nothing leaves our server. |
+| `PHOTON_URL` | `https://photon.komoot.io` | optional — point at your OWN Photon instance once volume justifies it (see the note below). |
+| `MAPBOX_TOKEN` | `pk.…` | optional — only read when `GEO_PROVIDER=mapbox`. |
+
+### Address autocomplete — why Photon, and when to move off it
+"Type a coffee shop, pick the address" needs a geocoding provider. Two things
+decided this:
+
+**Nominatim is not an option**, despite being the obvious OSM choice. Its usage
+policy explicitly forbids exactly this feature — *"Auto-complete search … you
+must not implement such a service on the client side using the API."* Violating
+it gets the server's IP banned, and you'd find out via silent 403s in production.
+https://operations.osmfoundation.org/policies/nominatim/
+
+**Photon** (by komoot) is the same OpenStreetMap data through a geocoder built
+for search-as-you-type. No key, no card, and typeahead is the intended use.
+
+The catch, and it's real: `photon.komoot.io` is komoot's **public demo server**.
+They offer no availability guarantee and will throttle or ban excessive use. That
+is fine at launch volume and not fine forever. Two exits, both cheap:
+- **Self-host Photon** (Apache-2.0, ~two files to run) and set `PHOTON_URL`.
+  Nothing else changes.
+- **Switch to Mapbox** — set `GEO_PROVIDER=mapbox` + `MAPBOX_TOKEN`. Commercial
+  SLA, generous free tier.
+
+Lookups are proxied server-side (keys stay off the client, and the user's typing
+goes to us rather than straight to a third party), cached in-process for 10
+minutes, and never fire below 3 characters. If the provider is down the field
+silently falls back to a curated city list — an address box that suggests nothing
+looks broken, so it always suggests something.
+
+### Email sender — a note before launch
+Right now magic links are sent **from `marcus@spaghetti.ventures`** while a user is
+signing up **on `joinhorda.com`**. That works, and it means only one domain
+(`spaghetti.ventures`) needs SPF/DKIM verification in Resend today. But the
+mismatch has a cost: a login link arriving from a different domain than the site
+the user just used looks like phishing — to the user *and* to spam filters, which
+score unaligned From-domains harshly. Deliverability on a signup email is the
+whole funnel.
+
+**Before launch:** verify `joinhorda.com` in Resend (SPF + DKIM + DMARC), then set
+`EMAIL_FROM="Horda <noreply@joinhorda.com>"`. Leave `CONTACT_EMAIL` as the human
+address — the Impressum and support links should point at a mailbox you read.
+Nothing in the code needs to change; both are env vars.
 
 ## Payments (Stripe) — only you can do this
 Card data never touches Horda — we use Stripe's hosted Checkout and only store the result. To turn real payments on:

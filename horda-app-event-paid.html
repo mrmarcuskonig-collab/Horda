@@ -1,21 +1,50 @@
 <!DOCTYPE html><html lang="en"><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1"><link rel="icon" href="/favicon.svg"><title>Season launch night — Horda</title>
+<meta name="viewport" content="width=device-width, initial-scale=1"><link rel="icon" href="/favicon.svg"><title>Season launch night — Horda</title><meta property="og:site_name" content="Horda">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Season launch night">
+<meta property="og:description" content="Season launch night · Sat 01 Aug 2026 · Vereinsheim · Hosted by FC Beispiel on Horda.">
+<meta property="og:url" content="https://localhost:41021/e/0c428969-39b9-4c61-a222-568984038897">
+<meta property="og:image" content="https://localhost:41021/e/0c428969-39b9-4c61-a222-568984038897/card.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Season launch night">
+<meta name="twitter:description" content="Season launch night · Sat 01 Aug 2026 · Vereinsheim · Hosted by FC Beispiel on Horda.">
+<meta name="twitter:image" content="https://localhost:41021/e/0c428969-39b9-4c61-a222-568984038897/card.png">
 <style>
   
   :root{color-scheme:dark;--ink:#232020;--bone:#EDE9DF;--s:rgba(237,233,223,.05);--b:rgba(237,233,223,.16);--mut:rgba(237,233,223,.6);--scrim:rgba(26,23,23,.84);--acc:#E15A40;--acc2:#cd4c33;--accink:#1b1310;--btnr:12px}
 
   .thm{display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:999px;border:1.5px solid var(--b);background:transparent;color:var(--bone);cursor:pointer;padding:0;flex:0 0 auto}.thm:hover{border-color:var(--bone)}.thm svg{display:block}
   .vbadge{display:inline-flex;vertical-align:-2px;margin-left:4px;color:currentColor}.vbadge svg{display:block}
-  .bnav{position:fixed;left:0;right:0;bottom:0;z-index:40;border-top:1px solid var(--b);background:var(--scrim);backdrop-filter:blur(14px)}
-  .bninner{max-width:680px;margin:0 auto;display:flex;justify-content:space-around;align-items:center;padding:11px 6px calc(11px + env(safe-area-inset-bottom))}
+  /* Mobile: a FLOATING translucent bar (the iOS 26 / Instagram pattern) — it
+     hovers above the content with the page visibly moving underneath it, rather
+     than sitting in an opaque tray welded to the bottom edge. Three things make
+     it read as glass: a semi-transparent fill, a real backdrop blur, and a
+     saturate() boost so colours behind it stay alive instead of going grey.
+     Corner radius is 20px — our button language (--btnr:12px) scaled up for a
+     bigger object, deliberately NOT a 999px pill, which would fight the app's
+     squarer geometry. */
+  .bnav{position:fixed;left:12px;right:12px;bottom:calc(10px + env(safe-area-inset-bottom));z-index:40;
+    border:1px solid rgba(255,255,255,.10);border-radius:20px;
+    background:color-mix(in srgb, var(--ink) 62%, transparent);
+    -webkit-backdrop-filter:blur(22px) saturate(180%);backdrop-filter:blur(22px) saturate(180%);
+    box-shadow:0 8px 30px rgba(0,0,0,.38)}
+  .bninner{max-width:680px;margin:0 auto;display:flex;justify-content:space-around;align-items:center;padding:10px 6px}
   .bnav a{flex:1;max-width:130px;display:flex;align-items:center;justify-content:center;color:var(--mut);padding:3px 0}
   .bnav a.on{color:var(--acc)}
   .bnav a:hover{color:var(--bone)}
   .bnav svg{width:25px;height:25px;display:block}
+  /* No backdrop-filter (older Android/Firefox) → fall back to a near-solid fill
+     so the bar stays legible instead of turning into a transparent smear. */
+  @supports not ((backdrop-filter:blur(1px)) or (-webkit-backdrop-filter:blur(1px))){
+    .bnav{background:color-mix(in srgb, var(--ink) 94%, transparent)}
+  }
   /* Desktop: lift the bar into a vertical rail on the LEFT (Instagram pattern),
      sitting in the left gutter so it never overlaps the centred 680px column. */
   @media(min-width:1024px){
-    .bnav{top:0;right:auto;bottom:0;width:74px;border-top:0;border-right:1px solid var(--b);background:transparent;backdrop-filter:none}
+    /* Undo the floating-glass treatment: on desktop this is a flush rail, not a
+       hovering pill. Every mobile-only property is explicitly reset here. */
+    .bnav{top:0;left:0;right:auto;bottom:0;width:74px;border:0;border-right:1px solid var(--b);border-radius:0;
+      background:transparent;-webkit-backdrop-filter:none;backdrop-filter:none;box-shadow:none}
     .bninner{flex-direction:column;justify-content:flex-start;align-items:center;gap:8px;height:100%;max-width:none;padding:80px 0 0}
     .bnav a{flex:0 0 auto;max-width:none;width:46px;height:46px;border-radius:13px}
     .bnav a.on{background:var(--s)}
@@ -120,22 +149,35 @@
   .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:12px 0}
   .prov{margin-top:28px;color:var(--mut);font-size:11px;border-top:1px solid var(--b);padding-top:12px}
   .backx{display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:999px;border:1.5px solid var(--b);color:var(--bone);font-size:22px;line-height:1;text-decoration:none;padding-bottom:2px}.backx:hover{border-color:var(--bone)}
+  
+  .mapch{position:relative;display:inline-block}
+  .mapch > summary{list-style:none;cursor:pointer}
+  .mapch > summary::-webkit-details-marker{display:none}
+  .mapmenu{position:absolute;z-index:30;left:0;top:calc(100% + 6px);min-width:186px;background:var(--ink);
+    border:1px solid var(--b);border-radius:var(--btnr);padding:6px;box-shadow:0 12px 34px rgba(0,0,0,.5)}
+  .mapmenu button{display:flex;align-items:center;gap:9px;width:100%;text-align:left;background:transparent;border:0;
+    color:var(--bone);font:inherit;font-size:13.5px;font-weight:600;padding:9px 10px;border-radius:9px;cursor:pointer}
+  .mapmenu button:hover{background:var(--s)}
+  .mapmenu .mapnote{color:var(--mut);font-size:11px;padding:4px 10px 2px;line-height:1.4}
+  .mapmenu .mapre{color:var(--mut);font-size:11px;padding:6px 10px 2px;border-top:1px solid var(--b);margin-top:4px}
+  .mapmenu .mapre button{display:inline;padding:0;font-size:11px;font-weight:600;color:var(--mut);text-decoration:underline;width:auto}
 </style></head><body class="deskrail">
   <aside class="drail">
     <a class="dr-logo" href="/" aria-label="Horda"><svg width="26" height="26" viewBox="2 47 166 141" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Horda"><path fill="currentColor" fill-rule="evenodd" d="M12,100 L68,80 L84,60 L120,55 L140,58 L156,74 L158,104 L150,132 L140,160 L128,176 L106,180 L84,152 L62,120 Z M98,82 L110,76 L113,80 L101,86 Z"/></svg><b>Horda</b></a>
-    <form class="dr-search" method="get" action="/"><input name="region" value="" placeholder="Search city or sport" autocomplete="off" aria-label="Search city or sport"></form>
+    <form class="dr-search" method="get" action="/"><input name="region" value="" placeholder="Search" autocomplete="off" aria-label="Search"></form>
     <nav class="dr-nav" aria-label="Primary">
-      <a class="dr-item" href="/"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m15.2 8.8-2 4.4-4.4 2 2-4.4 4.4-2Z"/></svg><span>Explore</span></a>
+      <a class="dr-item" href="/"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m15.2 8.8-2 4.4-4.4 2 2-4.4 4.4-2Z"/></svg><span>Your Horda</span></a>
       <a class="dr-item" href="/signup"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.4"/><path d="M3.5 20c0-3.4 2.7-5.6 5.5-5.6S14.5 16.6 14.5 20"/><path d="M17 8.5v5M14.5 11h5"/></svg><span>Following</span></a>
       
       <a class="dr-item" href="/create"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="3.5" width="17" height="17" rx="5"/><path d="M12 8v8M8 12h8"/></svg><span>Create event</span></a>
-      <a class="dr-item" href="/settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="3.6"/><path d="M5.5 20c0-3.7 2.9-6.2 6.5-6.2S18.5 16.3 18.5 20"/></svg><span>Profile</span></a>
+      <a class="dr-item" href="/signup"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="3.6"/><path d="M5.5 20c0-3.7 2.9-6.2 6.5-6.2S18.5 16.3 18.5 20"/></svg><span>Claim your @handle</span></a>
     </nav>
     <div class="dr-sep"></div>
     <div class="dr-set"><div class="dr-srow"><span class="dr-slabel">Language</span><span class="lgtog" role="group" aria-label="Language"><a class="lgp" href="/set-lang?l=de" aria-label="Deutsch">DE</a><a class="lgp on" href="/set-lang?l=en" aria-label="English">EN</a></span></div></div>
+    
     <div class="dr-foot"><a class="btn ghost" href="/login">Log in</a><a class="btn" href="/signup">Join free</a></div>
   </aside>
-  <a class="hz-back" href="/club/d256eeca-b75d-4176-b903-efbe7f63ceb7" aria-label="Back" title="Back"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 5-7 7 7 7"/></svg></a>
+  <a class="hz-back" href="/club/a2e0162a-6257-4bf3-997d-aa8ec645947e" aria-label="Back" title="Back"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 5-7 7 7 7"/></svg></a>
   <div class="hz-main">
   <div style="height:40px"></div>
   
@@ -177,6 +219,10 @@
     .myr{font-size:14px;margin:4px 0}.admtag{font-size:10px;font-weight:600;letter-spacing:1px;text-transform:uppercase;border:1px solid var(--b);color:var(--mut);border-radius:999px;padding:3px 10px}
     .tk{font-weight:600;margin:6px 0 10px}.tkin{background:var(--ink);border:1px solid var(--b);border-radius:999px;color:var(--bone);padding:8px 12px;font:inherit;width:120px;margin-right:6px}
     .lockrow{display:flex;align-items:center;gap:9px;flex-wrap:wrap;font-size:13.5px;color:var(--mut);border:1px dashed var(--b);border-radius:12px;padding:11px 14px}
+    /* The inline maps trigger reads as the link it replaced, not as a button —
+       it sits in a line of muted metadata and shouldn't shout. */
+    .maplink{color:var(--mut);border-bottom:1px solid var(--b);font-size:12.5px}
+    .maplink:hover{color:var(--bone)}
   </style>
   <div class="poster">
     <div style="width:100%;height:100%;background:radial-gradient(130% 130% at 70% 8%,rgba(237,233,223,.12),transparent 55%),var(--ink)"></div>
@@ -188,21 +234,41 @@
   </div>
   <div class="evgrid">
     <aside class="evside">
-      <div class="hostrow" style="border-top:0;padding-top:0;margin-top:2px"><div><div class="hk">Hosted by</div><div class="hn"><a href="/club/d256eeca-b75d-4176-b903-efbe7f63ceb7">FC Beispiel</a></div></div><form method="post" action="/follow"><input type="hidden" name="fan_id" value="389df9a4-5a39-435c-8adb-09d948e3f5ea"><input type="hidden" name="target_type" value="club"><input type="hidden" name="target_id" value="d256eeca-b75d-4176-b903-efbe7f63ceb7"><button class="rb sm" type="submit">Follow</button></form></div>
+      <div class="hostrow" style="border-top:0;padding-top:0;margin-top:2px"><div><div class="hk">Hosted by</div><div class="hn"><a href="/club/a2e0162a-6257-4bf3-997d-aa8ec645947e">FC Beispiel</a></div></div><form method="post" action="/follow"><input type="hidden" name="fan_id" value="66396731-0c77-4e43-8c4a-5263ad570849"><input type="hidden" name="target_type" value="club"><input type="hidden" name="target_id" value="a2e0162a-6257-4bf3-997d-aa8ec645947e"><button class="rb sm" type="submit">Follow</button></form></div>
       <div class="sidelinks">
-        <a href="/club/d256eeca-b75d-4176-b903-efbe7f63ceb7">View FC Beispiel on Horda →</a>
+        <a href="/club/a2e0162a-6257-4bf3-997d-aa8ec645947e">View FC Beispiel on Horda →</a>
         <div class="hostsoc"><span class="hsl">Reach the host</span><a class="ic" aria-label="x" href="https://x.com/fcbeispiel" target="_blank" rel="noopener"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M18.2 2H21l-6.6 7.6L22 22h-6.8l-4.6-6-5.3 6H1.8l7.1-8.1L2 2h6.9l4.2 5.5L18.2 2Zm-1.2 18h1.5L7.1 3.9H5.5L17 20Z"/></svg></a><a class="ic" aria-label="website" href="https://fcbeispiel.de" target="_blank" rel="noopener"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M3.3 12h17.4M12 3c2.8 2.7 2.8 15.3 0 18M12 3c-2.8 2.7-2.8 15.3 0 18"/></svg></a><a class="ic" aria-label="instagram" href="https://instagram.com/fcbeispiel" target="_blank" rel="noopener"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.4" cy="6.6" r="1.1" fill="currentColor" stroke="none"/></svg></a></div>
-        <a href="/e/a1002058-7d71-47c8-8177-64f2eb86f137/ics">＋ Add to calendar</a>
+        <a href="/e/0c428969-39b9-4c61-a222-568984038897/ics">＋ Add to calendar</a>
       </div>
       <span class="evtag"># Ticketed</span>
     </aside>
 
     <main class="evmain">
-      <div id="claim"><div class="card"><strong>You host this.</strong><div class="row" style="margin-top:8px"><a class="btn" href="/e/a1002058-7d71-47c8-8177-64f2eb86f137/check-in">Open check-in →</a><a class="btn ghost" href="/manage/a1002058-7d71-47c8-8177-64f2eb86f137">Manage &amp; attendance →</a></div></div></div>
+      <div id="claim"><div class="card"><strong>You host this.</strong><div class="row" style="margin-top:8px"><a class="btn" href="/e/0c428969-39b9-4c61-a222-568984038897/check-in">Open check-in →</a><a class="btn ghost" href="/manage/0c428969-39b9-4c61-a222-568984038897">Manage &amp; attendance →</a></div></div></div>
 
       <div class="ww"><div class="wi cal"><span class="m">AUG</span><span class="d">1</span></div>
         <div><div class="wt">Sat 01 Aug 2026</div><div class="ws">19:00 · capacity 200</div></div></div>
-      <div class="ww"><div class="wi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><path d="M12 21c4-4.5 6-7.9 6-10.7a6 6 0 1 0-12 0C6 13.1 8 16.5 12 21Z"/><circle cx="12" cy="10.4" r="2.2"/></svg></div><div><div class="wt">Vereinsheim, FC Beispiel</div><div class="ws"><a href="https://www.google.com/maps/search/?api=1&query=Vereinsheim%2C%20FC%20Beispiel" target="_blank" rel="noopener">Open in Maps ↗</a></div></div></div>
+      <div class="ww"><div class="wi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><path d="M12 21c4-4.5 6-7.9 6-10.7a6 6 0 1 0-12 0C6 13.1 8 16.5 12 21Z"/><circle cx="12" cy="10.4" r="2.2"/></svg></div><div><div class="wt">Vereinsheim, FC Beispiel</div><div class="ws"><details class="mapch">
+    <summary class="maplink" role="button">Open in Maps ↗</summary>
+    <div class="mapmenu">
+      <div class="mapnote">Take me to it in…</div>
+      <button type="button" data-maps="google" onclick="(function(btn,which){
+    var K='hz_maps', q="Vereinsheim, FC Beispiel";
+    var urls={google:"https://www.google.com/maps/search/?api=1&query=Vereinsheim%2C%20FC%20Beispiel",apple:"https://maps.apple.com/?q=Vereinsheim%2C%20FC%20Beispiel"};
+    try{ localStorage.setItem(K, which); }catch(e){}
+    window.open(urls[which],'_blank','noopener');
+    var d=btn.closest('details'); if(d) d.open=false;
+  })(this,'google')"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M12 21c4-4.5 6-7.9 6-10.7a6 6 0 1 0-12 0C6 13.1 8 16.5 12 21Z"/><circle cx="12" cy="10.3" r="2.2"/></svg> Google Maps</button>
+      <button type="button" data-maps="apple" onclick="(function(btn,which){
+    var K='hz_maps', q="Vereinsheim, FC Beispiel";
+    var urls={google:"https://www.google.com/maps/search/?api=1&query=Vereinsheim%2C%20FC%20Beispiel",apple:"https://maps.apple.com/?q=Vereinsheim%2C%20FC%20Beispiel"};
+    try{ localStorage.setItem(K, which); }catch(e){}
+    window.open(urls[which],'_blank','noopener');
+    var d=btn.closest('details'); if(d) d.open=false;
+  })(this,'apple')"><svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor" aria-hidden="true"><path d="M16.4 12.8c0-2 1.6-3 1.7-3-.9-1.4-2.4-1.5-2.9-1.6-1.2-.1-2.4.7-3 .7-.6 0-1.6-.7-2.6-.7-1.3 0-2.6.8-3.3 2-1.4 2.4-.4 6 1 8 .7 1 1.5 2 2.5 2 1 0 1.4-.6 2.6-.6 1.2 0 1.5.6 2.6.6 1.1 0 1.8-1 2.4-1.9.8-1.1 1.1-2.2 1.1-2.3 0 0-2.1-.8-2.1-3.2zM14.5 6.6c.5-.7.9-1.6.8-2.6-.8 0-1.8.5-2.4 1.2-.5.6-1 1.6-.8 2.5.9.1 1.8-.4 2.4-1.1z"/></svg> Apple Maps</button>
+      <noscript><a href="https://www.google.com/maps/search/?api=1&amp;query=Vereinsheim%2C%20FC%20Beispiel" target="_blank" rel="noopener">Google Maps</a> · <a href="https://maps.apple.com/?q=Vereinsheim%2C%20FC%20Beispiel" target="_blank" rel="noopener">Apple Maps</a></noscript>
+    </div>
+  </details></div></div></div>
 
       
 
@@ -210,34 +276,109 @@
       
       
       
-      <div class="rsvp"><a class="rb" href="/host/club/d256eeca-b75d-4176-b903-efbe7f63ceb7/new?parent=a1002058-7d71-47c8-8177-64f2eb86f137">＋ Add a bout / sub-event</a></div>
+      <div class="rsvp"><a class="rb" href="/host/club/a2e0162a-6257-4bf3-997d-aa8ec645947e/new?parent=0c428969-39b9-4c61-a222-568984038897">＋ Add a bout / sub-event</a></div>
 
-      <div class="h3">Your ticket</div>
-      <div class="tk">🎟 You hold a ticket</div>
-      <div class="rsvp">
-        <form method="post" action="/ticket/gift"><input type="hidden" name="ticket_id" value="9a4f4ee0-beee-4d01-ae9d-c277525489b1"><input type="hidden" name="event_id" value="a1002058-7d71-47c8-8177-64f2eb86f137"><input name="to_handle" placeholder="@handle" class="tkin"><button class="rb" type="submit">Gift</button></form>
-        <form method="post" action="/ticket/list"><input type="hidden" name="ticket_id" value="9a4f4ee0-beee-4d01-ae9d-c277525489b1"><input type="hidden" name="event_id" value="a1002058-7d71-47c8-8177-64f2eb86f137"><input name="price" type="number" min="0" step="0.5" placeholder="resell €" class="tkin"><button class="rb" type="submit">Sell</button></form>
-      </div><div class="h3">Resale</div><div class="rsvp"><form method="post" action="/ticket/buy"><input type="hidden" name="ticket_id" value="69256553-6baf-4043-bc96-c8338f166773"><input type="hidden" name="event_id" value="a1002058-7d71-47c8-8177-64f2eb86f137"><input type="hidden" name="fan_id" value="389df9a4-5a39-435c-8adb-09d948e3f5ea"><button class="rb p" type="submit">Buy €18 · from Rieke</button></form></div>
+      
 
       <div class="h3">About this event</div><p class="desc">Meet the squad for the new Kreisliga A season. Bratwurst, the new kit, and the fixture reveal.</p>
 
-      <div class="h3">Location</div><p class="desc" style="margin-bottom:8px">Vereinsheim, FC Beispiel</p><div class="rsvp"><a class="rb" href="https://www.google.com/maps/search/?api=1&query=Vereinsheim%2C%20FC%20Beispiel" target="_blank" rel="noopener">Open in Maps ↗</a></div>
+      <div class="h3">Location</div><p class="desc" style="margin-bottom:8px">Vereinsheim, FC Beispiel</p><div class="rsvp"><details class="mapch">
+    <summary class="rb" role="button">Open in Maps ↗</summary>
+    <div class="mapmenu">
+      <div class="mapnote">Take me to it in…</div>
+      <button type="button" data-maps="google" onclick="(function(btn,which){
+    var K='hz_maps', q="Vereinsheim, FC Beispiel";
+    var urls={google:"https://www.google.com/maps/search/?api=1&query=Vereinsheim%2C%20FC%20Beispiel",apple:"https://maps.apple.com/?q=Vereinsheim%2C%20FC%20Beispiel"};
+    try{ localStorage.setItem(K, which); }catch(e){}
+    window.open(urls[which],'_blank','noopener');
+    var d=btn.closest('details'); if(d) d.open=false;
+  })(this,'google')"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M12 21c4-4.5 6-7.9 6-10.7a6 6 0 1 0-12 0C6 13.1 8 16.5 12 21Z"/><circle cx="12" cy="10.3" r="2.2"/></svg> Google Maps</button>
+      <button type="button" data-maps="apple" onclick="(function(btn,which){
+    var K='hz_maps', q="Vereinsheim, FC Beispiel";
+    var urls={google:"https://www.google.com/maps/search/?api=1&query=Vereinsheim%2C%20FC%20Beispiel",apple:"https://maps.apple.com/?q=Vereinsheim%2C%20FC%20Beispiel"};
+    try{ localStorage.setItem(K, which); }catch(e){}
+    window.open(urls[which],'_blank','noopener');
+    var d=btn.closest('details'); if(d) d.open=false;
+  })(this,'apple')"><svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor" aria-hidden="true"><path d="M16.4 12.8c0-2 1.6-3 1.7-3-.9-1.4-2.4-1.5-2.9-1.6-1.2-.1-2.4.7-3 .7-.6 0-1.6-.7-2.6-.7-1.3 0-2.6.8-3.3 2-1.4 2.4-.4 6 1 8 .7 1 1.5 2 2.5 2 1 0 1.4-.6 2.6-.6 1.2 0 1.5.6 2.6.6 1.1 0 1.8-1 2.4-1.9.8-1.1 1.1-2.2 1.1-2.3 0 0-2.1-.8-2.1-3.2zM14.5 6.6c.5-.7.9-1.6.8-2.6-.8 0-1.8.5-2.4 1.2-.5.6-1 1.6-.8 2.5.9.1 1.8-.4 2.4-1.1z"/></svg> Apple Maps</button>
+      <noscript><a href="https://www.google.com/maps/search/?api=1&amp;query=Vereinsheim%2C%20FC%20Beispiel" target="_blank" rel="noopener">Google Maps</a> · <a href="https://maps.apple.com/?q=Vereinsheim%2C%20FC%20Beispiel" target="_blank" rel="noopener">Apple Maps</a></noscript>
+    </div>
+  </details></div>
 
       <div class="h3">More</div>
-      <div class="rsvp"><button type="button" class="rb" data-t="Season launch night" aria-label="Share" onclick="(function(b){var r=b.getAttribute('data-u'),u=r?(r.charAt(0)==='/'?location.origin+r:r):location.href,t=b.getAttribute('data-t')||document.title;if(navigator.share){navigator.share({title:t,url:u}).catch(function(){})}else if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(u).then(function(){var o=b.innerHTML;b.innerHTML='Link copied ✓';setTimeout(function(){b.innerHTML=o},1600)})}else{prompt('Copy this link',u)}})(this)"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:5px"><circle cx="6" cy="12" r="2.4"/><circle cx="17.5" cy="6" r="2.4"/><circle cx="17.5" cy="18" r="2.4"/><path d="m8.2 10.9 7.1-3.8M8.2 13.1l7.1 3.8"/></svg>Share</button><a class="rb" href="/e/a1002058-7d71-47c8-8177-64f2eb86f137/ics">＋ Add to calendar</a><a class="rb" href="/manage/a1002058-7d71-47c8-8177-64f2eb86f137">Manage</a></div>
+      <div class="rsvp"><button type="button" class="rb" data-t="Season launch night" data-img="/e/0c428969-39b9-4c61-a222-568984038897/card.png" data-x="Season launch night · Sat 01 Aug 2026 · Vereinsheim" aria-label="Share" onclick="hzShare(this)"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:5px"><circle cx="6" cy="12" r="2.4"/><circle cx="17.5" cy="6" r="2.4"/><circle cx="17.5" cy="18" r="2.4"/><path d="m8.2 10.9 7.1-3.8M8.2 13.1l7.1 3.8"/></svg>Share</button><a class="rb" href="/e/0c428969-39b9-4c61-a222-568984038897/ics">＋ Add to calendar</a><a class="rb" href="/manage/0c428969-39b9-4c61-a222-568984038897">Manage</a></div>
       <div class="cap" style="margin-top:18px">Bring your crowd</div>
-       <div class="rsvp"><button type="button" class="rb p" data-t="Season launch night" data-u="/e/a1002058-7d71-47c8-8177-64f2eb86f137?via=s30ff46ee2c477c71" aria-label="Share" onclick="(function(b){var r=b.getAttribute('data-u'),u=r?(r.charAt(0)==='/'?location.origin+r:r):location.href,t=b.getAttribute('data-t')||document.title;if(navigator.share){navigator.share({title:t,url:u}).catch(function(){})}else if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(u).then(function(){var o=b.innerHTML;b.innerHTML='Link copied ✓';setTimeout(function(){b.innerHTML=o},1600)})}else{prompt('Copy this link',u)}})(this)"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:5px"><circle cx="6" cy="12" r="2.4"/><circle cx="17.5" cy="6" r="2.4"/><circle cx="17.5" cy="18" r="2.4"/><path d="m8.2 10.9 7.1-3.8M8.2 13.1l7.1 3.8"/></svg>Share under your name</button></div>
-       <p class="mut" style="font-size:12px;margin:2px 0 0">Claims from your link are credited to you. A plain Share above stays anonymous.</p><div class="cap" style="margin-top:18px">Feature on a page you run</div><div class="rsvp"><form method="post" action="/feature"><input type="hidden" name="feat_kind" value="athlete"><input type="hidden" name="feat_id" value="9f50440f-88a5-4ee3-b53c-24f0c7b4b6e6"><input type="hidden" name="event_id" value="a1002058-7d71-47c8-8177-64f2eb86f137"><button class="rb" type="submit">Feature on Rico</button></form><form method="post" action="/feature"><input type="hidden" name="feat_kind" value="team"><input type="hidden" name="feat_id" value="13c02a69-aa52-4f1d-bd82-29b0c10948f0"><input type="hidden" name="event_id" value="a1002058-7d71-47c8-8177-64f2eb86f137"><button class="rb" type="submit">Feature on FC</button></form><form method="post" action="/feature"><input type="hidden" name="feat_kind" value="association"><input type="hidden" name="feat_id" value="94df1c54-d88a-4fa9-b01a-fefc0c07052e"><input type="hidden" name="event_id" value="a1002058-7d71-47c8-8177-64f2eb86f137"><button class="rb" type="submit">Feature on Berliner</button></form></div>
+       <div class="rsvp"><button type="button" class="rb p" data-t="Season launch night" data-u="/e/0c428969-39b9-4c61-a222-568984038897?via=s0fdfe5fe70875c8b" data-img="/e/0c428969-39b9-4c61-a222-568984038897/card.png" data-x="Season launch night · Sat 01 Aug 2026 · Vereinsheim" aria-label="Share" onclick="hzShare(this)"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:5px"><circle cx="6" cy="12" r="2.4"/><circle cx="17.5" cy="6" r="2.4"/><circle cx="17.5" cy="18" r="2.4"/><path d="m8.2 10.9 7.1-3.8M8.2 13.1l7.1 3.8"/></svg>Share the matchday card</button></div>
+       <p class="mut" style="font-size:12px;margin:2px 0 0">Sends the whole card. Claims from it are credited to you — a plain Share above stays anonymous.</p>
+       <details style="margin-top:8px"><summary class="mut" style="font-size:12px;cursor:pointer">See the card</summary>
+         <img src="/e/0c428969-39b9-4c61-a222-568984038897/card.png" alt="Preview of the shareable matchday card for Season launch night" loading="lazy"
+              style="width:100%;max-width:420px;margin-top:8px;border:1px solid var(--b);border-radius:12px;display:block">
+       </details><div class="cap" style="margin-top:18px">Feature on a page you run</div><div class="rsvp"><form method="post" action="/feature"><input type="hidden" name="feat_kind" value="athlete"><input type="hidden" name="feat_id" value="c874ce64-4782-4af1-a2d1-b98cc8daaec2"><input type="hidden" name="event_id" value="0c428969-39b9-4c61-a222-568984038897"><button class="rb" type="submit">Feature on Rico</button></form><form method="post" action="/feature"><input type="hidden" name="feat_kind" value="team"><input type="hidden" name="feat_id" value="a202e329-6cf0-4b63-8b87-ddaf33b6e119"><input type="hidden" name="event_id" value="0c428969-39b9-4c61-a222-568984038897"><button class="rb" type="submit">Feature on FC</button></form><form method="post" action="/feature"><input type="hidden" name="feat_kind" value="association"><input type="hidden" name="feat_id" value="3c1185ae-7533-4fbe-b10e-958e206fc01e"><input type="hidden" name="event_id" value="0c428969-39b9-4c61-a222-568984038897"><button class="rb" type="submit">Feature on Berliner</button></form></div>
       <div class="prov">Public event · viewing is open; attending needs a free account. Calendar export &amp; watch links are open to members.</div>
     </main>
   </div>
-  <div style="height:76px"></div><div class="actionbar"><div class="abin"><div class="ablabel"><div class="abt">Season launch night</div><div class="abs">0 claimed</div></div><a class="btn" href="/e/a1002058-7d71-47c8-8177-64f2eb86f137/check-in">Check-in</a></div></div>
+  <div style="height:76px"></div><div class="actionbar"><div class="abin"><div class="ablabel"><div class="abt">Season launch night</div><div class="abs">0 claimed</div></div><a class="btn" href="/e/0c428969-39b9-4c61-a222-568984038897/check-in">Check-in</a></div></div>
   </div>
   <nav class="bnav" aria-label="Primary"><div class="bninner">
-    <a href="/" class="" aria-label="Home" title="Home"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 10.6 12 3l9 7.6"/><path d="M5.2 9.4V20h13.6V9.4"/></svg></a>
-    <a href="/map" class="" aria-label="Explore" title="Explore"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="m20 20-3.7-3.7"/></svg></a>
+    <a href="/" class="" aria-label="Your Horda" title="Your Horda"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 10.6 12 3l9 7.6"/><path d="M5.2 9.4V20h13.6V9.4"/></svg></a>
+    <a href="/signup" class="" aria-label="Following" title="Following"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20S3 14.6 3 8.9C3 6 5.1 4 7.7 4c1.8 0 3.3 1 4.3 2.4C13 5 14.5 4 16.3 4 18.9 4 21 6 21 8.9 21 14.6 12 20 12 20Z"/></svg></a>
     
-    <a href="/signup" class="" aria-label="Following — your Hordas" title="Following — your Hordas"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20S3 14.6 3 8.9C3 6 5.1 4 7.7 4c1.8 0 3.3 1 4.3 2.4C13 5 14.5 4 16.3 4 18.9 4 21 6 21 8.9 21 14.6 12 20 12 20Z"/></svg></a>
-    <a href="/signup" class="" aria-label="You" title="You"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="3.6"/><path d="M5.5 20c0-3.7 2.9-6.2 6.5-6.2S18.5 16.3 18.5 20"/></svg></a>
+    
+    <a href="/signup" class="" aria-label="Claim your @handle" title="Claim your @handle"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="3.6"/><path d="M5.5 20c0-3.7 2.9-6.2 6.5-6.2S18.5 16.3 18.5 20"/></svg></a>
   </div></nav>
+  <script>
+window.hzShare=function(b){
+  var r=b.getAttribute('data-u'), u=r?(r.charAt(0)==='/'?location.origin+r:r):location.href;
+  var t=b.getAttribute('data-t')||document.title;
+  var x=b.getAttribute('data-x')||t;
+  var im=b.getAttribute('data-img');
+  var done=function(msg){var o=b.innerHTML;b.innerHTML=msg;setTimeout(function(){b.innerHTML=o},1800)};
+  var link=function(){
+    if(navigator.share){navigator.share({title:t,text:x,url:u}).catch(function(){})}
+    else if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(u).then(function(){done('Link copied ✓')})}
+    else{prompt('Copy this link',u)}
+  };
+  if(!im||!navigator.canShare){return link()}
+  // Fetch the card, then ask whether this browser will actually take a file.
+  // Never block the tap on the network: if the card is slow or missing, the link
+  // still goes out. A share that fails silently is worse than a plain link.
+  var to=setTimeout(link,2500), sent=false;
+  fetch(im.charAt(0)==='/'?location.origin+im:im).then(function(r){ if(!r.ok)throw 0; return r.blob() }).then(function(bl){
+    if(sent)return; clearTimeout(to);
+    var f=new File([bl],'horda-matchday.png',{type:bl.type||'image/png'});
+    if(navigator.canShare({files:[f]})){ sent=true; return navigator.share({files:[f],title:t,text:x,url:u}) }
+    sent=true; link();
+  }).catch(function(){ if(!sent){sent=true;clearTimeout(to);link()} });
+};
+</script>
+  <script>(function(){
+  var K='hz_maps';
+  var pref=null; try{ pref=localStorage.getItem(K); }catch(e){}
+  var isApple=/iPhone|iPad|iPod|Macintosh/.test(navigator.userAgent||'');
+  [].forEach.call(document.querySelectorAll('.mapch'),function(d){
+    var menu=d.querySelector('.mapmenu');
+    var g=menu.querySelector('[data-maps="google"]'), a=menu.querySelector('[data-maps="apple"]');
+    // Put the likely one first. The other stays one glance away.
+    if(isApple && a && g) menu.insertBefore(a,g);
+    if(pref==='google'||pref==='apple'){
+      var go=menu.querySelector('[data-maps="'+pref+'"]');
+      // Preference known: the summary itself opens it — no menu, no second tap.
+      d.querySelector('summary').addEventListener('click',function(e){
+        if(d.open) return;                 // already open (they came back to switch)
+        e.preventDefault(); go.click();
+      });
+      if(!menu.querySelector('.mapre')){
+        var re=document.createElement('div'); re.className='mapre';
+        re.innerHTML='Opens in '+(pref==='apple'?'Apple':'Google')+' Maps. <button type="button">Use the other one</button>';
+        re.querySelector('button').addEventListener('click',function(){ try{localStorage.removeItem(K);}catch(e){} d.open=false; location.reload(); });
+        menu.appendChild(re);
+      }
+    }
+  });
+  // Click-away close — a popover that can only be dismissed by its own trigger
+  // is a trap on touch.
+  document.addEventListener('click',function(e){
+    [].forEach.call(document.querySelectorAll('.mapch[open]'),function(d){ if(!d.contains(e.target)) d.open=false; });
+  });
+  document.addEventListener('keydown',function(e){ if(e.key==='Escape')[].forEach.call(document.querySelectorAll('.mapch[open]'),function(d){d.open=false}); });
+})();</script>
 </body></html>
