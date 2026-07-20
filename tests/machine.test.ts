@@ -159,10 +159,13 @@ const sm = await get('/sitemap.xml');
 ok('sitemap uses the real namespace (sitemaps.org, plural)', sm.includes('http://www.sitemaps.org/schemas/sitemap/0.9'));
 ok('sitemap lists the public pages', ['/about', '/changelog', '/agb', '/impressum'].every(p => sm.includes(`<loc>${base.replace('http://', 'https://')}${p}</loc>`) || sm.includes(p)));
 ok('every loc is absolute', [...sm.matchAll(/<loc>([^<]+)<\/loc>/g)].every(m => /^https?:\/\//.test(m[1])));
-// PRIVACY. Fan activity is private — that rule doesn't stop applying because the
-// visitor is a crawler. And unlisted events are unlisted BY DEFINITION.
-ok('sitemap lists no events (ephemeral, and unlisted ones must stay unlisted)', !/<loc>[^<]*\/e\//.test(sm));
-ok('sitemap lists no fans or passes', !/<loc>[^<]*\/(fan|pass|record)\//.test(sm));
+// PRIVACY + DISCOVERABILITY. Public upcoming events ARE listed now (so a crawler
+// can find each event page and read its schema.org JSON-LD — the point of the
+// events-for-AI work). But fan activity is private — that rule doesn't stop
+// applying because the visitor is a crawler — and passes/records never appear.
+// (The unlisted-and-past exclusions are asserted in the schema.org block below,
+// where events are seeded to test against.)
+ok('sitemap lists no fans, passes or records (fan activity is private)', !/<loc>[^<]*\/(fan|pass|record)\//.test(sm));
 
 // --- /robots.txt -----------------------------------------------------------
 const robots = await get('/robots.txt');
@@ -181,6 +184,39 @@ ok('entryId leads with the date, so ids sort chronologically', /^\d{4}-\d{2}-\d{
 ok('entryId is readable, not a hash — an opaque id in a URL helps nobody', /[a-z]{3,}/.test(entryId(SHIPPED[0])));
 ok('entryIds are unique across the whole changelog',
   new Set(SHIPPED.map(entryId)).size === SHIPPED.length);
+
+// --- schema.org/Event JSON-LD (AI/search event discovery) ------------------
+// The structured fact an answer engine reads for "what's on this weekend?".
+console.log('\n[machine] schema.org Event structured data');
+const club = (await app.db.query<{ id: string }>(`SELECT id FROM club LIMIT 1`)).rows[0].id;
+const evLd = (await app.db.query<{ id: string }>(
+  `INSERT INTO event (name, description, starts_at, timezone, location, location_kind, host_kind, host_id, admission, price_cents, currency, capacity, visibility)
+   VALUES ('Schema Test Match','desc', now()+interval '5 days','Europe/Berlin','Poststadion, Berlin','in_person','club',$1,'paid',1500,'EUR',200,'public') RETURNING id`, [club])).rows[0].id;
+const evLdPage = await get(`/e/${evLd}`);
+const ldMatch = evLdPage.match(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/);
+ok('a public event emits schema.org JSON-LD', !!ldMatch);
+if (ldMatch) {
+  const ld = JSON.parse(ldMatch[1]);
+  ok('it is a valid schema.org/Event', ld['@context'] === 'https://schema.org' && ld['@type'] === 'Event');
+  ok('it carries the ISO start instant (engines localise via location)', /^\d{4}-\d{2}-\d{2}T/.test(ld.startDate));
+  ok('it names the organiser with a URL', ld.organizer?.name && /^https?:\/\//.test(ld.organizer.url));
+  ok('it states the venue as a Place', ld.location?.['@type'] === 'Place' && ld.location.name.includes('Poststadion'));
+  ok('it states a truthful Offer (price + currency + availability)',
+    ld.offers?.price === '15.00' && ld.offers.priceCurrency === 'EUR' && /InStock|SoldOut/.test(ld.offers.availability));
+  ok('the attendance mode is a real schema.org enum', /EventAttendanceMode$/.test(ld.eventAttendanceMode));
+  ok('the event URL is absolute', /^https?:\/\//.test(ld.url));
+}
+// The privacy invariant, again: unlisted must NOT become a structured search
+// result — and must not appear in the sitemap that leads crawlers to it.
+await app.db.query(`UPDATE event SET visibility='unlisted' WHERE id=$1`, [evLd]);
+ok('an unlisted event emits NO JSON-LD (private stays private)', !(await get(`/e/${evLd}`)).includes('application/ld+json'));
+ok('an unlisted event is NOT in the sitemap', !(await get('/sitemap.xml')).includes(`/e/${evLd}`));
+await app.db.query(`UPDATE event SET visibility='public' WHERE id=$1`, [evLd]);
+ok('a public upcoming event IS in the sitemap (so a crawler can find it)', (await get('/sitemap.xml')).includes(`/e/${evLd}`));
+// A finished event drops out — a search result for last week's match is worse
+// than none.
+await app.db.query(`UPDATE event SET starts_at = now() - interval '10 days' WHERE id=$1`, [evLd]);
+ok('a past event drops out of the sitemap', !(await get('/sitemap.xml')).includes(`/e/${evLd}`));
 
 await app.close();
 console.log(`\n──────────── ${pass} passed, ${fail} failed ────────────`);

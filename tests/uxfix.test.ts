@@ -69,11 +69,33 @@ ok('a GUEST on an event page is offered Login / Join free', evGuest.includes('hr
 ok('a LOGGED-IN viewer is NOT offered Login / Join free', !/class="dr-foot">\s*<a[^>]*href="\/login"/.test(evFan) && !evFan.includes('/signup">Join free'));
 ok('…the logged-in rail shows the profile slot instead', evFan.includes('/fan/') || evFan.includes('dr-nav'));
 
-// --- 5. BACK BUTTON --------------------------------------------------------
-// Prefers real history (same-origin) over the semantic parent, so map→event→back
-// returns to the map, not the organiser.
-ok('back button uses same-origin history when available', evFan.includes('history.length>1') && evFan.includes('new URL(document.referrer).origin===location.origin'));
-ok('back still has a fallback href for a cold deep-link', /hz-back" href="[^"]+"/.test(evFan));
+// --- 5. BACK BUTTON — executed, not eyeballed ------------------------------
+// The bug: "click my events on the main screen → open an event → back sends me
+// to my profile, not the main page." Root cause: the handler gated on
+// document.referrer, which is EMPTY in real browsers (referrer-policy, JS nav),
+// so it fell through to the hardcoded href — and that href, for an event you
+// own, is your own profile. Fix: depend on nothing but history length.
+//
+// This runs the ACTUAL onclick string in a fake browser and checks where each
+// click lands — the click-test I couldn't do with a headless browser.
+const backHtml = (await import('../src/web/theme.ts')).backButton('/athlete/OWNER');
+const backClick = backHtml.match(/onclick="([^"]+)"/)![1];
+const backHref = backHtml.match(/href="([^"]+)"/)![1];
+const runBack = (historyLength: number, referrer: string): 'back' | 'nav' => {
+  let wentBack = false, prevented = false;
+  const history = { length: historyLength, back() { wentBack = true; } };
+  const event = { preventDefault() { prevented = true; } };
+  const document = { referrer };
+  const location = { origin: 'https://joinhorda.com' };
+  new Function('history', 'event', 'document', 'location', backClick)(history, event, document, location);
+  return wentBack ? 'back' : (prevented ? 'back' : 'nav');
+};
+ok('back does not depend on document.referrer (the thing that broke it)', !backClick.includes('referrer'));
+ok('back uses preventDefault, not unreliable return-false', backClick.includes('preventDefault') && !backClick.includes('return false'));
+ok('THE BUG: empty referrer + history → goes BACK, not to the profile href', runBack(3, '') === 'back');
+ok('same-origin referrer + history → goes back', runBack(3, 'https://joinhorda.com/') === 'back');
+ok('cold deep-link (no history) → falls to the semantic href', runBack(1, '') === 'nav');
+ok('back still has a fallback href for the cold case', /hz-back" href="[^"]+"/.test(evFan) && backHref === '/athlete/OWNER');
 
 // --- 6. FOLLOW STATE -------------------------------------------------------
 const ath = (await db.query<{ id: string }>(`SELECT a.id FROM athlete a WHERE a.account_id IS NOT NULL LIMIT 1`)).rows[0]?.id
