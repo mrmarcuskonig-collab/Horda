@@ -3,7 +3,10 @@ services:
     name: horda
     runtime: docker
     plan: free
-    healthCheckPath: /
+    # Real health check: /healthz returns 503 (fails the deploy) unless the DB is
+    # reachable AND migrations are at HEAD. "/" could 200 on a broken DB — that's
+    # how the "migrations never applied" bug once shipped unnoticed.
+    healthCheckPath: /healthz
     envVars:
       # Your Postgres connection string (e.g. from Neon). Set this in the
       # Render dashboard — intentionally not stored in the repo.
@@ -12,3 +15,11 @@ services:
       # "1" shows seeded demo content without login; "0" for a real pilot.
       - key: HORDA_DEMO
         value: "1"
+      # Crash reporting sink (best-effort, env-gated). Set ONE in the Render
+      # dashboard — a Slack/Discord webhook URL, or use SENTRY_DSN instead.
+      # Never paste secrets in the repo; add them in Render → Environment.
+      - key: HORDA_ERROR_WEBHOOK
+        sync: false
+      # Optional: stamps errors + /healthz with the running version.
+      - key: HORDA_RELEASE
+        sync: false

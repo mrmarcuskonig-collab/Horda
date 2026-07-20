@@ -61,6 +61,7 @@ import { requestClaim, verifyByChannelCode, listClaimsForReviewer, decideClaim, 
 import { getPayments, verifyWebhook } from './payments.ts';
 import { getPayoutAccount, upsertPayoutAccount, setPayoutStatus, isPayoutsEnabled } from '../db/payouts_repo.ts';
 import { changelogFeed, changelogMarkdown, rssFeed, sitemapXml, robotsTxt, llmsTxt } from './feeds.ts';
+import { reportError, errorPage, healthReport } from './observe.ts';
 import { eventCardSvg } from './card.ts';
 import { svgToPng, inlineImage } from './raster.ts';
 import { walletStatus, googleWalletUrl, buildPkpass, type PassData } from './wallet.ts';
@@ -151,6 +152,15 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
     try {
       const url = new URL(req.url ?? '/', 'http://localhost');
       const path = url.pathname;
+      // Health check FIRST — before session/auth, so it reflects the server's
+      // real state (DB reachable + migrations at HEAD), not a rendered page.
+      // Render points its health check here; a 503 fails a bad deploy loudly.
+      if (path === '/healthz' || path === '/health') {
+        const hr = await healthReport(db);
+        res.writeHead(hr.ok ? 200 : 503, { 'content-type': 'application/json', 'cache-control': 'no-store' });
+        res.end(hr.body);
+        return;
+      }
       // --- identity: resolve the session account (demo fallback keeps it usable without login) ---
       const cookies = parseCookies(req.headers.cookie);
       // Language: an explicit cookie wins; otherwise default by region — German for
@@ -1868,7 +1878,10 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
       }
       html(res, '<p>Not found. <a href="/">Home</a></p>', 404);
     } catch (e: any) {
-      html(res, `<pre>${e?.stack ?? e}</pre>`, 500);
+      // Report to the configured sink (webhook/Sentry/stderr), then show the user
+      // a calm branded page — never a raw stack trace.
+      reportError(e, { where: 'request', method: req.method, path: (req.url || '').split('?')[0] });
+      try { html(res, errorPage(), 500); } catch { res.writeHead(500); res.end('Internal error'); }
     }
   });
 }
@@ -1892,8 +1905,8 @@ async function loadDemoIds(db: Database): Promise<DemoIds> {
 export async function startServer(port = Number(process.env.PORT ?? 8787)): Promise<{ server: Server; db: Database; ids: DemoIds; port: number; close: () => Promise<void> }> {
   // Last line of defense: never let a stray async error (e.g. a late DB socket
   // drop) crash the whole web process and blank every page. Log loudly instead.
-  process.on('unhandledRejection', (r) => console.error('[unhandledRejection]', r));
-  process.on('uncaughtException', (e) => console.error('[uncaughtException]', e));
+  process.on('unhandledRejection', (r) => reportError(r, { where: 'unhandledRejection' }));
+  process.on('uncaughtException', (e) => reportError(e, { where: 'uncaughtException' }));
   const db = await openDatabase();   // DATABASE_URL → server Postgres (prod); else embedded PGlite (HORDA_DATA persists)
   const fresh = (await db.query<{ r: string | null }>(`SELECT to_regclass('public.account')::text r`)).rows[0].r === null;
   const pending = await applySchema(db);   // ALWAYS apply pending migrations (new + existing DBs alike)
