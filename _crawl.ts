@@ -111,6 +111,30 @@ async function crawl(start: string, label: string, asGuest: boolean, maxPages = 
       problems.push({ url: path, status: r.status, from: `${label} ← ${from}`, error: `suspiciously empty (${body.length} bytes)` });
     }
 
+    // LOGIN/JOIN STATE. As a logged-in fan, no page may show the guest chrome:
+    // the desktop rail's "Log in / Join free" foot, or the profile slot routing
+    // to /signup. Either means the page rendered the shell without telling it who
+    // was looking (the layout()-defaults-to-guest footgun). This is the exact
+    // "shows me Login/Join even though I'm logged in" report — checked on EVERY
+    // page, not just the event page.
+    if (!asGuest) {
+      // The foot login button is `class="btn ghost" href="/login"` inside dr-foot.
+      const footLogin = /class="btn ghost" href="\/login"/.test(body) && body.includes('Join free');
+      const profileToSignup = /class="tab[^"]*"[^>]*href="\/signup"[^>]*>\s*<[^>]*>\s*(Claim|@Handle)/.test(body) || body.includes('claim_handle_nav');
+      // Auth pages themselves (login/signup/magic) legitimately show these — a
+      // logged-in user landing there is an edge case, not a bug.
+      const isAuthPage = /^\/(login|signup|forgot|reset|magic|auth)/.test(path);
+      if (footLogin && !isAuthPage) {
+        problems.push({ url: path, status: 200, from: `${label} ← ${from}`, error: 'shows guest "Log in / Join free" to a LOGGED-IN user' });
+      }
+    }
+    // BACK BUTTON. Every back arrow must prefer real history, so it returns to
+    // where you came from rather than teleporting to a semantic parent. A back
+    // button that lacks the history check is the "back lands on the organiser" bug.
+    if (body.includes('class="hz-back"') && !body.includes('history.length>1')) {
+      problems.push({ url: path, status: 200, from: `${label} ← ${from}`, error: 'back button does not prefer history (teleports to a fixed parent)' });
+    }
+
     // Follow same-origin links. Skip logout (ends the session mid-crawl) and
     // anything destructive.
     for (const m of body.matchAll(/href="(\/[^"#?][^"]*)"/g)) {
