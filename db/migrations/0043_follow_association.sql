@@ -1,0 +1,17 @@
+-- 0043_follow_association.sql
+--
+-- Make ASSOCIATIONS followable. The follow_target_type enum has carried only
+-- ('club','team','athlete') since 0001 — but the app renders association pages
+-- with a "Join the Horda" / Follow button, and the follow-state sync added in
+-- this batch calls isFollowing(…, 'association', …). Both cast the string
+-- 'association' to the enum, which the enum rejects: a 500 on every association
+-- page for a logged-in fan, and a 500 on the follow POST.
+--
+-- An association is an entity a fan should absolutely be able to follow (a
+-- federation runs the events you care about). This was a gap in the model, not a
+-- deliberate exclusion — the button was already there, it just couldn't submit.
+--
+-- ALTER TYPE ... ADD VALUE is transactional-safe in modern Postgres and PGlite.
+-- IF NOT EXISTS makes the migration idempotent, so re-running it on a DB that
+-- already has the value is a no-op rather than an error.
+ALTER TYPE follow_target_type ADD VALUE IF NOT EXISTS 'association';

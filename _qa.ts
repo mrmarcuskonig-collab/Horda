@@ -257,7 +257,12 @@ console.log('\n[build order #2 — conversion + growth P0]');
 const guestAth = await txt(`/athlete/${rico}`);                 // logged-out
 const fanAth = await txt(`/athlete/${rico}`, cookie);           // logged-in fan
 ok('guest sees a Follow CTA (not "Join the Horda")', guestAth.includes('>Follow</a>') && !guestAth.includes('Join the Horda'));
-ok('logged-in fan can join the crowd (Follow), not paid Support', fanAth.includes('crowd') && fanAth.includes('action="/follow"'));
+// The follow control now reflects state: /follow if not yet following, /unfollow
+// if already. Either is "can join/manage the crowd, not paid Support" — the
+// invariant the test actually guards. (It used to only ever render /follow,
+// which was the bug: it begged you to follow a crowd you already followed.)
+ok('logged-in fan can join/manage the crowd (Follow/Unfollow), not paid Support',
+  fanAth.includes('crowd') && (fanAth.includes('action="/follow"') || fanAth.includes('action="/unfollow"')) && !fanAth.includes('/join">Support'));
 ok('OG / Twitter share-card meta on athlete page', guestAth.includes('property="og:title"') && guestAth.includes('name="twitter:card"') && guestAth.includes('property="og:url"'));
 const clubOg = await txt(`/club/${club}`);
 ok('OG meta on club page too', clubOg.includes('property="og:title"') && clubOg.includes('og:description'));
