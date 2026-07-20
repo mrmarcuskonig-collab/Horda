@@ -341,7 +341,9 @@ ok('no IG-style round athlete photos on the landing', !land.includes('class="sto
 ok('featured cards are PUBLIC EVENTS (photo posters linking to /e/)', land.includes('class="fcard"') && land.includes('class="ftitle"') && /class="fcard[^"]*" href="\/e\//.test(land));
 const mapPage = await get('/map');
 ok('event map is its own page (Leaflet + CARTO), removed from landing', mapPage.includes('id="map"') && mapPage.includes('cartocdn.com') && mapPage.includes('Event map') && !land.includes('id="map"'));
-ok('map markers are avatar rings that link to the profile (no name/popup label)', mapPage.includes("className:'hz-av'") && mapPage.includes('class="mav"') && mapPage.includes('window.location.href=p.href') && !mapPage.includes('bindPopup'));
+// The `mav` span now carries an optional ` live` class for the orange live-ring,
+// so match the class prefix rather than the exact closing quote.
+ok('map markers are avatar rings that link to the profile (no name/popup label)', mapPage.includes("className:'hz-av'") && mapPage.includes('class="mav') && mapPage.includes('window.location.href=p.href') && !mapPage.includes('bindPopup'));
 ok('landing footer carries the company description', land.includes('The events home for sports and competitive culture'));
 ok('single dark arena theme: no theme boot script + no toggle on landing', !land.includes("localStorage.getItem('hz_theme')") && !land.includes('class="thm"'));
 ok('no light mode anywhere (dark-only guardrail)', !land.includes('data-theme="light"') && !(await get(`/athlete/${rico}`)).includes('data-theme="light"'));
