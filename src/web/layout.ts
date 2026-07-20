@@ -40,7 +40,19 @@ export function ogMeta(o: { title: string; description: string; url?: string; im
 // as a bare URL: no picture, no title, nothing to tap toward. Pages that call
 // layout() are the shareable ones; they need a way in.
 export function layout(title: string, body: string, opts: { back?: string; head?: string; nav?: { active?: string; guest: boolean; fanId: string | null; createHref?: string; lang?: Lang; unread?: number } } = {}): string {
-  const nv = opts.nav ?? { guest: true, fanId: null };
+  // THE DEFAULT IS AUTHENTICATED-NEUTRAL, NOT GUEST — this is a deliberate
+  // safety flip. The old default, `{ guest: true }`, meant any page that forgot
+  // to pass viewer state showed a LOGGED-IN user the guest "Log in / Join free"
+  // rail. An audit of the whole site found 18 authenticated pages doing exactly
+  // that (settings, notifications, manage, onboarding, the create form, …).
+  //
+  // Reasoning about which default is safer: the overwhelming majority of pages
+  // that reach layout() WITHOUT explicit nav are logged-in-only surfaces, so the
+  // failure was systemic. Defaulting to guest:false means a forgotten nav degrades
+  // to "no login shortcut in the rail" (harmless — every guest-facing page has its
+  // own sign-up CTAs) instead of "guest chrome shown to a member" (the actual bug
+  // the user reported). Genuinely guest-facing pages pass `guest: true` explicitly.
+  const nv = opts.nav ?? { guest: false, fanId: null };
   return `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1"><link rel="icon" href="/favicon.svg"><title>${esc(title)} — Horda</title>${opts.head ?? ''}${THEME_BOOT}
 <style>

@@ -15,7 +15,7 @@ import type { Database } from '../db/index.ts';
 import { getClubPage, getOrCreateSport } from '../db/repo.ts';
 import {
   getAthleteProfile, getFanHome, getFollows, getUpcomingBout, getPrediction,
-  followEntity, unfollowEntity, makePrediction, attend, getAttendance, getAffiliations, getLatestPost, setAthleteProfile, createAthlete, createPost,
+  followEntity, unfollowEntity, isFollowing, makePrediction, attend, getAttendance, getAffiliations, getLatestPost, setAthleteProfile, createAthlete, createPost,
 } from '../db/engagement_repo.ts';
 import {
   getBranding, setBranding, getClub, getTeamsOfClub, getTeam, getRoster,
@@ -30,7 +30,7 @@ import { signup, verifyLogin, createSession, sessionAccount, deleteSession, fanF
 import { getDiscover, REGIONS, searchEntities } from '../db/discover_repo.ts';
 import { renderEventPage, renderCreateEvent, renderManage, renderCheckout, renderPayouts } from './events.ts';
 import { seedDemo, type DemoIds } from './seed.ts';
-import { renderIndex, renderDiscover, renderMap, renderAthletePage, renderCustomize, renderCompose, renderFanHome, renderSignup, renderLogin, renderForgot, renderReset, renderSharePage, renderMemberWelcome, renderClaimPending, renderClaimQueue, renderOnboardFan, renderAiPrompt, renderProfilePreview, renderOnboardClaim, renderCreatorEntry, renderClaimHandle, sportsLabel, renderSettings, renderPros, renderCreatePicker, renderCreateAge, renderMagicSent, renderFollowing, renderWelcome, sportLabel } from './pages.ts';
+import { renderIndex, renderDiscover, renderMap, renderAthletePage, renderCustomize, renderCompose, renderFanHome, renderSignup, renderLogin, renderForgot, renderReset, renderSharePage, renderMemberWelcome, renderClaimPending, renderClaimQueue, renderOnboardFan, renderAiPrompt, renderProfilePreview, renderOnboardClaim, renderCreatorEntry, renderClaimHandle, sportsLabel, SPORT_EN_LABELS, renderSettings, renderPros, renderCreatePicker, renderCreateAge, renderMagicSent, renderFollowing, renderWelcome, sportLabel } from './pages.ts';
 import { getEmailer, resetEmail, loginEmail } from './email.ts';
 // `esc` is required here: the event route builds a little HTML inline for the
 // Event Room CTA. It was used without being imported, which crashed /e/:id with
@@ -53,6 +53,7 @@ import { requestLink, setLinkStatus, getLink, activeParents, parentsOf, children
 import { renderPass, renderRecord, renderCheckin, claimCta } from './claim_web.ts';
 import { actionBar } from './theme.ts';
 import { normLang } from './i18n.ts';
+import { resolveSportKey, cityAliases } from './localize.ts';
 import { generateEventAssets, eventGraphic, supporterCard } from './mediagen.ts';
 import { resolveLayout } from './sections.ts';
 import { generateProfile, getModel, coverDataUri } from './profilegen.ts';
@@ -1166,8 +1167,13 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
         const myTicket = guest ? null : await getTicketFor(db, em[1], viewer);
         const listings = await getListings(db, em[1]);
         const isHost = await canEdit(d.hostKind ?? '', d.hostId ?? '');
-        const rc = await getRoomConfig(db, em[1]);
-        const roomCta = rc?.enabled ? `<div class="card" style="border-color:var(--bone)"><strong>${esc(rc.label || 'Event Room')}</strong> — countdown, live reactions and the host's behind-the-scenes.<div class="row" style="margin-top:8px"><a class="btn" href="/e/${em[1]}/room">Enter the ${esc(rc.label || 'room')} →</a></div></div>` : '';
+        // The "Event Room" CTA ("… — countdown, live reactions and the host's
+        // behind-the-scenes") is REMOVED from the event page. It's a leftover from
+        // Build Order #3 (rooms/tiers/live chat), which the events-first pivot
+        // left behind — it advertised a tier-gated live-chat product on a page
+        // whose only job is: claim your spot. The room routes still exist for now,
+        // just not surfaced here.
+        const roomCta = '';
         // The claim rail (the pivot): the primary CTA on every event is "Claim your spot".
         const evRow = (await db.query<any>(`SELECT capacity, registration_mode, standing_threshold FROM event WHERE id=$1`, [em[1]])).rows[0];
         const spots = await spotsInfo(db, em[1], evRow?.capacity ?? null);
@@ -1236,7 +1242,7 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
         if (!d) return html(res, 'Not found', 404);
         if (!await canEdit(d.hostKind ?? '', d.hostId ?? '')) return redirect(res, `/e/${em[1]}`);  // guest list is owner-only
         const payoutAcct = (d.hostKind && d.hostId) ? await getPayoutAccount(db, d.hostKind, d.hostId) : null;
-        return html(res, renderManage(d, await getGuestList(db, em[1]), await formatCounts(db, em[1]), await shareAttribution(db, em[1]), await partyAttribution(db, em[1]), (d.hostKind && d.hostId) ? { hostKind: d.hostKind, hostId: d.hostId, connected: !!payoutAcct?.chargesEnabled } : undefined));
+        return html(res, renderManage(d, await getGuestList(db, em[1]), await formatCounts(db, em[1]), await shareAttribution(db, em[1]), await partyAttribution(db, em[1]), (d.hostKind && d.hostId) ? { hostKind: d.hostKind, hostId: d.hostId, connected: !!payoutAcct?.chargesEnabled } : undefined, viewerGuest ? null : viewer));
       }
       if ((em = path.match(/^\/host\/(athlete|club|team|association)\/([^/]+)\/new$/))) {
         const parentId = url.searchParams.get('parent');
@@ -1244,7 +1250,7 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
         const parent = pe ? { id: pe.id, title: pe.title } : undefined;
         // Pre-select the host's own sport — right ~95% of the time, one click to change.
         const hostSport = em[1] === 'athlete' ? await getAthleteSport(db, em[2]) : null;
-        return html(res, renderCreateEvent(em[1], em[2], await hostName(db, em[1], em[2]), parent, hostSport));
+        return html(res, renderCreateEvent(em[1], em[2], await hostName(db, em[1], em[2]), parent, hostSport, viewerGuest ? null : viewer));
       }
       // Multi-party: claim an unclaimed side/roster slot (the two-sided growth loop).
       const pmClaim = path.match(/^\/e\/([^/]+)\/party\/([^/]+)\/claim$/);
@@ -1401,15 +1407,15 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
       let sm;
       if ((sm = path.match(/^\/share\/result\/([^/]+)$/))) {
         const a = await buildResultShare(db, sm[1]);
-        return a ? html(res, renderSharePage(a)) : html(res, '<p>Not found</p>', 404);
+        return a ? html(res, renderSharePage(a, '/signup', { guest: viewerGuest, fanId: viewerGuest ? null : viewer })) : html(res, '<p>Not found</p>', 404);
       }
       if ((sm = path.match(/^\/share\/fight\/([^/]+)$/))) {
         const a = await buildFightShare(db, sm[1]);
-        return a ? html(res, renderSharePage(a)) : html(res, '<p>Not found</p>', 404);
+        return a ? html(res, renderSharePage(a, '/signup', { guest: viewerGuest, fanId: viewerGuest ? null : viewer })) : html(res, '<p>Not found</p>', 404);
       }
       if ((sm = path.match(/^\/share\/week\/([^/]+)$/))) {
         const a = await buildWeekDrop(db, sm[1]);
-        return html(res, renderSharePage(a));
+        return html(res, renderSharePage(a, '/signup', { guest: viewerGuest, fanId: viewerGuest ? null : viewer }));
       }
 
       // language preference (EN/DE) — per-device cookie, then back to where you were
@@ -1444,9 +1450,13 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
         return redirect(res, req.headers.referer ?? '/following');
       }
       if (path === '/') {
-        const sport = url.searchParams.get('sport') || undefined;
+        // A typed sport is resolved to its KEY across both live languages, so
+        // "Fußball", "soccer" or "football" all select the football chip. A typed
+        // city is expanded to every equivalent so "München" finds "Munich" events.
+        const sportRaw = url.searchParams.get('sport') || undefined;
+        const sport = sportRaw ? (resolveSportKey(sportRaw, SPORT_EN_LABELS) ?? sportRaw) : undefined;
         const region = url.searchParams.get('region') || undefined;
-        const data = await getDiscover(db, { sport, region });
+        const data = await getDiscover(db, { sport, region, regionAliases: cityAliases(region) });
         const unread = viewerGuest ? 0 : await unreadCount(db, viewer);
         // Remember a guest's filter so, when they sign up, it becomes their feed
         // (auto-follow the sport + region they were browsing).
@@ -1458,18 +1468,31 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
         return html(res, renderDiscover({ guest: viewerGuest, fanId: viewer, sport, region, data, regions: REGIONS, lang, unread, doors }));
       }
       if (path === '/map') {
-        // Event map: plot public events at their host's region, cover image as the pin.
+        // Event map: plot UPCOMING public events at their host's region.
+        //
+        // Two bugs this query had: (1) no `starts_at > now()` filter, and (2)
+        // ORDER BY starts_at ASC — so the LIMIT filled with the OLDEST rows,
+        // meaning the map showed last month's finished matches and dropped next
+        // week's. It has to be future-only, and ordered by soonest-first so the
+        // cap keeps the events people can still go to.
+        //
+        // `live` = starts within the next 3 hours (or started up to 3h ago) —
+        // the map rings these in orange. `AT TIME ZONE` so "now" is judged at the
+        // venue, consistent with everywhere else (tz.ts).
         const evRows = (await db.query<any>(
-          `SELECT e.id, e.name title, e.cover_url,
+          `SELECT e.id, e.name title,
                   COALESCE(a.region, cl.region) region,
-                  COALESCE(e.cover_url, a.avatar_url) avatar
+                  COALESCE(e.cover_url, a.avatar_url) avatar,
+                  (e.starts_at <= now() + interval '3 hours' AND e.starts_at >= now() - interval '3 hours') live
            FROM event e
            LEFT JOIN athlete a ON e.host_kind::text='athlete' AND a.id::text=e.host_id::text
            LEFT JOIN club cl  ON e.host_kind::text='club'    AND cl.id::text=e.host_id::text
            WHERE e.host_kind IS NOT NULL AND e.starts_at IS NOT NULL
-           ORDER BY e.starts_at LIMIT 80`)).rows;
-        const points = evRows.filter(r => r.region).map(r => ({ name: r.title, region: r.region, href: `/e/${r.id}`, kind: 'event', avatar: r.avatar || null }));
-        return html(res, renderMap({ guest: viewerGuest, fanId: viewer, points }));
+             AND e.starts_at >= now() - interval '3 hours'
+             AND COALESCE(e.visibility,'public') <> 'unlisted'
+           ORDER BY e.starts_at ASC LIMIT 200`)).rows;
+        const points = evRows.filter(r => r.region).map(r => ({ name: r.title, region: r.region, href: `/e/${r.id}`, kind: 'event', avatar: r.avatar || null, live: !!r.live }));
+        return html(res, renderMap({ guest: viewerGuest, fanId: viewer, points, lang }));
       }
       let m;
       if (req.method === 'POST' && (m = path.match(/^\/athlete\/([^/]+)\/branding$/))) {
@@ -1584,7 +1607,7 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
           : supporterCard({ athleteName: nm, sport, label: defaultRoomLabel(sport), title: nm, opponent: null }, { backing: true });
         await track(db, 'artifact_share', { ownerKind: sm[1], ownerId: sm[2], props: { kind: 'supporter_card' } });
         const ogImg = `${origin}/share/supporter/${sm[1]}/${sm[2]}.svg`;
-        return html(res, renderSharePage({ title: `Backing ${nm}`, card, body: `I'm backing ${nm} on Horda. Get closer to the athletes you love.`, shareText: `I'm backing ${nm} on Horda — joinhorda.com` }, sm[1] === 'athlete' ? `/athlete/${sm[2]}` : `/${sm[1]}/${sm[2]}`));
+        return html(res, renderSharePage({ title: `Backing ${nm}`, card, body: `I'm backing ${nm} on Horda. Get closer to the athletes you love.`, shareText: `I'm backing ${nm} on Horda — joinhorda.com` }, sm[1] === 'athlete' ? `/athlete/${sm[2]}` : `/${sm[1]}/${sm[2]}`, { guest: viewerGuest, fanId: viewerGuest ? null : viewer }));
       }
       // save a membership tier (Supporter/Clubhouse) — owner only; wired to Stripe
       if (req.method === 'POST' && (m = path.match(/^\/athlete\/([^/]+)\/tiers$/))) {
@@ -1746,7 +1769,10 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
         const athShop = await listShopItems(db, 'athlete', m[1]);
         const athSportsLabel = sportsLabel(await getAthleteSports(db, m[1]));
         const athConnections = await activeParents(db, 'athlete', m[1]);
-        return html(res, renderAthletePage({ guest, fanId, profile, upcoming, attendance, affiliations, events, connections: athConnections, scheduleHref: `/host/athlete/${m[1]}/new`, tiers, membership, superfan, loyalty: fanId ? { score: lscore, threshold: 200 } : null, memberCount: members, canEdit: athOwner, activation: athAct, sections: athSections, ogTags: athOg, previewAsFan: realOwner && asFan, media: athMedia, sponsors: athSponsors, banner: athBanner, goalsHtml, sportsLabel: athSportsLabel, createHref: viewerCreateHref, shop: athShop, themedBanner: athThemedBanner }));
+        // Does this viewer already follow? Drives Follow vs Following on the page —
+        // it always said "Follow", even to someone who already did.
+        const athFollowing = fanId ? await isFollowing(db, fanId, 'athlete', m[1]) : false;
+        return html(res, renderAthletePage({ guest, fanId, profile, upcoming, attendance, affiliations, events, connections: athConnections, scheduleHref: `/host/athlete/${m[1]}/new`, tiers, membership, superfan, loyalty: fanId ? { score: lscore, threshold: 200 } : null, memberCount: members, canEdit: athOwner, activation: athAct, sections: athSections, ogTags: athOg, previewAsFan: realOwner && asFan, media: athMedia, sponsors: athSponsors, banner: athBanner, goalsHtml, sportsLabel: athSportsLabel, createHref: viewerCreateHref, shop: athShop, themedBanner: athThemedBanner, isFollowing: athFollowing }));
       }
       if ((m = path.match(/^\/club\/([^/]+)$/))) {
         const guest = viewerGuest;
@@ -1766,7 +1792,7 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
         }
         const cp = await getLatestPost(db, 'club', m[1]);
         return html(res, renderEntityProfile({
-          kindLabel: 'Club', entityId: m[1], guest, fanId: guest ? null : viewer, name: club.name, nickname: club.name,
+          kindLabel: 'Club', entityId: m[1], isFollowing: (guest ? false : await isFollowing(db, viewer, 'club', m[1])), guest, fanId: guest ? null : viewer, name: club.name, nickname: club.name,
           tagline: brand.tagline, avatarUrl: brand.avatarUrl, bannerUrl: brand.bannerUrl, links: brand.links,
           tabs: [{ label: 'Highlight' }, { label: 'Squad' }, { label: 'Fixtures' }, { label: 'Shop', shop: true }],
           statLine, notice, post: cp ? { author: club.name, body: cp.body, date: cp.date } : undefined,
@@ -1791,7 +1817,7 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
         const upcoming = nf ? { title: `${team.name} vs ${nf.opp}`, eventId: nf.eventId, date: nf.date, access: nf.access, ticketUrl: nf.ticketUrl, streamUrl: nf.streamUrl } : null;
         const attendance = (!guest && nf) ? await getAttendance(db, viewer, nf.eventId) : null;
         return html(res, renderEntityProfile({
-          kindLabel: 'Team', entityId: m[1], guest, fanId: guest ? null : viewer, name: team.name,
+          kindLabel: 'Team', entityId: m[1], isFollowing: (guest ? false : await isFollowing(db, viewer, 'team', m[1])), guest, fanId: guest ? null : viewer, name: team.name,
           tagline: brand.tagline, avatarUrl: brand.avatarUrl, bannerUrl: brand.bannerUrl, links: brand.links,
           parent: { label: team.club_name, href: `/club/${team.club_id}` },
           about: `${team.sport} · ${[team.division, team.gender].filter(Boolean).join(' · ')}`,
@@ -1812,7 +1838,7 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
         const leagues = await getAssociationLeagues(db, m[1]);
         const clubs = await getAssociationClubs(db, m[1]);
         return html(res, renderEntityProfile({
-          kindLabel: 'Association', entityId: m[1], guest, fanId: guest ? null : viewer, name: assoc.name,
+          kindLabel: 'Association', entityId: m[1], isFollowing: (guest ? false : await isFollowing(db, viewer, 'association', m[1])), guest, fanId: guest ? null : viewer, name: assoc.name,
           tagline: brand.tagline, avatarUrl: brand.avatarUrl, bannerUrl: brand.bannerUrl, links: brand.links,
           about: brand.tagline ?? undefined,
           tabs: [{ label: 'Highlight' }, { label: 'Members' }, { label: 'Competitions' }, { label: 'Notice' }],

@@ -3,7 +3,7 @@
 import { esc } from './layout.ts';
 import { socialIcon, kindIcon } from './icons.ts';
 import { ravenMark, ravenMarkCurrent } from './brand.ts';
-import { THEME_BOOT, THEME_VARS, THM_CSS, themeToggle, bottomNav, backButton, deskRail, shareButton, SHARE_SCRIPT } from './theme.ts';
+import { THEME_BOOT, THEME_VARS, THM_CSS, themeToggle, bottomNav, backButton, deskRail, shareButton, followControl, SHARE_SCRIPT } from './theme.ts';
 
 export interface ListItem { kind: string; label: string; href: string | null; tag?: string }
 export interface ProfileVM {
@@ -24,6 +24,7 @@ export interface ProfileVM {
   secondary?: { title: string; items: ListItem[] };  // optional 2nd sidebar list (competitions)
   editAction?: string;                // owner edit endpoint (shows the upload panel)
   canEdit?: boolean;                  // viewer owns this entity
+  isFollowing?: boolean;              // viewer already follows → show Following, not Follow
   events?: { id: string; title: string; date?: string; featured?: boolean; hostName?: string; mine?: boolean }[];  // scheduled + featured (mine = viewer holds a spot)
   scheduleHref?: string;              // owner: create-event endpoint
   parent?: { label: string; href: string | null };   // e.g. team -> its club
@@ -76,11 +77,10 @@ export function renderEntityProfile(vm: ProfileVM): string {
   // removed by the pivot.) So the single biggest button on the page scrolled
   // nowhere for exactly the people most likely to press it.
   //
-  // Now it does the thing it says: follow the crowd. Same verb as everywhere else
-  // in the app, and a real POST.
-  const followCta = vm.guest
-    ? `<a class="btn" href="/signup">Join the Horda</a>`
-    : `<form method="post" action="/follow" style="display:inline"><input type="hidden" name="fan_id" value="${esc(vm.fanId ?? '')}"><input type="hidden" name="target_type" value="${esc(vm.kindLabel.toLowerCase())}"><input type="hidden" name="target_id" value="${esc(vm.entityId ?? '')}"><button class="btn" type="submit">Join the Horda</button></form>`;
+  // Now it does the thing it says: follow the crowd — and it knows whether you
+  // already do, so a page you follow shows "Following", not another "Follow".
+  // Same shared control as the athlete page (followControl), so they can't drift.
+  const followCta = followControl({ guest: vm.guest, following: !!vm.isFollowing, targetType: vm.kindLabel.toLowerCase(), targetId: vm.entityId ?? '', fanId: vm.fanId, cls: 'btn' });
   const hero = `<div class="hero">
     ${vm.bannerUrl ? `<img class="bg" src="${esc(vm.bannerUrl)}" alt="">` : `<div class="bg ph"><span class="kick">${esc(vm.nickname || vm.name)}</span></div>`}
     <div class="heroin"><span class="kindtag">${esc(vm.kindLabel)}</span><h1>${esc(vm.name)}</h1><div style="display:flex;gap:8px;flex-wrap:wrap">${followCta}${shareButton({ title: vm.name, cls: 'btn ghost' })}</div></div>

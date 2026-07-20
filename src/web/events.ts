@@ -306,7 +306,15 @@ export function renderEventPage(d: EventDetail, ctx: {
     image: ctx.origin ? `${ctx.origin}${cardUrl}` : null,
     type: 'article',
   });
-  return layout(d.title, body, { back: hostHref(d.hostKind, d.hostId), head: og });
+  // Pass the REAL viewer state to the chrome. Without a `nav`, layout() defaults
+  // to `{ guest: true, fanId: null }` — so the desktop rail showed "Log in / Join
+  // free" to a logged-in fan looking at their own event. The event page just
+  // never told the shell who was looking.
+  return layout(d.title, body, {
+    back: hostHref(d.hostKind, d.hostId),
+    head: og,
+    nav: { active: 'explore', guest: ctx.guest, fanId: ctx.fanId },
+  });
 }
 
 // Organizer payouts (Stripe Connect). The gate for paid ticketing: connect a
@@ -342,7 +350,7 @@ export function renderCheckout(d: EventDetail, fanId: string, live = false): str
 
 // owner: schedule an event. `parent` set when adding a sub-event (bout / race).
 // `defaultSport` = the host's own sport, pre-selected (see the topsel comment).
-export function renderCreateEvent(hostKind: string, hostId: string, hostName: string, parent?: { id: string; title: string }, defaultSport?: string | null): string {
+export function renderCreateEvent(hostKind: string, hostId: string, hostName: string, parent?: { id: string; title: string }, defaultSport?: string | null, viewerFanId?: string | null): string {
   const fld = 'display:block;margin:12px 0;font-size:13px;color:var(--mut)';
   const inp = 'display:block;width:100%;margin-top:6px;background:var(--s);border:1px solid var(--b);border-radius:10px;color:var(--bone);padding:10px;font:inherit';
   const body = `
@@ -867,7 +875,9 @@ export function renderCreateEvent(hostKind: string, hostId: string, hostName: st
     });
     loc.addEventListener('blur', function(){ setTimeout(closeAc, 120); });
   })();</script>${UPLOAD_SCRIPT}`;
-  return layout('Schedule an event', body, { back: hostHref(hostKind, hostId) });
+  // Authenticated page — a guest can't schedule an event. Tell the shell so it
+  // shows the logged-in rail, not "Log in / Join free".
+  return layout('Schedule an event', body, { back: hostHref(hostKind, hostId), nav: { active: 'create', guest: false, fanId: viewerFanId ?? null } });
 }
 
 // owner: manage — approvals + guest list + per-format attendance breakdown
@@ -875,7 +885,7 @@ export function renderManage(d: EventDetail, guests: { response: string; status:
   formats: { id: string; kind: string; label: string; channelUrl: string | null; requiresTicket: boolean; priceCents: number | null; going: number; revenueCents: number }[] = [],
   attribution: { fanId: string; name: string; token: string; clicks: number; claims: number }[] = [],
   promo?: { rows: { partyId: string; name: string; role: string; side: string | null; token: string; kind: string; status: string; clicks: number; identities: number; ticketBuyers: number; subEvent?: string }[]; total: { identities: number; ticketBuyers: number; clicks: number } },
-  payout?: { hostKind: string; hostId: string; connected: boolean }): string {
+  payout?: { hostKind: string; hostId: string; connected: boolean }, viewerFanId?: string | null): string {
   // Paid event → surface payout status: connect payouts (KYC) before selling.
   const payoutBanner = (d.admission === 'paid' && payout)
     ? (payout.connected
@@ -908,9 +918,9 @@ export function renderManage(d: EventDetail, guests: { response: string; status:
        ${totalRev ? `<p class="mut" style="margin-top:6px">Tickets sold on Horda: <b>${money2(totalRev)}</b></p>` : ''}
        <style>.fmtgrid{display:grid;gap:10px;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));margin:10px 0}.fmtcard{border:1px solid var(--b);border-radius:12px;padding:12px;background:var(--s)}.fk{font-size:12.5px;font-weight:600}.fn{font-size:30px;font-weight:800;font-variant-numeric:tabular-nums;margin-top:4px}.fl{font-size:11.5px;color:var(--mut);text-transform:uppercase;letter-spacing:.5px}.fu{font-size:12px;border-bottom:1px solid var(--b);display:inline-block;margin-top:6px}</style>`
     : '';
-  return renderManageInner(d, guests, payoutBanner + sharePanel + formatBreakdown + attributionBlock);
+  return renderManageInner(d, guests, payoutBanner + sharePanel + formatBreakdown + attributionBlock, viewerFanId ?? null);
 }
-function renderManageInner(d: EventDetail, guests: { response: string; status: string; fanId: string; name: string; handle: string | null }[], formatBreakdown: string): string {
+function renderManageInner(d: EventDetail, guests: { response: string; status: string; fanId: string; name: string; handle: string | null }[], formatBreakdown: string, viewerFanId: string | null = null): string {
   const pending = guests.filter(g => g.response === 'going' && g.status === 'pending');
   const approveList = pending.length
     ? `<h2>${d.admission === 'paid' ? 'Awaiting payment' : 'Applications'} · ${pending.length}</h2><ul>${pending.map(g =>
@@ -930,5 +940,6 @@ function renderManageInner(d: EventDetail, guests: { response: string; status: s
   ${group(g => g.response === 'not_going', "Can't go")}
   ${guests.length ? '' : '<p class="mut">No responses yet.</p>'}
   <div class="row"><a href="/e/${d.id}"><button class="ghost">View public page</button></a></div>`;
-  return layout('Manage · ' + d.title, body, { back: `/e/${d.id}` });
+  // Owner-only page — always logged in. Show the real rail, not the guest one.
+  return layout('Manage · ' + d.title, body, { back: `/e/${d.id}`, nav: { active: 'create', guest: false, fanId: viewerFanId ?? null } });
 }

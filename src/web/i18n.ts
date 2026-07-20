@@ -31,6 +31,12 @@ const DICT: Record<string, { en: string; de: string }> = {
   followers:    { en: 'followers',        de: 'Follower' },
   notifications:{ en: 'Notifications',    de: 'Mitteilungen' },
   live_now:     { en: 'LIVE NOW',         de: 'JETZT LIVE' },
+  event_map:    { en: 'Event map',        de: 'Event-Karte' },
+  map_sub:      { en: 'Event map · public events near you', de: 'Event-Karte · öffentliche Events in deiner Nähe' },
+  all_sports:   { en: 'All sports',       de: 'Alle Sportarten' },
+  follow:       { en: 'Follow',           de: 'Folgen' },
+  following_btn:{ en: 'Following',        de: 'Folge ich' },
+  unfollow:     { en: 'Unfollow',         de: 'Entfolgen' },
 };
 export function t(lang: Lang, key: string): string {
   const e = DICT[key];

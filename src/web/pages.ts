@@ -3,8 +3,9 @@ import { layout, esc, linkify } from './layout.ts';
 import { socialIcon, kindIcon } from './icons.ts';
 import { editPanel, UPLOAD_SCRIPT } from './shell.ts';
 import { ravenMark, ravenMarkCurrent } from './brand.ts';
-import { THEME_BOOT, THEME_VARS, THM_CSS, themeToggle, bottomNav, verifiedBadge, actionBar, langToggle, backButton, deskRail, shareButton, SHARE_SCRIPT } from './theme.ts';
+import { THEME_BOOT, THEME_VARS, THM_CSS, themeToggle, bottomNav, verifiedBadge, actionBar, langToggle, backButton, deskRail, shareButton, followControl, SHARE_SCRIPT } from './theme.ts';
 import { t, type Lang } from './i18n.ts';
+import { sportLabelL } from './localize.ts';
 import { bannerSvg, defaultThemeForSport, svgDataUri } from './theme_engine.ts';
 import { oauthProviders } from './oauth.ts';
 import { SECTIONS } from './sections.ts';
@@ -92,8 +93,11 @@ export function renderDiscover(d: {
   // One scrolling sport row, ordered by global popularity. Football & boxing are
   // the two with live coverage; the rest read as universal (filter → empty state).
   // The row clips the last chip so the user senses there's more to swipe.
-  const POPULAR: [string, string][] = [['football', 'Football'], ['basketball', 'Basketball'], ['boxing', 'Boxing'], ['tennis', 'Tennis'], ['running', 'Running'], ['mma', 'MMA'], ['cycling', 'Cycling'], ['volleyball', 'Volleyball'], ['handball', 'Handball'], ['ice_hockey', 'Ice hockey'], ['triathlon', 'Triathlon']];
-  const sportChips = `<div class="chips scroll">${chip('All sports', !d.sport, qp(undefined, d.region))}${POPULAR.map(([k, n]) => chip(n, d.sport === k, qp(k, d.region))).join('')}</div>`;
+  // Chip labels render in the viewer's language (Fußball, Radsport, …) — a German
+  // fan couldn't recognise their sport when every chip was English. The English
+  // label is the fallback; sportLabelL swaps in the German one when lang=de.
+  const POPULAR_KEYS: [string, string][] = [['football', 'Football'], ['basketball', 'Basketball'], ['boxing', 'Boxing'], ['tennis', 'Tennis'], ['running', 'Running'], ['mma', 'MMA'], ['cycling', 'Cycling'], ['volleyball', 'Volleyball'], ['handball', 'Handball'], ['ice_hockey', 'Ice hockey'], ['triathlon', 'Triathlon']];
+  const sportChips = `<div class="chips scroll">${chip(tr('all_sports'), !d.sport, qp(undefined, d.region))}${POPULAR_KEYS.map(([k, n]) => chip(sportLabelL(k, n, lang), d.sport === k, qp(k, d.region))).join('')}</div>`;
 
   // Location: a free field (works for a rural village or Los Angeles) with
   // type-ahead suggestions, plus a "use my location" pin. Suggestions = regions
@@ -290,9 +294,13 @@ ${SHARE_SCRIPT}
 }
 
 // --- event map (its own destination) — public events plotted near you --------
-export function renderMap(d: { guest: boolean; fanId: string | null; createHref?: string; points: { name: string; region: string | null; href: string; kind: string; avatar?: string | null }[] }): string {
+export function renderMap(d: { guest: boolean; fanId: string | null; createHref?: string; lang?: Lang; points: { name: string; region: string | null; href: string; kind: string; avatar?: string | null; live?: boolean }[] }): string {
+  // The map opened in English no matter your language: <html lang="en"> was
+  // hardcoded and no lang reached the nav, so the whole rail reverted to English
+  // the moment you clicked "Open the map". Carry the chosen language through.
+  const lang: Lang = d.lang ?? 'en';
   const pointsJson = JSON.stringify(d.points).replace(/</g, '\\u003c');
-  return `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><link rel="icon" href="/favicon.svg"><title>Event map — Horda</title>${THEME_BOOT}
+  return `<!DOCTYPE html><html lang="${lang}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><link rel="icon" href="/favicon.svg"><title>${esc(t(lang, 'event_map'))} — Horda</title>${THEME_BOOT}
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
@@ -315,19 +323,34 @@ export function renderMap(d: { guest: boolean; fanId: string | null; createHref?
   .hz-av .mav:hover{transform:scale(1.1)}
   .hz-av .mav img,.hz-av .mav .ini{width:100%;height:100%;border-radius:50%;object-fit:cover;display:block;border:2px solid var(--ink);box-sizing:border-box;background:var(--s)}
   .hz-av .mav .ini{display:flex;align-items:center;justify-content:center;font-weight:700;font-size:15px;color:var(--bone)}
+  /* Events happening now or within 3 hours get an ORANGE ring + a soft pulse, so
+     "where can I still go tonight" reads at a glance. */
+  .hz-av .mav.live{background:var(--acc);box-shadow:0 0 0 3px rgba(225,90,64,.35),0 0 14px rgba(225,90,64,.55);animation:mlive 1.6s ease-in-out infinite}
+  @keyframes mlive{0%,100%{box-shadow:0 0 0 3px rgba(225,90,64,.35),0 0 14px rgba(225,90,64,.5)}50%{box-shadow:0 0 0 5px rgba(225,90,64,.2),0 0 20px rgba(225,90,64,.75)}}
 </style></head><body class="deskrail">
-  ${deskRail({ guest: d.guest, fanId: d.fanId, active: 'explore' })}
+  ${deskRail({ guest: d.guest, fanId: d.fanId, active: 'explore', lang })}
   ${backButton('/')}
   <div class="mapwrap">
-    <div class="mtitle">Event map · public events near you</div>
-    <div id="map" role="img" aria-label="Map of public events"></div>
+    <div class="mtitle">${esc(t(lang, 'map_sub'))}</div>
+    <div id="map" role="img" aria-label="${esc(t(lang, 'event_map'))}"></div>
   </div>
-  ${bottomNav({ active: 'explore', guest: d.guest, fanId: d.fanId, createHref: d.createHref })}
+  ${bottomNav({ active: 'explore', guest: d.guest, fanId: d.fanId, createHref: d.createHref, lang })}
   <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
   <script>
   (function(){
     if(!window.L){return}
-    var C={Berlin:[52.52,13.405],Hamburg:[53.55,9.99],Cologne:[50.94,6.96],Bavaria:[48.14,11.58]};
+    // City → coordinates, keyed in BOTH languages so an event tagged "München"
+    // or "Köln" plots exactly like "Munich"/"Cologne". Keys are lower-cased on
+    // lookup, so casing/​locale of the stored region doesn't matter.
+    var C={
+      berlin:[52.52,13.405], hamburg:[53.55,9.99],
+      cologne:[50.94,6.96], 'köln':[50.94,6.96], koeln:[50.94,6.96],
+      munich:[48.14,11.58], 'münchen':[48.14,11.58], muenchen:[48.14,11.58], bavaria:[48.14,11.58], bayern:[48.14,11.58],
+      frankfurt:[50.11,8.68], stuttgart:[48.78,9.18], dusseldorf:[51.23,6.78], 'düsseldorf':[51.23,6.78],
+      leipzig:[51.34,12.37], dresden:[51.05,13.74], bremen:[53.08,8.80], hanover:[52.37,9.74], hannover:[52.37,9.74],
+      nuremberg:[49.45,11.08], 'nürnberg':[49.45,11.08], nuernberg:[49.45,11.08],
+      vienna:[48.21,16.37], wien:[48.21,16.37], zurich:[47.37,8.54], 'zürich':[47.37,8.54], zuerich:[47.37,8.54]
+    };
     var pts=${pointsJson};
     if(!document.getElementById('map')){return}
     var map=L.map('map',{scrollWheelZoom:true}).setView([51.1,10.2],5);
@@ -338,10 +361,13 @@ export function renderMap(d: { guest: boolean; fanId: string | null; createHref?
     function esc(s){return String(s||'').replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]})}
     function avatarIcon(p){
       var inner=p.avatar?'<img src="'+esc(p.avatar)+'" alt="">':'<span class="ini">'+esc((p.name||'?').trim().charAt(0).toUpperCase())+'</span>';
-      return L.divIcon({className:'hz-av',html:'<span class="mav">'+inner+'</span>',iconSize:[50,50],iconAnchor:[25,25]});
+      return L.divIcon({className:'hz-av',html:'<span class="mav'+(p.live?' live':'')+'">'+inner+'</span>',iconSize:[50,50],iconAnchor:[25,25]});
     }
+    // Live events on top of the pile, so an orange ring is never hidden behind a
+    // regular pin at the same venue.
+    pts.sort(function(a,b){return (a.live?1:0)-(b.live?1:0)});
     pts.forEach(function(p){
-      var c=C[p.region];if(!c){return}
+      var c=C[String(p.region||'').trim().toLowerCase()];if(!c){return}
       var j=function(){return (Math.random()-0.5)*0.06};
       var mk=L.marker([c[0]+j(),c[1]+j()],{icon:avatarIcon(p),title:p.name,riseOnHover:true,keyboard:true}).addTo(map);
       mk.on('click',function(){window.location.href=p.href});
@@ -380,6 +406,7 @@ export function renderAthletePage(d: {
   createHref?: string;
   shop?: { id: string; kind: string; title: string; subtitle: string | null; url: string | null; priceCents: number | null }[];
   themedBanner?: string;
+  isFollowing?: boolean;   // viewer already follows → show Following/Unfollow, not Follow
 }): string {
   const isMember = !!d.membership;
   const viewerTier = d.membership?.tierLevel ?? null;
@@ -408,7 +435,7 @@ export function renderAthletePage(d: {
   const profhead = `<section class="profhead">
       <div class="avatar">${av}</div>
       <div class="pid"><h1>${esc(p.name)}</h1><div class="hsub">${p.handle ? '@' + esc(p.handle) : ''}${nickname ? ` · “${esc(nickname)}”` : ''}${d.sportsLabel ? ` · ${esc(d.sportsLabel)}` : ''}${d.superfan ? ' · <span class="sfan">✦ Superfan</span>' : ''}</div></div>
-      <div class="phactions" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">${d.canEdit ? '' : (d.guest ? `<a class="btn join" href="/signup?follow=athlete:${p.athleteId}">Follow</a>` : `<form method="post" action="/follow"><input type="hidden" name="target_type" value="athlete"><input type="hidden" name="target_id" value="${p.athleteId}"><button class="btn join">Follow</button></form>`)}${shareButton({ title: p.name, cls: 'btn ghost join' })}</div>
+      <div class="phactions" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">${d.canEdit ? '' : followControl({ guest: d.guest, following: !!d.isFollowing, targetType: 'athlete', targetId: p.athleteId, fanId: d.fanId, cls: 'btn join' })}${shareButton({ title: p.name, cls: 'btn ghost join' })}</div>
     </section>
     ${socials ? `<div class="icons">${socials}</div>` : ''}
     ${p.tagline ? `<p class="tagline">${esc(p.tagline)}</p>` : ''}`;
@@ -439,7 +466,7 @@ export function renderAthletePage(d: {
   const joinFields = `<input type="hidden" name="fan_id" value="${d.fanId}"><input type="hidden" name="owner_kind" value="athlete"><input type="hidden" name="owner_id" value="${p.athleteId}">`;
   const followCard = `<div class="tcard"><div class="th2">Follow <span class="tlvl">Free</span></div>
       <ul class="perks"><li>Public posts, results &amp; matchdays</li><li>Counts toward Superfan status</li></ul>
-      ${d.guest ? `<a class="btn" href="/signup">Follow</a>` : `<form method="post" action="/follow"><input type="hidden" name="fan_id" value="${d.fanId}"><input type="hidden" name="target_type" value="athlete"><input type="hidden" name="target_id" value="${p.athleteId}"><button class="btn">Follow</button></form>`}</div>`;
+      ${followControl({ guest: d.guest, following: !!d.isFollowing, targetType: 'athlete', targetId: p.athleteId, fanId: d.fanId, cls: 'btn' })}</div>`;
   const tcard = (t: { level: string; name: string; priceCents: number; priceAnnualCents: number | null; currency: string; perks: string[] }) => {
     const annual = t.priceAnnualCents ?? t.priceCents * 10;
     const here = isMember && viewerTier === t.level;
@@ -751,7 +778,10 @@ export function sportSelect(name: string, current?: string | null, style = ''): 
   return `<select name="${name}"${style ? ` style="${style}"` : ''}>${opts.join('')}</select>`;
 }
 
-const SPORT_LABELS: Record<string, string> = Object.fromEntries(SPORTS);
+// Exported so the search layer (localize.ts / server) can resolve a typed English
+// sport name back to its key without re-declaring the canonical list here.
+export const SPORT_EN_LABELS: Record<string, string> = Object.fromEntries(SPORTS);
+const SPORT_LABELS = SPORT_EN_LABELS;
 export function sportLabel(key: string): string { return SPORT_LABELS[key] ?? key.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()); }
 export function sportsLabel(keys: string[]): string { return keys.map(sportLabel).join(' · '); }
 
@@ -1076,7 +1106,7 @@ export function renderCompose(d: { athleteId: string; fanId: string | null; hasP
 
 // PUBLIC share page — the acquisition loop. Open to everyone (like Shop): a
 // non-user lands here from a shared card and meets a join CTA. Facts only.
-export function renderSharePage(a: { title: string; card: string; body: string; shareText: string }, joinHref = '/signup'): string {
+export function renderSharePage(a: { title: string; card: string; body: string; shareText: string }, joinHref = '/signup', vw?: { guest: boolean; fanId: string | null }): string {
   const enc = encodeURIComponent(a.shareText);
   return layout(a.title, `
     <style>.sc svg{width:100%;height:auto;display:block;border-radius:14px}</style>
@@ -1089,7 +1119,10 @@ export function renderSharePage(a: { title: string; card: string; body: string; 
       <a class="tag" href="data:image/svg+xml;utf8,${encodeURIComponent(a.card)}" download="horda-card.svg">Download card</a>
     </div>
     <div class="card" style="margin-top:20px"><strong>This is the Horda.</strong> The home for superfans of sports and competitive culture.
-      <div class="row"><a href="${esc(joinHref)}"><button>Join free</button></a></div></div>`, { back: '/' });
+      <div class="row"><a href="${esc(joinHref)}"><button>Join free</button></a></div></div>`,
+    // Public acquisition surface — but a logged-in viewer must still see their own
+    // rail, not "Log in / Join free". Defaults to guest when the route doesn't say.
+    { back: '/', nav: { active: 'explore', guest: vw?.guest ?? true, fanId: vw?.fanId ?? null } });
 }
 
 // the "founding member" moment — celebratory + shareable (FOMO spread).

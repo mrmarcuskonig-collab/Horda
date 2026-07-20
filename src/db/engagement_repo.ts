@@ -25,7 +25,7 @@ export async function setAthleteProfile(db: Database, athleteId: string, p: { ta
     [athleteId, p.tagline ?? null, p.avatarUrl ?? null, p.bannerUrl ?? null, p.links ? JSON.stringify(p.links) : null]);
 }
 
-export async function followEntity(db: Database, fanId: string, targetType: 'club' | 'team' | 'athlete', targetId: string): Promise<void> {
+export async function followEntity(db: Database, fanId: string, targetType: 'club' | 'team' | 'athlete' | 'association', targetId: string): Promise<void> {
   await db.query(`INSERT INTO follow (fan_id,target_type,target_id) VALUES ($1,$2,$3) ON CONFLICT DO NOTHING`, [fanId, targetType, targetId]);
 }
 export async function unfollowEntity(db: Database, fanId: string, targetType: string, targetId: string): Promise<void> {

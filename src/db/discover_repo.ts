@@ -26,7 +26,12 @@ async function eventStats(db: Database, e: { id: string; host_kind: string; host
   return { going, shares, followers };
 }
 
-export async function getDiscover(db: Database, filter: { sport?: string; region?: string }): Promise<Discover> {
+// `regionAliases` (optional) is the query expanded into every live-language
+// equivalent — ["münchen","munich","bavaria",…] — computed in the web layer by
+// cityAliases() and passed in, so this repo stays language-agnostic and the db
+// layer never imports the web layer. A match on ANY alias counts, which is how
+// "München" finds a "Munich"-tagged event and back again.
+export async function getDiscover(db: Database, filter: { sport?: string; region?: string; regionAliases?: string[] }): Promise<Discover> {
   const sports = (await db.query<any>(`SELECT key, name FROM sport WHERE is_live ORDER BY display_order`)).rows;
 
   const athleteRows = (await db.query<any>(
@@ -55,8 +60,13 @@ export async function getDiscover(db: Database, filter: { sport?: string; region
   // location is free-text now (any city/region worldwide) → match case-insensitively
   // and as a partial, so "berlin", "Berlin", or "berl" all hit the Berlin coverage.
   const reg = filter.region?.trim().toLowerCase();
+  // The set of needles to test a region against: every language equivalent when
+  // provided, else just the raw query. "München" and "Munich" both resolve here.
+  const regNeedles = (filter.regionAliases && filter.regionAliases.length)
+    ? filter.regionAliases.map(s => s.toLowerCase())
+    : (reg ? [reg] : []);
   const matches = (row: any) => (!filter.sport || row.sport === filter.sport)
-    && (!reg || (row.region && row.region.toLowerCase().includes(reg)));
+    && (!regNeedles.length || (row.region && regNeedles.some(n => row.region.toLowerCase().includes(n))));
 
   // "live" = happening right now (started, not yet ended) — for FOMO/urgency,
   // not streaming. Ended-window defaults to +3h when no ends_at is set. Live
@@ -85,9 +95,14 @@ export async function getDiscover(db: Database, filter: { sport?: string; region
          AND (e.starts_at IS NULL OR now() < COALESCE(e.ends_at, e.starts_at + interval '3 hours'))
      ) q
      WHERE ($1::text IS NULL OR q.evsport = $1)
-       AND ($2::text IS NULL OR q.location ILIKE '%'||$2||'%' OR q.hostregion ILIKE '%'||$2||'%')
+       -- Match the location/host-region against ANY language equivalent. $2 is a
+       -- text[] of needles ("münchen","munich",…); an empty array means no region
+       -- filter. EXISTS over unnest keeps it a single indexed-ish pass.
+       AND (COALESCE(array_length($2::text[],1),0) = 0
+            OR EXISTS (SELECT 1 FROM unnest($2::text[]) n
+                       WHERE q.location ILIKE '%'||n||'%' OR q.hostregion ILIKE '%'||n||'%'))
      ORDER BY q.live DESC, q.starts_at
-     LIMIT 8`, [filter.sport ?? null, reg ?? null])).rows;
+     LIMIT 8`, [filter.sport ?? null, regNeedles])).rows;
   const upcoming = [];
   for (const e of evRows) {
     const s = await eventStats(db, e);

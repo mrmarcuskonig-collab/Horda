@@ -138,11 +138,56 @@ const RAIL_ICON = {
 // The one consistent back control used on every page (no headers). If `href` is
 // given it links there; otherwise it goes back in history (falling back to home).
 // Fixed top-left, floating over content / cover — same look everywhere.
+/**
+ * Back means "the page I came from", not "this page's parent".
+ *
+ * It used to be a plain `<a href={href}>` where href was a SEMANTIC parent — the
+ * event page passed the host page, the map passed "/". So map → tap an event →
+ * back landed you on the event's ORGANISER, a page you'd never seen. That's the
+ * "clicking logic doesn't work" report: the arrow didn't go back, it teleported.
+ *
+ * Now it prefers real browser history and only falls back to the semantic href
+ * when there is none (a cold deep-link, or a crawler). The href is kept as that
+ * fallback and as the middle-click / no-JS destination — so it degrades to the
+ * old behaviour rather than to nothing, but the common case finally does what the
+ * arrow says.
+ */
+/**
+ * The follow / following control, in ONE place.
+ *
+ * Every entity page rendered a bare "Follow" that never knew you already
+ * followed — so a page you follow still begged you to follow it, and the only
+ * real action left (unfollow) wasn't offered. This takes the follow state and
+ * renders the right thing:
+ *   - guest        → "Follow" that routes to signup (carrying the intent)
+ *   - not following → POST /follow, labelled "Follow"
+ *   - following     → POST /unfollow, labelled "Following ✓" (hover/press = Unfollow)
+ *
+ * One function so the athlete page, the club/team/association shell and anywhere
+ * else can never drift out of sync again. Both /follow and /unfollow redirect
+ * back to the referer, so the button flips on the very next render.
+ */
+export function followControl(o: { guest: boolean; following: boolean; targetType: string; targetId: string; fanId?: string | null; cls?: string; lang?: _Lang }): string {
+  const lang = o.lang ?? 'en';
+  const cls = o.cls || 'btn';
+  if (o.guest) return `<a class="${cls}" href="/signup?follow=${encodeURIComponent(o.targetType + ':' + o.targetId)}">${_t(lang, 'follow')}</a>`;
+  const fields = `<input type="hidden" name="fan_id" value="${o.fanId ?? ''}"><input type="hidden" name="target_type" value="${o.targetType}"><input type="hidden" name="target_id" value="${o.targetId}">`;
+  if (o.following) {
+    // Filled state, and the label flips to "Unfollow" on hover/focus so the
+    // destructive action is legible only when you're reaching for it.
+    return `<form method="post" action="/unfollow" style="display:inline"><button class="${cls} on hz-following" type="submit" data-following="1"><span class="hzf-is">${_t(lang, 'following_btn')} ✓</span><span class="hzf-un">${_t(lang, 'unfollow')}</span></button></form>${FOLLOW_CSS}`;
+  }
+  return `<form method="post" action="/follow" style="display:inline">${fields}<button class="${cls}" type="submit">${_t(lang, 'follow')}</button></form>`;
+}
+const FOLLOW_CSS = `<style>.hz-following .hzf-un{display:none}.hz-following:hover .hzf-is,.hz-following:focus .hzf-is{display:none}.hz-following:hover .hzf-un,.hz-following:focus .hzf-un{display:inline}</style>`;
+
 export function backButton(href?: string): string {
   const icon = `<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 5-7 7 7 7"/></svg>`;
-  return href
-    ? `<a class="hz-back" href="${href}" aria-label="Back" title="Back">${icon}</a>`
-    : `<button type="button" class="hz-back" aria-label="Back" title="Back" onclick="if(history.length>1){history.back()}else{location.href='/'}">${icon}</button>`;
+  const dest = href || '/';
+  // Same-origin history only: history.back() to a page on another site would send
+  // the fan away from Horda entirely, which "back" must never do.
+  const onclick = `if(history.length>1&&document.referrer&&new URL(document.referrer).origin===location.origin){history.back();return false}`;
+  return `<a class="hz-back" href="${dest}" aria-label="Back" title="Back" onclick="${onclick}">${icon}</a>`;
 }
 
 // The identical TikTok-style labelled left rail on every page (desktop). Mobile
