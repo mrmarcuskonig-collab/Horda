@@ -2,6 +2,7 @@
 // payment checkout, online watch channels, cross-posting (feature), and host
 // management with approvals. Built on the shared dark layout().
 import { layout, esc, ogMeta } from './layout.ts';
+import { eventJsonLd } from './schema.ts';
 import { UPLOAD_SCRIPT } from './shell.ts';
 import { shareButton } from './theme.ts';
 import { mapsChooser } from './maps.ts';
@@ -77,6 +78,8 @@ export function renderEventPage(d: EventDetail, ctx: {
   shareRef?: string | null;  // this viewer's attributable ?via= token (logged-in only)
   hostLinks?: Record<string, string>;  // host's public socials — the way to reach them
   origin?: string;           // absolute origin — og:image MUST be absolute or crawlers drop it
+  listable?: boolean;        // public + listed → emit schema.org Event JSON-LD for AI/search
+  going?: number;            // tickets sold, for schema.org availability (SoldOut vs InStock)
   parties?: EventParty[];    // multi-party line-up (organizers, sides, roster)
   subs?: SubEvent[];         // sub-events (fight card / race-within-race)
   parent?: { id: string; title: string } | null;  // if this is a sub-event
@@ -306,13 +309,25 @@ export function renderEventPage(d: EventDetail, ctx: {
     image: ctx.origin ? `${ctx.origin}${cardUrl}` : null,
     type: 'article',
   });
+  // schema.org/Event JSON-LD — the structured fact an AI answer engine reads when
+  // someone asks "what's on this weekend?". Only for PUBLIC, LISTED, dated events,
+  // and only when we know the absolute origin (a relative URL is useless to a
+  // crawler). Unlisted events never emit it — private stays private.
+  const jsonLd = (ctx.listable && ctx.origin && d.startsAt) ? eventJsonLd({
+    id: d.id, title: d.title, description: d.description, startsAt: d.startsAt, timezone: d.timezone,
+    location: d.location, locationKind: d.locationKind, admission: d.admission,
+    priceCents: d.priceCents, currency: d.currency || 'EUR',
+    coverUrl: d.coverUrl && /^https?:\/\//i.test(d.coverUrl) ? d.coverUrl : null,
+    hostName: d.hostName, hostUrl: `${ctx.origin}${hostHref(d.hostKind, d.hostId)}`,
+    eventUrl: `${ctx.origin}/e/${d.id}`, capacity: d.capacity, going: ctx.going,
+  }) : '';
   // Pass the REAL viewer state to the chrome. Without a `nav`, layout() defaults
   // to `{ guest: true, fanId: null }` — so the desktop rail showed "Log in / Join
   // free" to a logged-in fan looking at their own event. The event page just
   // never told the shell who was looking.
   return layout(d.title, body, {
     back: hostHref(d.hostKind, d.hostId),
-    head: og,
+    head: og + jsonLd,
     nav: { active: 'explore', guest: ctx.guest, fanId: ctx.fanId },
   });
 }

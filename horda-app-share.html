@@ -161,14 +161,14 @@
       <a class="dr-item" href="/following"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.4"/><path d="M3.5 20c0-3.4 2.7-5.6 5.5-5.6S14.5 16.6 14.5 20"/><path d="M17 8.5v5M14.5 11h5"/></svg><span>Following</span></a>
       <a class="dr-item" href="/notifications"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9a6 6 0 0 1 12 0c0 4 1.2 5.4 1.8 6.2.3.4 0 .9-.5.9H4.7c-.5 0-.8-.5-.5-.9C4.8 14.4 6 13 6 9Z"/><path d="M10 20a2 2 0 0 0 4 0"/></svg><span>Notifications</span></a>
       <a class="dr-item" href="/create"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="3.5" width="17" height="17" rx="5"/><path d="M12 8v8M8 12h8"/></svg><span>Create event</span></a>
-      <a class="dr-item" href="/fan/28ad44c5-f512-4de3-942d-0e49eeea89ab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="3.6"/><path d="M5.5 20c0-3.7 2.9-6.2 6.5-6.2S18.5 16.3 18.5 20"/></svg><span>Profile</span></a>
+      <a class="dr-item" href="/fan/fb88c9e2-ef4e-4a4f-b181-ce131a3c9103"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="3.6"/><path d="M5.5 20c0-3.7 2.9-6.2 6.5-6.2S18.5 16.3 18.5 20"/></svg><span>Profile</span></a>
     </nav>
     <div class="dr-sep"></div>
     <div class="dr-set"><div class="dr-srow"><span class="dr-slabel">Language</span><span class="lgtog" role="group" aria-label="Language"><a class="lgp" href="/set-lang?l=de" aria-label="Deutsch">DE</a><a class="lgp on" href="/set-lang?l=en" aria-label="English">EN</a></span></div></div>
     
     <div class="dr-foot"></div>
   </aside>
-  <a class="hz-back" href="/" aria-label="Back" title="Back" onclick="if(history.length>1&&document.referrer&&new URL(document.referrer).origin===location.origin){history.back();return false}"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 5-7 7 7 7"/></svg></a>
+  <a class="hz-back" href="/" aria-label="Back" title="Back" onclick="if(history.length>1){event.preventDefault();history.back()}"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 5-7 7 7 7"/></svg></a>
   <div class="hz-main">
   <div style="height:40px"></div>
   
@@ -204,7 +204,7 @@
     <a href="/following" class="" aria-label="Following" title="Following"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20S3 14.6 3 8.9C3 6 5.1 4 7.7 4c1.8 0 3.3 1 4.3 2.4C13 5 14.5 4 16.3 4 18.9 4 21 6 21 8.9 21 14.6 12 20 12 20Z"/></svg></a>
     
     <a href="/notifications" class="" aria-label="Notifications" title="Notifications"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9a6 6 0 0 1 12 0c0 4 1.2 5.4 1.8 6.2.3.4 0 .9-.5.9H4.7c-.5 0-.8-.5-.5-.9C4.8 14.4 6 13 6 9Z"/><path d="M10 20a2 2 0 0 0 4 0"/></svg></a>
-    <a href="/fan/28ad44c5-f512-4de3-942d-0e49eeea89ab" class="" aria-label="Profile" title="Profile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="3.6"/><path d="M5.5 20c0-3.7 2.9-6.2 6.5-6.2S18.5 16.3 18.5 20"/></svg></a>
+    <a href="/fan/fb88c9e2-ef4e-4a4f-b181-ce131a3c9103" class="" aria-label="Profile" title="Profile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="3.6"/><path d="M5.5 20c0-3.7 2.9-6.2 6.5-6.2S18.5 16.3 18.5 20"/></svg></a>
   </div></nav>
   <script>
 window.hzShare=function(b){

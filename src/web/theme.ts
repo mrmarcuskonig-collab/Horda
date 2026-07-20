@@ -184,9 +184,23 @@ const FOLLOW_CSS = `<style>.hz-following .hzf-un{display:none}.hz-following:hove
 export function backButton(href?: string): string {
   const icon = `<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 5-7 7 7 7"/></svg>`;
   const dest = href || '/';
-  // Same-origin history only: history.back() to a page on another site would send
-  // the fan away from Horda entirely, which "back" must never do.
-  const onclick = `if(history.length>1&&document.referrer&&new URL(document.referrer).origin===location.origin){history.back();return false}`;
+  // Back means "the page I came from" — exactly what the browser's own back
+  // button does. So: if there's any history, go back; otherwise (a cold deep-link
+  // opened as the first page in the tab) fall to the semantic href.
+  //
+  // WHAT WENT WRONG BEFORE — twice, and this is the diligent version:
+  //  1) The first version hardcoded `back = host page`, so map/discover → event →
+  //     back teleported to the organiser.
+  //  2) The second version gated on `document.referrer` being same-origin. But
+  //     the referrer is EMPTY in plenty of real cases (referrer-policy headers,
+  //     JS-initiated navigations, privacy settings), so the gate silently failed
+  //     and fell through to that same hardcoded href — which, when you own the
+  //     event, is YOUR OWN PROFILE. That's the "back sends me to my profile" bug.
+  //
+  // The fix depends on NOTHING but history length. `event.preventDefault()` (not
+  // `return false`, which is unreliable in inline handlers) cancels the link so
+  // the href fallback only ever runs when history.back() can't.
+  const onclick = `if(history.length>1){event.preventDefault();history.back()}`;
   return `<a class="hz-back" href="${dest}" aria-label="Back" title="Back" onclick="${onclick}">${icon}</a>`;
 }
 

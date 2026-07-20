@@ -238,19 +238,38 @@ const PUBLIC_PAGES: { path: string; priority: string; changefreq: string }[] = [
   { path: '/datenschutz', priority: '0.3', changefreq: 'yearly' },
 ];
 
-export function sitemapXml(origin: string): string {
+/**
+ * The sitemap now includes PUBLIC, UPCOMING events — this is how a crawler
+ * discovers an event page in the first place, so it can then read the
+ * schema.org/Event JSON-LD on it and answer "what's on this weekend?".
+ *
+ * Earlier this listed only the static marketing pages, on the reasoning that
+ * events are ephemeral. That reasoning holds for PAST events (a sitemap full of
+ * finished matches is noise) — so we list only upcoming ones, and drop them the
+ * moment they're over. Unlisted events are never included, by the same rule that
+ * keeps them out of discover and the map: private is private.
+ *
+ * `events` is passed in by the server (the feeds module can't hit the DB), so
+ * this stays a pure formatter.
+ */
+export function sitemapXml(origin: string, events: { id: string; startsAt: string | null }[] = []): string {
   const lastmod = SHIPPED[0]?.date ?? new Date().toISOString().slice(0, 10);
-  const urls = PUBLIC_PAGES.map(p => `  <url>
+  const staticUrls = PUBLIC_PAGES.map(p => `  <url>
     <loc>${xmlEsc(origin + p.path)}</loc>
     <lastmod>${lastmod}</lastmod>
     <changefreq>${p.changefreq}</changefreq>
     <priority>${p.priority}</priority>
-  </url>`).join('\n');
+  </url>`);
+  const eventUrls = events.map(e => `  <url>
+    <loc>${xmlEsc(`${origin}/e/${e.id}`)}</loc>
+    <changefreq>daily</changefreq>
+    <priority>0.6</priority>
+  </url>`);
   // The namespace is sitemaps.org (plural) — a wrong xmlns makes the whole file
   // invalid, and validators reject it silently as far as anyone here would notice.
   return `<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-${urls}
+${[...staticUrls, ...eventUrls].join('\n')}
 </urlset>`;
 }
 

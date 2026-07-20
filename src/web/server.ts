@@ -1175,7 +1175,7 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
         // just not surfaced here.
         const roomCta = '';
         // The claim rail (the pivot): the primary CTA on every event is "Claim your spot".
-        const evRow = (await db.query<any>(`SELECT capacity, registration_mode, standing_threshold FROM event WHERE id=$1`, [em[1]])).rows[0];
+        const evRow = (await db.query<any>(`SELECT capacity, registration_mode, standing_threshold, visibility FROM event WHERE id=$1`, [em[1]])).rows[0];
         const spots = await spotsInfo(db, em[1], evRow?.capacity ?? null);
         // The doors, each with its OWN remaining count. Per-door because a full
         // hall must not read as "this event is full" when the stream is wide open.
@@ -1235,7 +1235,11 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
         const mine = guest ? null : await myParty(db, em[1], myEntities);
         const myPromoToken = mine?.promoToken ?? null;
         const myPromoDraw = myPromoToken ? (await partyAttribution(db, em[1])).rows.find(r => r.token === myPromoToken) : undefined;
-        return html(res, renderEventPage(d, { guest, fanId: guest ? null : viewer, myRsvp, isHost, myEntities, myTicket, listings, extraTop: topBlock, stickyCta: barBlock, hasAccess, shareRef, hostLinks, parties, subs, parent, canClaim, origin, myPromoToken, myPromoDraw: myPromoDraw ? { identities: myPromoDraw.identities, ticketBuyers: myPromoDraw.ticketBuyers } : undefined }));
+        // Emit schema.org Event JSON-LD only for a PUBLIC, LISTED, still-upcoming
+        // event — so AI/search can surface it, but an unlisted or finished event
+        // never leaks into a search result. going = seats sold, for availability.
+        const listable = (evRow?.visibility ?? 'public') !== 'unlisted' && !ended;
+        return html(res, renderEventPage(d, { guest, fanId: guest ? null : viewer, myRsvp, isHost, myEntities, myTicket, listings, extraTop: topBlock, stickyCta: barBlock, hasAccess, shareRef, hostLinks, parties, subs, parent, canClaim, origin, listable, going: spots.claimed, myPromoToken, myPromoDraw: myPromoDraw ? { identities: myPromoDraw.identities, ticketBuyers: myPromoDraw.ticketBuyers } : undefined }));
       }
       if ((em = path.match(/^\/manage\/([^/]+)$/))) {
         const d = await getEventDetail(db, em[1]);
@@ -1356,7 +1360,17 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
       }
       if (path === '/changelog.md') return serve(changelogMarkdown(origin), 'text/markdown; charset=utf-8');
       if (path === '/feed.xml' || path === '/rss.xml') return serve(rssFeed(origin), 'application/rss+xml; charset=utf-8');
-      if (path === '/sitemap.xml') return serve(sitemapXml(origin), 'application/xml; charset=utf-8', 3600);
+      if (path === '/sitemap.xml') {
+        // Public, upcoming, listed events — so a crawler discovers each event page
+        // and reads its schema.org JSON-LD. Unlisted excluded; capped so a viral
+        // moment can't produce a 50k-line sitemap (crawlers cap at 50k anyway).
+        const smEvents = (await db.query<{ id: string; starts_at: string | null }>(
+          `SELECT id, starts_at FROM event
+           WHERE host_kind IS NOT NULL AND starts_at > now()
+             AND COALESCE(visibility,'public') <> 'unlisted'
+           ORDER BY starts_at ASC LIMIT 5000`)).rows;
+        return serve(sitemapXml(origin, smEvents.map(e => ({ id: e.id, startsAt: e.starts_at }))), 'application/xml; charset=utf-8', 3600);
+      }
       if (path === '/robots.txt') return serve(robotsTxt(origin), 'text/plain; charset=utf-8', 3600);
       if (path === '/llms.txt') return serve(llmsTxt(origin, { discordUrl: hasDiscord() ? discordUrl() : undefined }), 'text/plain; charset=utf-8', 3600);
       if (path === '/about') return html(res, renderAbout(viewerGuest));
