@@ -1,7 +1,7 @@
 // auth.test.ts — real identity: signup → session → ownership → authz, over HTTP.
 // Run: node tests/auth.test.ts
 import { startServer } from '../src/web/server.ts';
-import { signup, verifyLogin, owns } from '../src/db/auth_repo.ts';
+import { signup, verifyLogin, owns, createSession } from '../src/db/auth_repo.ts';
 import { decideClaim } from '../src/db/claim_repo.ts';
 
 let pass = 0, fail = 0;
@@ -21,11 +21,21 @@ ok('wrong password rejected', (await verifyLogin(app.db, 'unit@horda.app', 'nope
 ok('duplicate email refused', (await signup(app.db, 'unit@horda.app', 'Dup', 'x')) === null);
 ok('new account owns nothing', !(await owns(app.db, made!.accountId, 'athlete', rico)));
 
-console.log('\n[auth · signup over HTTP sets a session]');
-const sres = await fetch(base + '/signup', { method: 'POST', redirect: 'manual', headers: { 'content-type': 'application/x-www-form-urlencoded' }, body: enc({ email: 'sam@horda.app', name: 'Sam', password: 'secret123', next: '/' }) });
-const setCookie = sres.headers.get('set-cookie') ?? '';
-ok('signup sets an hz_session cookie + redirects', setCookie.includes('hz_session=') && sres.status === 303);
-const cookie = setCookie.split(';')[0];
+console.log('\n[auth · POST /signup never hands out instant access — magic link only]');
+// Security: POST /signup must NOT create a session. It funnels into the magic
+// link flow (name+email → emailed link), so no unverified instant account exists.
+const sres = await fetch(base + '/signup', { method: 'POST', redirect: 'manual', headers: { 'content-type': 'application/x-www-form-urlencoded' }, body: enc({ email: 'instant@horda.app', name: 'Nope', next: '/' }) });
+const sBody = await sres.text();
+ok('POST /signup sets NO session cookie (no instant access)', !((sres.headers.get('set-cookie') ?? '').includes('hz_session=')));
+ok('POST /signup responds with the check-your-email step', /check your email/i.test(sBody));
+ok('POST /signup creates no account until verified', (await app.db.query<{ n: number }>(`SELECT count(*)::int n FROM account WHERE email='instant@horda.app'`)).rows[0].n === 0);
+
+// For the ownership/authz assertions below we need a genuinely logged-in fan.
+// Establish sam's session through the repo (the same createSession the verified
+// magic-link path uses), not the removed instant-signup shortcut.
+const samMade = await signup(app.db, 'sam@horda.app', 'Sam', 'secret123');
+const samToken = await createSession(app.db, samMade!.accountId);
+const cookie = `hz_session=${samToken}`;
 const authed = (p: string) => fetch(base + p, { headers: { cookie } }).then(r => r.text());
 
 console.log('\n[auth · a fan owns nothing → no owner tools, but can engage]');
@@ -51,7 +61,7 @@ console.log('\n[auth · passwordless magic link + OTP (Build Order item 1)]');
 const post = (o: Record<string, string>) => ({ method: 'POST', redirect: 'manual' as const, headers: { 'content-type': 'application/x-www-form-urlencoded' }, body: enc(o) });
 // signup/login pages are now email-first (magic link primary)
 const loginPage = await fetch(base + '/login').then(r => r.text());
-ok('login is email-first (magic link primary, password is a fallback)', loginPage.includes('/auth/start') && loginPage.includes('sign-in link') && loginPage.includes('Use a password instead'));
+ok('login is magic-link only (no password fallback)', loginPage.includes('/auth/start') && loginPage.includes('sign-in link') && !loginPage.includes('Use a password instead'));
 // start a magic link for a brand-new email → dev mode surfaces link + code
 const mlEmail = 'magic_' + Date.now() + '@horda.app';
 const startPage = await fetch(base + '/auth/start', post({ email: mlEmail })).then(r => r.text());

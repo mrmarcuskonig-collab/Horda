@@ -31,11 +31,19 @@ ok('creator entrance offers both paths (guest → sign up first)', create.includ
 // /create is now the event-first action, not the page chooser: guests are sent to sign up
 const createGuest = await fetch(base + '/create?guest=1', { redirect: 'manual' });
 ok('/create routes guests to sign up (then straight to hosting)', createGuest.status === 303 && (createGuest.headers.get('location') || '').startsWith('/signup'));
-const sa = await fetch(base + '/signup', post({ email: 'a@x.com', name: 'A', password: 'secret123', next: '/onboarding/athlete' }));
+// Magic-link only: signup sends a link, and verifying it routes to the `next`
+// onboarding path (carried on the token) + sets the session. Helper drives the
+// full start→verify so downstream `next` routing is exercised end to end.
+const magicSignup = async (email: string, name: string, next?: string) => {
+  const body = await fetch(base + '/signup', post({ email, name, ...(next ? { next } : {}) })).then(r => r.text());
+  const tok = (body.match(/\/auth\/verify\?token=([a-f0-9-]+)/) || [])[1] || '';
+  return fetch(base + '/auth/verify?token=' + tok, { redirect: 'manual' });
+};
+const sa = await magicSignup('a@x.com', 'A', '/onboarding/athlete');
 ok('creator entry (athlete) → athlete onboarding', sa.status === 303 && sa.headers.get('location') === '/onboarding/athlete');
-const sf = await fetch(base + '/signup', post({ email: 'f@x.com', name: 'F', password: 'secret123' }));
+const sf = await magicSignup('f@x.com', 'F');
 ok('plain fan sign-up → fan onboarding', sf.headers.get('location') === '/onboarding/fan');
-const sc = await fetch(base + '/signup', post({ email: 'c@x.com', name: 'C', password: 'secret123', next: '/onboarding/claim' }));
+const sc = await magicSignup('c@x.com', 'C', '/onboarding/claim');
 ok('creator entry (club) → claim search', sc.headers.get('location') === '/onboarding/claim');
 
 console.log('\n[onboarding · AI-first athlete flow]');

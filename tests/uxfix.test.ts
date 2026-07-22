@@ -36,17 +36,19 @@ ok('searching "München" finds a Munich-tagged event', deSearch.includes('Munich
 const enSearch = await get('/?region=Munich');
 ok('searching "Munich" still finds it', enSearch.includes('Munich Test Match'));
 
-// The discover chips render in German under a de cookie.
+// English-only UI: even with a legacy German cookie, the chrome is English.
 const deHome = await get('/', true);
-ok('discover sport chips are German for a German viewer', deHome.includes('Fußball') || deHome.includes('Radsport'));
-ok('"All sports" chip is localized', deHome.includes('Alle Sportarten'));
+ok('UI is English even for a legacy German cookie (no German chrome)', deHome.includes('All sports') && !deHome.includes('Alle Sportarten'));
+// But German SEARCH still matches — a German city term finds the event.
+const deCitySearch = await get('/?region=' + encodeURIComponent('München'));
+ok('German city search ("München") still finds the Munich event', deCitySearch.includes('Munich Test Match'));
 
 // --- 2 + 3. THE MAP --------------------------------------------------------
 const mapEn = await get('/map');
 const mapDe = await get('/map', true);
-ok('map keeps English for an English viewer', mapEn.includes('<html lang="en"'));
-ok('map keeps GERMAN for a German viewer (it used to force English)', mapDe.includes('<html lang="de"'));
-ok('map nav is German too, not just the <html> tag', mapDe.includes('Erkunden') || mapDe.includes('Event-Karte'));
+ok('map is English for an English viewer', mapEn.includes('<html lang="en"'));
+ok('map is English even with a legacy German cookie (no more language jump)', mapDe.includes('<html lang="en"'));
+ok('map nav is English', mapDe.includes('Explore') || mapDe.includes('Event map') || mapDe.includes('>Horda<'));
 
 // Future-only + live ring. Seed a past event and a live one; assert the map
 // query returns future only and flags the live one.

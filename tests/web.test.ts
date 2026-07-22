@@ -21,7 +21,11 @@ console.log(`\n[web] server up on ${base}`);
 
 const home = await get('/');
 ok('home is event-led, no IG-style round photo rail', !home.includes('class="rail"') && !home.includes('class="story"') && !home.includes('Get closer to the athletes'));
-ok('home is event-led (links to events)', home.includes('href="/e/') && home.includes('class="fcard"'));
+// The public-events band is for OTHER people's events; a logged-in owner's own
+// events are excluded. The demo test-user owns nearly all the seed, so assert the
+// public band on a guest view (a non-owner), where everyone's events show.
+const homePub = await get('/?guest=1');
+ok('home is event-led (links to events)', homePub.includes('href="/e/') && homePub.includes('class="fcard"'));
 
 const athlete = await get(`/athlete/${rico}`);
 ok('result statistics (Win/Loss/Draw) and Recent results removed from athlete page', !athlete.includes('Win / Loss / Draw') && !athlete.includes('Wins–Losses–Draws') && !athlete.includes('Recent results'));
@@ -39,7 +43,7 @@ ok('guest action links route to /signup, not out', guest.includes('href="/signup
 // Shop is data-driven (merch / gift-membership / discount / link) and exempt from
 // Post-pivot: no shop/content. The public event page leads with the claim.
 const guestEv = await get(`/e/${(await app.db.query<{ id: string }>(`SELECT id FROM event WHERE starts_at > now() ORDER BY starts_at LIMIT 1`)).rows[0].id}?guest=1`);
-ok('public event page leads with the claim (no content/shop)', guestEv.includes('Claim your spot') || guestEv.includes('waitlist'));
+ok('public event page leads with the claim (no content/shop)', guestEv.includes('Claim your spot') || guestEv.includes('Get ticket') || guestEv.includes('Get access') || guestEv.includes('waitlist'));
 
 const fan = await get(`/fan/${app.ids.fanId}`);
 // Three bands, three jobs: what you RUN, what you HOLD A TICKET FOR, what you
@@ -116,7 +120,7 @@ ok('guest event page routes to sign-up', (await get(`/e/${evId}?guest=1`)).inclu
 const ticketedId = (await app.db.query<{ id: string }>(`SELECT id FROM event WHERE admission='paid' LIMIT 1`)).rows[0].id;
 const paidPage = await get(`/e/${ticketedId}`);
 const paidPageG = await get(`/e/${ticketedId}?guest=1`);
-ok('paid event shows a price + claim CTA', paidPageG.includes('Claim your spot') && /€\s?15/.test(paidPageG));
+ok('paid event shows a price + claim CTA', (paidPageG.includes('Get ticket') || paidPageG.includes('Claim your spot')) && /€\s?15/.test(paidPageG));
 const checkout = await get(`/e/${ticketedId}/checkout`);
 ok('checkout page shows the charge', checkout.includes('Checkout') && checkout.includes('Pay'));
 await fetch(base + `/e/${ticketedId}/pay`, form({ fan_id: app.ids.fanId }));
@@ -268,11 +272,11 @@ const evImg = await ev({ location_kind: 'in_person', getin: 'free_open', sport: 
 const imgRow = (await app.db.query<any>(`SELECT id, cover_url FROM event WHERE name='IMG_EVENT'`)).rows[0];
 ok('an uploaded event image is stored on the event', !!imgRow.cover_url);
 ok('the image renders on the event page', (await get('/e/' + imgRow.id)).includes(imgRow.cover_url.slice(0, 40)));
-const homeImg = await get('/');
+const homeImg = await get('/?guest=1');   // guest = non-owner, sees all public events
 ok('the image renders on the event card on the home screen', homeImg.includes('IMG_EVENT') && homeImg.includes(imgRow.cover_url.slice(0, 40)));
 // A feed of empty rectangles is worse than generated art, so there's always art.
 await ev({ location_kind: 'in_person', getin: 'free_open', sport: 'boxing', title: 'NOIMG_EVENT', starts_at: soonISO });
-const homeNo = await get('/');
+const homeNo = await get('/?guest=1');   // guest = non-owner, sees all public events
 ok('an event with no image still gets generated art, never an empty card', homeNo.includes('NOIMG_EVENT') && homeNo.includes('class="fimg" src="data:image/svg'));
 const cform2 = await get(`/host/athlete/${hostA}/new`);
 ok('the image upload sits up top, not buried in the details fold', cform2.includes('ev_cover_drop') && cform2.indexOf('ev_cover_drop') < cform2.indexOf('<details class="more"'));
@@ -362,18 +366,16 @@ ok('desktop left rail: labelled Your Horda/Following/Create/Profile nav', land.i
 ok('no separate "your feed" button (the feed is Your Horda)', !land.includes('Your feed →'));
 ok('search box says just "Search" (you can search clubs + athletes too)', land.includes('placeholder="Search"'));
 ok('rail create link is generic /create (no leaked athlete id)', land.includes('href="/create"') && !land.includes(`/athlete/${rico}/compose`));
-ok('rail carries search + language toggle + dark-mode toggle', land.includes('class="dr-search"') && land.includes('class="lgtog"') && land.includes('/set-lang?l=de') && land.includes('/set-lang?l=en'));
+ok('rail carries a search box (English-only: no language toggle)', land.includes('class="dr-search"') && !land.includes('class="lgtog"') && !land.includes('/set-lang?l=de'));
 ok('event cards show engagement stats (going / followers / shares)', land.includes('class="estats"') && land.includes('class="est"'));
+// English-only: even a legacy German cookie renders English chrome.
 const deLand = await (await fetch(base + '/', { headers: { cookie: 'hz_lang=de' } })).text();
-ok('German locale translates the rail (Deine Horda/Gefolgt)', deLand.includes('>Deine Horda<') && deLand.includes('>Gefolgt<') && deLand.includes('lang="de"'));
-// language toggle returns to the current page (Referer), not home
-const setLang = await fetch(base + '/set-lang?l=de', { headers: { referer: base + '/about/features' }, redirect: 'manual' });
-ok('switching language stays on the current page (via Referer)', setLang.status === 303 && setLang.headers.get('location') === '/about/features');
-// region default: DACH country header → German even with no cookie
+ok('a legacy German cookie still renders English (no German chrome)', deLand.includes('>Your Horda<') && !deLand.includes('>Deine Horda<') && deLand.includes('lang="en"'));
+// region default: even a DACH country header renders English now.
 const dachLand = await (await fetch(base + '/', { headers: { 'cf-ipcountry': 'AT' } })).text();
-ok('DACH visitor (no cookie) defaults to German', dachLand.includes('lang="de"') && dachLand.includes('>Deine Horda<'));
+ok('DACH visitor also gets English (app is English-only)', dachLand.includes('lang="en"') && dachLand.includes('>Your Horda<'));
 const usLand = await (await fetch(base + '/', { headers: { 'cf-ipcountry': 'US' } })).text();
-ok('non-DACH visitor (no cookie) defaults to English', usLand.includes('lang="en"') && usLand.includes('>Your Horda<'));
+ok('non-DACH visitor gets English', usLand.includes('lang="en"') && usLand.includes('>Your Horda<'));
 // no underline on logo/nav; active nav item uses the accent (not underline)
 ok('logo + nav are never underlined; active nav uses the accent', !land.includes('text-decoration:underline') && land.includes('.dr-item.on,.dr-item.on svg{color:var(--acc)}'));
 // one sign-up for everyone: no creator fork on the sign-up page
@@ -432,11 +434,13 @@ ok('event share carries the matchday card image', /data-img="\/e\/[^"]+\/card\.p
 ok('share falls back to a link where files are unsupported', mfPage.includes('navigator.canShare') && mfPage.includes('navigator.share'));
 // event create form exposes an "About this event" field
 ok('event create form offers an About this event section', createForm.includes('About this event') && createForm.includes('name="description"'));
-// auto-follow: guest filter → interest on signup
+// signup is magic-link only now: POST /signup sends a link and creates NO
+// account (and therefore no interests) until the link is verified.
 const suEmail = `au${Date.now()}@x.co`;
-await fetch(base + '/signup', { method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ email: suEmail, name: 'AF', password: 'pw123456', sport: 'boxing', region: 'Hamburg' }).toString(), redirect: 'manual' });
-const intCount = (await app.db.query(`SELECT count(*)::int n FROM fan_interest WHERE kind='sport' AND value='boxing'`)).rows[0].n;
-ok('signup with a filter records sport + region interests', intCount >= 1 && (await app.db.query(`SELECT count(*)::int n FROM fan_interest WHERE kind='region' AND value='Hamburg'`)).rows[0].n >= 1);
+const suResp = await fetch(base + '/signup', { method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ email: suEmail, name: 'AF', sport: 'boxing', region: 'Hamburg' }).toString(), redirect: 'manual' });
+const suBody = await suResp.text();
+ok('signup responds with the magic-link "check your email" step', /check your email/i.test(suBody));
+ok('signup creates no account (and no interests) before the link is verified', (await app.db.query<{ n: number }>(`SELECT count(*)::int n FROM account WHERE email=$1`, [suEmail])).rows[0].n === 0);
 
 // --- access model + QR check-in (Phase 0 item 5) ---
 const mkEvent = async (p: Record<string, string>) => {
@@ -480,10 +484,13 @@ const manageView = await get(`/manage/${attrId}`);
 ok('organizer sees "Who brought people" with the attributed claim', shareTok !== '' && manageView.includes('Who brought people'));
 
 // --- UX fixes: session persistence, contact host, past events, create flow ---
-// a fresh signup issues a persistent (not session-scoped) cookie so login sticks
-const signupRes = await fetch(base + '/signup', { method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ email: `u${Date.now()}@x.co`, name: 'U', password: 'secret123' }).toString(), redirect: 'manual' });
-const sc = signupRes.headers.get('set-cookie') || '';
-ok('login/session cookie is persistent (Max-Age set), not session-scoped', sc.includes('hz_session=') && /Max-Age=\d{5,}/.test(sc));
+// verifying a magic link issues a persistent (not session-scoped) cookie so login sticks
+const persistEmail = `u${Date.now()}@x.co`;
+const startBody = await fetch(base + '/auth/start', { method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ email: persistEmail, name: 'U' }).toString(), redirect: 'manual' }).then(r => r.text());
+const persistTok = (startBody.match(/\/auth\/verify\?token=([a-f0-9-]+)/) || [])[1] || '';
+const verifyRes = await fetch(base + '/auth/verify?token=' + persistTok, { redirect: 'manual' });
+const sc = verifyRes.headers.get('set-cookie') || '';
+ok('magic-link verify issues a persistent session cookie (Max-Age set), not session-scoped', sc.includes('hz_session=') && /Max-Age=\d{5,}/.test(sc));
 // contact host: event page shows a way to reach the host (socials or profile link)
 const hostEv = await get(`/e/${tkId}?guest=1`);
 ok('event page gives a real way to reach the host', hostEv.includes('on Horda →') && (hostEv.includes('Reach the host') || hostEv.includes('via their Horda page')));
@@ -504,7 +511,10 @@ ok('/create sends a logged-in user toward hosting an event (not the athlete/club
 const vsId = await mkEvent({ host_kind: 'club', host_id: club, title: 'Regionalliga-Pokal', starts_at: '2027-11-01T19:00', location_kind: 'in_person', location: 'Berlin', admission: 'open', access_mode: 'ticket', archetype: 'versus', side_b_name: 'FC Rival' });
 const vsGuest = await get(`/e/${vsId}?guest=1`);
 ok('versus event shows a Line-up with both sides (VS)', vsGuest.includes('Line-up') && vsGuest.includes('VS') && vsGuest.includes('FC Rival'));
-ok('unclaimed rival side invites them to claim by joining Horda', vsGuest.includes('unclaimed') && vsGuest.includes('Claim this'));
+// Invite-only: a guest (or any non-organiser) can't open-claim the rival side —
+// only the organiser sends an invite. And the matchup shows under the title.
+ok('rival side is invite-only (no open "Claim this side"; awaits the organiser)', vsGuest.includes('unclaimed') && vsGuest.includes('Awaiting') && !vsGuest.includes('Claim this side'));
+ok('versus matchup ("A vs B") shows under the event title', /class="pversus"/.test(vsGuest) && vsGuest.includes('FC Rival'));
 // organizer share panel: every participant has a promo link with live counts
 const vsManage = await get(`/manage/${vsId}`);
 ok('organizer share panel lists per-participant promo links', vsManage.includes('Share panel') && vsManage.includes('?p=') && vsManage.includes('Create custom link'));
