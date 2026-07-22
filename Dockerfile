@@ -13,10 +13,12 @@ COPY package*.json ./
 RUN npm ci --omit=dev || npm install --omit=dev
 COPY . .
 # persist the embedded DB across restarts (mount a volume at /data)
-# set HORDA_DEMO=0 in production to disable the demo fallback account
+# HORDA_DEMO defaults to 0 (production-safe: no demo fallback account, and a fresh
+# DB comes up EMPTY rather than seeded with sample clubs). Set HORDA_DEMO=1 for a
+# local/demo instance that should show the seeded sample content.
 ENV PORT=8787
 ENV HORDA_DATA=/data
-ENV HORDA_DEMO=1
+ENV HORDA_DEMO=0
 EXPOSE 8787
 VOLUME ["/data"]
 CMD ["node", "src/web/server.ts"]
