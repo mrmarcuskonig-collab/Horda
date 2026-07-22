@@ -3,6 +3,7 @@
 import { ravenMark, ravenMarkCurrent } from './brand.ts';
 import { THEME_BOOT, THEME_VARS, THM_CSS, themeToggle, bottomNav, backButton, deskRail, SHARE_SCRIPT } from './theme.ts';
 import { MAPS_CSS, MAPS_SCRIPT } from './maps.ts';
+import { PEEK_CSS, PEEK_SCRIPT } from './peek.ts';
 import { type Lang } from './i18n.ts';
 // map the bottom-nav active key to the labelled rail's active key
 const railActive = (a?: string) => a === 'you' ? 'profile' : a === 'home' ? 'explore' : a;

@@ -35,7 +35,7 @@ import { getEmailer, resetEmail, loginEmail } from './email.ts';
 // `esc` is required here: the event route builds a little HTML inline for the
 // Event Room CTA. It was used without being imported, which crashed /e/:id with
 // "esc is not defined" for any event that had a room enabled. Guarded by a test.
-import { ogMeta, esc } from './layout.ts';
+import { ogMeta, esc, layout } from './layout.ts';
 import { storeImage } from './storage.ts';
 import { fanChecklist, athleteChecklist, entityChecklist, renderChecklist } from './activation.ts';
 import { getAthleteSport, setAthleteSport, getAthleteSports, setAthleteSports, getAthleteLayout, setAthleteLayout, createFeatureRequest, getAthleteTheme, setAthleteTheme } from '../db/layout_repo.ts';
@@ -51,7 +51,7 @@ import { renderNotifications, renderConnections } from './pages.ts';
 import { formatPicker } from './claim_web.ts';
 import { requestLink, setLinkStatus, getLink, activeParents, parentsOf, childrenOf } from '../db/connection_repo.ts';
 import { renderPass, renderRecord, renderCheckin, claimCta } from './claim_web.ts';
-import { actionBar } from './theme.ts';
+import { actionBar, shareButton } from './theme.ts';
 import { normLang } from './i18n.ts';
 import { resolveSportKey, cityAliases } from './localize.ts';
 import { generateEventAssets, eventGraphic, supporterCard } from './mediagen.ts';
@@ -62,6 +62,7 @@ import { getPayments, verifyWebhook } from './payments.ts';
 import { getPayoutAccount, upsertPayoutAccount, setPayoutStatus, isPayoutsEnabled } from '../db/payouts_repo.ts';
 import { changelogFeed, changelogMarkdown, rssFeed, sitemapXml, robotsTxt, llmsTxt } from './feeds.ts';
 import { reportError, errorPage, healthReport } from './observe.ts';
+import { createSideInvite, ensureSideInvite, sideInviteByToken, acceptSideInvite, isCoOrganizer, eventCoorganizers, coOrgParty } from '../db/coorg_repo.ts';
 import { eventCardSvg } from './card.ts';
 import { svgToPng, inlineImage } from './raster.ts';
 import { walletStatus, googleWalletUrl, buildPkpass, type PassData } from './wallet.ts';
@@ -165,7 +166,10 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
       const cookies = parseCookies(req.headers.cookie);
       // Language: an explicit cookie wins; otherwise default by region — German for
       // the DACH area (via CDN country header, else Accept-Language), English elsewhere.
-      const lang = (cookies.hz_lang === 'de' || cookies.hz_lang === 'en') ? cookies.hz_lang : defaultLangFor(req.headers);
+      // English-only: the UI language is always English regardless of any legacy
+      // hz_lang cookie or Accept-Language header. (German still works in SEARCH —
+      // that's handled in the discover/map routes via localize.ts, not here.)
+      const lang = 'en' as const;
       const account = (await sessionAccount(db, cookies.hz_session)) ?? (DEMO_FALLBACK ? { id: ids.demoAccountId, email: 'demo@horda.app', displayName: 'You' } : null);
       const viewer = (account ? await fanForAccount(db, account.id) : null) ?? ids.fanId;
       const viewerGuest = !account || url.searchParams.get('guest') === '1';
@@ -187,24 +191,26 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
 
       // --- auth ---
       if (req.method === 'POST' && path === '/signup') {
+        // Legacy password signup created an account AND logged the user in with NO
+        // email verification — the exact "new user had access right after entering
+        // their email" bug. There is now ONE door: name + email → magic link. Any
+        // POST here is funnelled into that flow so an unverified instant account can
+        // never be created. The sport/region filter + follow + creator-intent are
+        // carried on the login token and applied at verify time.
         const f = await parseForm(req);
-        const next = f.next || '';
-        // everyone signs up as a person (fan by default); the creator entrance routes via ?next
-        const role = next.includes('/onboarding/athlete') ? 'athlete' : next.includes('/onboarding/claim') ? 'club' : 'fan';
-        const r = await signup(db, (f.email || '').toLowerCase().trim(), f.name || 'Fan', f.password || '', role);
-        if (!r) return redirect(res, '/login');
-        // auto-follow the sport/region the guest was filtering (their filter → their feed)
-        const filt = f.sport || f.region ? `${f.sport || ''}|${f.region || ''}` : (cookies.hz_filter ? decodeURIComponent(cookies.hz_filter) : '');
-        if (filt) { const [sp, rg] = filt.split('|'); if (sp) await db.query(`INSERT INTO fan_interest (fan_id,kind,value) VALUES ($1,'sport',$2) ON CONFLICT DO NOTHING`, [r.fanId, sp]); if (rg) await db.query(`INSERT INTO fan_interest (fan_id,kind,value) VALUES ($1,'region',$2) ON CONFLICT DO NOTHING`, [r.fanId, rg]); }
-        // §1b: /pros (athlete-intent) auto-activates the creator layer, unverified
-        // until light verification (Featured is gated on verified). Club-invite path
-        // pre-verifies (the club vouches). Plain fans get a base account only.
-        if (f.intent === 'pro' || next.includes('/onboarding/athlete')) await activateCreatorLayer(db, r.accountId, f.invited === '1');
-        const token = await createSession(db, r.accountId);
-        let dest = (next && next !== '/') ? next : '/onboarding/fan';
-        // carry a "follow this creator" intent (from a Follow CTA) into the follow picker
-        if (f.follow && (dest === '/onboarding/fan' || dest.startsWith('/onboarding/fan'))) dest = `/onboarding/fan?follow=${encodeURIComponent(f.follow)}`;
-        res.writeHead(303, { 'set-cookie': sessionCookie(token), location: dest }); res.end(); return;
+        const email = (f.email || '').toLowerCase().trim();
+        if (!email || !email.includes('@')) return html(res, renderMagicSent({ email: '', error: true, next: f.next || '' }));
+        // Encode a "follow this creator after signup" intent into the post-verify
+        // destination — the onboarding picker already reads ?follow=.
+        let next = f.next || '';
+        if (f.follow && (next === '' || next === '/' || next.startsWith('/onboarding/fan'))) {
+          next = `/onboarding/fan?follow=${encodeURIComponent(f.follow)}`;
+        }
+        const { token, code } = await startLogin(db, email, { name: f.name || undefined, next: (next && next !== '/') ? next : undefined });
+        const link = `${origin}/auth/verify?token=${token}`;
+        const msg = loginEmail(link, code);
+        void emailer.send({ to: email, subject: msg.subject, html: msg.html, text: msg.text }).catch(() => false);
+        return html(res, renderMagicSent({ email, next, devLink: emailer.enabled ? null : link, devCode: emailer.enabled ? null : code }));
       }
       // --- passwordless sign-in (magic link + OTP) — the default, per Build Order item 1 ---
       // Enter an email → we mail a magic link + a 6-digit code. New emails create a
@@ -628,7 +634,21 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
         const applyFormats = async (evId: string) => { let i = 0; for (const w of ways) await addFormat(db, { eventId: evId, sort: i++, ...w }); };
 
         const parentId = (f.parent_id || '').trim() || undefined;
-        const id = await createScheduledEvent(db, { ...baseArgs, recurrence: f.recurrence, parentEventId: parentId });
+        // SAME-DAY RULE: a bout / sub-event happens on the main event's day. A
+        // multi-day event is modelled as separate main events (Day 1, Day 2, …),
+        // not one event with sub-events across days. So when creating a sub-event
+        // we keep its time-of-day but force its DATE onto the parent's date.
+        let subArgs = baseArgs;
+        if (parentId && baseArgs.startsAt) {
+          const parent = await getEventDetail(db, parentId).catch(() => null);
+          if (parent?.startsAt) {
+            // startsAt may arrive as a Date (from the DB) or a string — normalise.
+            const parentDay = new Date(parent.startsAt as any).toISOString().slice(0, 10);  // YYYY-MM-DD
+            const childTime = new Date(baseArgs.startsAt as any).toISOString().slice(10);    // Thh:mm:ss.sssZ
+            subArgs = { ...baseArgs, startsAt: parentDay + childTime };
+          }
+        }
+        const id = await createScheduledEvent(db, { ...subArgs, recurrence: f.recurrence, parentEventId: parentId });
         await applyFormats(id);
         // Multi-party spine: the host is always an organizer; versus events get two
         // sides (side A = host, side B = an unclaimed rival to be claimed by joining);
@@ -975,18 +995,18 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
         return html(res, renderCheckin({ eventId: em[1], title: d.title, claimed: spots.claimed, capacity: cap, verifiedCount: vcount, result }));
       }
       if (path === '/record' || path === '/me/record') {
-        if (viewerGuest) return redirect(res, '/login');
+        if (viewerGuest) return redirect(res, '/signup?next=' + encodeURIComponent(path));
         return html(res, renderRecord({ fanId: viewer, name: account?.displayName || 'You', rows: await fanRecord(db, viewer), count: await recordCount(db, viewer) }));
       }
       if (path === '/notifications') {
-        if (viewerGuest) return redirect(res, '/login');
+        if (viewerGuest) return redirect(res, '/signup?next=' + encodeURIComponent(path));
         const items = await listNotifications(db, viewer);
         await markAllRead(db, viewer);   // opening the page clears the unread badge
         return html(res, renderNotifications({ fanId: viewer, createHref: viewerCreateHref, items }));
       }
       // --- entity connections (athlete↔club↔league) --------------------------
       if ((em = path.match(/^\/(athlete|club)\/([^/]+)\/connections$/))) {
-        if (viewerGuest) return redirect(res, '/login');
+        if (viewerGuest) return redirect(res, '/signup?next=' + encodeURIComponent(path));
         const ck = em[1], cid = em[2];
         if (!await canEdit(ck, cid)) return redirect(res, `/${ck}/${cid}`);
         const outgoing = await parentsOf(db, ck, cid);
@@ -999,7 +1019,7 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
         return html(res, renderConnections({ fanId: viewer, createHref: viewerCreateHref, kind: ck, id: cid, name: await hostName(db, ck, cid), outgoing, incoming, candidates }));
       }
       if (req.method === 'POST' && path === '/connections/request') {
-        if (viewerGuest) return redirect(res, '/login');
+        if (viewerGuest) return redirect(res, '/signup?next=' + encodeURIComponent(path));
         const f = await parseForm(req);
         if (!await canEdit(f.child_kind, f.child_id)) return redirect(res, '/');
         const [pk, pid] = (f.parent || '').split(':');
@@ -1013,7 +1033,7 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
         return redirect(res, `/${f.child_kind}/${f.child_id}/connections`);
       }
       if (req.method === 'POST' && (em = path.match(/^\/connections\/link\/([^/]+)\/(admit|reject|remove)$/))) {
-        if (viewerGuest) return redirect(res, '/login');
+        if (viewerGuest) return redirect(res, '/signup?next=' + encodeURIComponent(path));
         const link = await getLink(db, em[1]);
         if (!link) return redirect(res, '/');
         const parentOwner = await canEdit(link.parent_kind, link.parent_id);
@@ -1177,6 +1197,9 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
         const myTicket = guest ? null : await getTicketFor(db, em[1], viewer);
         const listings = await getListings(db, em[1]);
         const isHost = await canEdit(d.hostKind ?? '', d.hostId ?? '');
+        // A co-organizer (the invited "other side") gets limited powers: add side
+        // events, share a promo link — but NOT edit the main event.
+        const isCoOrg = (!guest && account) ? await isCoOrganizer(db, em[1], account.id) : false;
         // The "Event Room" CTA ("… — countdown, live reactions and the host's
         // behind-the-scenes") is REMOVED from the event page. It's a leftover from
         // Build Order #3 (rooms/tiers/live chat), which the events-first pivot
@@ -1217,11 +1240,16 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
         // Only reached when the viewer has NOT claimed (the minePass branch below
         // replaces it entirely), so the countdown rule holds here by construction.
         const barSub = spots.remaining == null ? (d.admission === 'paid' ? priceLabel(d) : 'Free') : (spots.full ? 'Full — join the waitlist' : `${spots.remaining} spot${spots.remaining === 1 ? '' : 's'} left${d.admission === 'paid' ? ' · ' + priceLabel(d) : ''}`);
+        // The sticky bar is ONLY a shortcut, never a second claim CTA. For a fan
+        // who hasn't claimed, the inline claim block IS the single "Claim your
+        // spot" — a bottom bar that just scrolls to it is the duplicate the user
+        // flagged. So the bar shows only where it adds something: the host's
+        // check-in shortcut, or a claimed fan's "View pass".
         const stickyCta = isHost
           ? actionBar({ title: d.title, sub: `${spots.claimed} claimed`, cta: `<a class="btn" href="/e/${em[1]}/check-in">Check-in</a>` })
           : minePass
             ? actionBar({ title: "You're in", sub: minePass.status === 'waitlisted' ? 'On the waitlist' : 'Pass ready', cta: `<a class="btn" href="/pass/${minePass.token}">View pass</a>` })
-            : actionBar({ title: d.title, sub: barSub, cta: `<a class="btn" href="#claim">${spots.full ? 'Join waitlist' : 'Claim your spot'}</a>` });
+            : '';
         // Past events: the door is closed. Replace the claim rail with a clear note
         // (the event still lives on host/co-host/sharer profiles under "Past").
         const ended = !!d.startsAt && Date.now() >= new Date(d.startsAt).getTime() + 3 * 3600 * 1000;
@@ -1249,7 +1277,15 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
         // event — so AI/search can surface it, but an unlisted or finished event
         // never leaks into a search result. going = seats sold, for availability.
         const listable = (evRow?.visibility ?? 'public') !== 'unlisted' && !ended;
-        return html(res, renderEventPage(d, { guest, fanId: guest ? null : viewer, myRsvp, isHost, myEntities, myTicket, listings, extraTop: topBlock, stickyCta: barBlock, hasAccess, shareRef, hostLinks, parties, subs, parent, canClaim, origin, listable, going: spots.claimed, myPromoToken, myPromoDraw: myPromoDraw ? { identities: myPromoDraw.identities, ticketBuyers: myPromoDraw.ticketBuyers } : undefined }));
+        // Co-organizer read-only panel: their promo link + the event's stats +
+        // their own promo draw. They can promote and watch — never edit.
+        let coOrg: { promoToken: string | null; going: number; draw: { identities: number; ticketBuyers: number } | null } | null = null;
+        if (isCoOrg && account) {
+          const cp = await coOrgParty(db, em[1], account.id);
+          const draw = cp?.promoToken ? (await partyAttribution(db, em[1])).rows.find(r => r.token === cp.promoToken) : undefined;
+          coOrg = { promoToken: cp?.promoToken ?? null, going: spots.claimed, draw: draw ? { identities: draw.identities, ticketBuyers: draw.ticketBuyers } : null };
+        }
+        return html(res, renderEventPage(d, { guest, fanId: guest ? null : viewer, myRsvp, isHost, isCoOrg, coOrg, myEntities, myTicket, listings, extraTop: topBlock, stickyCta: barBlock, hasAccess, shareRef, hostLinks, parties, subs, parent, canClaim, origin, listable, going: spots.claimed, myPromoToken, myPromoDraw: myPromoDraw ? { identities: myPromoDraw.identities, ticketBuyers: myPromoDraw.ticketBuyers } : undefined }));
       }
       if ((em = path.match(/^\/manage\/([^/]+)$/))) {
         const d = await getEventDetail(db, em[1]);
@@ -1267,14 +1303,62 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
         return html(res, renderCreateEvent(em[1], em[2], await hostName(db, em[1], em[2]), parent, hostSport, viewerGuest ? null : viewer));
       }
       // Multi-party: claim an unclaimed side/roster slot (the two-sided growth loop).
-      const pmClaim = path.match(/^\/e\/([^/]+)\/party\/([^/]+)\/claim$/);
-      if (req.method === 'POST' && pmClaim) {
-        if (viewerGuest || !account) return redirect(res, `/signup?next=/e/${pmClaim[1]}`);
-        const f = await parseForm(req);
+      // ORGANIZER invites the other side. The other side is NOT open to whoever
+      // clicks first — only the organiser mints a private invite link for a
+      // specific rival. We render the link for the organiser to send.
+      const pmInvite = path.match(/^\/e\/([^/]+)\/party\/([^/]+)\/invite$/);
+      if (req.method === 'POST' && pmInvite) {
+        const d = await getEventDetail(db, pmInvite[1]);
+        if (!d) return html(res, 'Not found', 404);
+        if (!await canEdit(d.hostKind ?? '', d.hostId ?? '')) return redirect(res, `/e/${pmInvite[1]}`);  // organiser only
+        const token = await ensureSideInvite(db, pmInvite[2]);
+        if (!token) return redirect(res, `/e/${pmInvite[1]}`);
+        const party = (await listParties(db, pmInvite[1])).find(x => x.id === pmInvite[2]);
+        const inviteUrl = `${origin}/e/${pmInvite[1]}/join-side?invite=${token}`;
+        return html(res, layout('Invite the other side', `
+          <h1>Invite ${party?.name ? esc(party.name) : 'the other side'}</h1>
+          <p class="mut">Send this private link to the person responsible for the other side (a manager, coach, or the athlete/club themselves). When they open it, they'll connect their name + email — which creates their account — and become a <b style="color:var(--bone)">co-organiser</b>. They can't edit your event, but they can manage their own page and share their own promo link for it.</p>
+          <div class="card" style="margin-top:14px"><div class="mut" style="font-size:12px;text-transform:uppercase;letter-spacing:1.2px;font-weight:800">Private invite link</div>
+            <p style="word-break:break-all;margin:8px 0"><a href="${esc(inviteUrl)}" style="color:var(--bone);border-bottom:1px solid var(--b)">${esc(inviteUrl)}</a></p>
+            ${shareButton({ title: `Co-organise ${d.title}`, cls: 'btn', label: 'Copy invite link', url: inviteUrl })}
+          </div>
+          <div class="row" style="margin-top:16px"><a class="btn ghost" href="/e/${pmInvite[1]}">← Back to the event</a></div>
+        `, { back: `/e/${pmInvite[1]}`, nav: { guest: false, fanId: viewer } }));
+      }
+      // The invited person ACCEPTS → becomes a co-organiser. Guests are sent to
+      // sign up first (name + email → magic link), returning here to accept.
+      const pmJoin = path.match(/^\/e\/([^/]+)\/join-side$/);
+      if (pmJoin && req.method === 'GET') {
+        const token = url.searchParams.get('invite') || '';
+        const inv = await sideInviteByToken(db, token);
+        if (!inv) return html(res, layout('Invite not found', `<h1>This invite link isn't valid</h1><p class="mut">It may have been withdrawn. Ask the organiser for a fresh link.</p><div class="row" style="margin-top:12px"><a class="btn" href="/">Home</a></div>`, { back: '/', nav: { guest: viewerGuest, fanId: viewerGuest ? null : viewer } }));
+        if (viewerGuest || !account) {
+          return redirect(res, `/signup?next=${encodeURIComponent(`/e/${pmJoin[1]}/join-side?invite=${token}`)}`);
+        }
         const owned = await ownedEntities(db, account.id);
-        const pick = (f.entity_kind && f.entity_id) ? owned.find(o => o.kind === f.entity_kind && o.id === f.entity_id) : owned[0];
-        if (pick) await claimSide(db, pmClaim[2], pick.kind, pick.id);
-        return redirect(res, `/e/${pmClaim[1]}`);
+        return html(res, layout('Co-organise this event', `
+          <h1>You've been invited to co-organise</h1>
+          <p class="mut"><b style="color:var(--bone)">${esc(inv.eventTitle)}</b> — you'd represent <b style="color:var(--bone)">${esc(inv.placeholder || 'the other side')}</b>. As a co-organiser you can add side events and share your own promo link. You can't edit the main event.</p>
+          <form method="post" action="/e/${pmJoin[1]}/join-side" style="margin-top:14px">
+            <input type="hidden" name="invite" value="${esc(token)}">
+            ${owned.length ? `<label class="mut" style="display:block;font-size:13px;margin-bottom:8px">Accept as
+              <select name="as" style="display:block;width:100%;margin-top:6px;background:var(--s);border:1px solid var(--b);border-radius:10px;color:var(--bone);padding:11px;font:inherit">
+                <option value="">Myself (${esc(account.displayName || 'private person')})</option>
+                ${owned.map(o => `<option value="${esc(o.kind)}:${esc(o.id)}">${esc(o.name)} (${esc(o.kind)})</option>`).join('')}
+              </select></label>` : ''}
+            <div class="row" style="margin-top:12px"><button type="submit">Accept &amp; co-organise →</button><a class="btn ghost" href="/e/${pmJoin[1]}">Not now</a></div>
+          </form>
+        `, { back: `/e/${pmJoin[1]}`, nav: { guest: false, fanId: viewer } }));
+      }
+      if (pmJoin && req.method === 'POST') {
+        if (viewerGuest || !account) return redirect(res, `/signup`);
+        const f = await parseForm(req);
+        const asPick = (f.as || '').includes(':') ? { kind: f.as.split(':')[0], id: f.as.split(':')[1] } : null;
+        // only accept an entity the accepter actually owns
+        const owned = await ownedEntities(db, account.id);
+        const valid = asPick && owned.some(o => o.kind === asPick.kind && o.id === asPick.id) ? asPick : null;
+        const r = await acceptSideInvite(db, { token: f.invite || '', accountId: account.id, asEntityKind: valid?.kind ?? null, asEntityId: valid?.id ?? null });
+        return redirect(res, r ? `/e/${r.eventId}` : `/e/${pmJoin[1]}`);
       }
       // Organizer removes a party (or a participant removes themselves).
       const pmRemove = path.match(/^\/e\/([^/]+)\/party\/([^/]+)\/remove$/);
@@ -1419,7 +1503,7 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
         return redirect(res, `/host/athlete/${aId}/new`);
       }
       if (path === '/settings') {
-        if (viewerGuest) return redirect(res, '/login');
+        if (viewerGuest) return redirect(res, '/signup?next=' + encodeURIComponent(path));
         const editHref = ownedAthleteForNav ? `/athlete/${ownedAthleteForNav.id}/customize` : undefined;
         const insHref = ownedAthleteForNav ? `/athlete/${ownedAthleteForNav.id}/insights` : undefined;
         return html(res, renderSettings({ fanId: viewer, fanName: account?.displayName || 'You', email: account?.email, editPageHref: editHref, insightsHref: insHref, createHref: viewerCreateHref }));
@@ -1455,7 +1539,7 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
       }
       // Following: everything you follow + search to add + unfollow.
       if (path === '/following') {
-        if (viewerGuest) return redirect(res, '/login');
+        if (viewerGuest) return redirect(res, '/signup?next=' + encodeURIComponent(path));
         const follows = await getFollows(db, viewer);
         const q = (url.searchParams.get('q') || '').trim();
         let results: { kind: string; id: string; name: string; region: string | null }[] = [];
@@ -1468,7 +1552,7 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
         return html(res, renderFollowing({ fanId: viewer, createHref: viewerCreateHref, follows, q, results }));
       }
       if (req.method === 'POST' && path === '/unfollow') {
-        if (viewerGuest) return redirect(res, '/login');
+        if (viewerGuest) return redirect(res, '/signup?next=' + encodeURIComponent(path));
         const f = await parseForm(req);
         await unfollowEntity(db, viewer, f.target_type, f.target_id);
         return redirect(res, req.headers.referer ?? '/following');
@@ -1480,7 +1564,11 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
         const sportRaw = url.searchParams.get('sport') || undefined;
         const sport = sportRaw ? (resolveSportKey(sportRaw, SPORT_EN_LABELS) ?? sportRaw) : undefined;
         const region = url.searchParams.get('region') || undefined;
-        const data = await getDiscover(db, { sport, region, regionAliases: cityAliases(region) });
+        // A logged-in organiser's own events are excluded from "Public events" —
+        // that band is for discovering other people's. ownedForNav is the viewer's
+        // owned entities (empty for guests/plain fans).
+        const excludeHosts = viewerGuest ? [] : ownedForNav.map(o => ({ kind: o.kind, id: o.id }));
+        const data = await getDiscover(db, { sport, region, regionAliases: cityAliases(region), excludeHosts });
         const unread = viewerGuest ? 0 : await unreadCount(db, viewer);
         // Remember a guest's filter so, when they sign up, it becomes their feed
         // (auto-follow the sport + region they were browsing).
@@ -1722,7 +1810,7 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
       if ((m = path.match(/^\/fan\/([^/]+)$/))) {
         // §1a: fan activity (follows, RSVPs, subs) is PRIVATE for all users — a
         // fan home is only ever visible to its owner, never to other accounts.
-        if (viewerGuest) return redirect(res, '/login');
+        if (viewerGuest) return redirect(res, '/signup?next=' + encodeURIComponent(path));
         if (m[1] !== viewer) return html(res, '<p>This feed is private. <a href="/">Home</a></p>', 403);
         const home = await getFanHome(db, m[1]);
         const follows = await getFollows(db, m[1]);
@@ -1911,7 +1999,13 @@ export async function startServer(port = Number(process.env.PORT ?? 8787)): Prom
   const fresh = (await db.query<{ r: string | null }>(`SELECT to_regclass('public.account')::text r`)).rows[0].r === null;
   const pending = await applySchema(db);   // ALWAYS apply pending migrations (new + existing DBs alike)
   if (pending.length) console.log(`[migrations] applied: ${pending.join(', ')}`);
-  const ids = fresh ? await seedDemo(db) : await loadDemoIds(db);              // seed once; reuse on restart
+  // Seed the demo content ONLY when the demo fallback is on. In production
+  // (HORDA_DEMO=0) a fresh database must come up EMPTY — otherwise wiping the DB
+  // to clear seed data just re-creates the fake clubs on the next boot, which is
+  // exactly the trap we hit on joinhorda.com. Tests don't set HORDA_DEMO, so they
+  // still seed as before.
+  const demoOn = process.env.HORDA_DEMO !== '0';
+  const ids = (fresh && demoOn) ? await seedDemo(db) : await loadDemoIds(db);   // seed once; reuse on restart
   const server = await buildApp(db, ids);
   await new Promise<void>(r => server.listen(port, r));
   const addr = server.address();
@@ -1923,7 +2017,10 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   const { port, ids } = await startServer();
   console.log(`Horda running → http://localhost:${port}`);
   console.log(`  /                     home`);
-  console.log(`  /fan/${ids.fanId}     your feed`);
-  console.log(`  /athlete/${ids.athletes[0].id}  the idol`);
-  console.log(`  /club/${ids.clubs[0].id}        the club`);
+  // These demo deep-links only exist when seeded (HORDA_DEMO!=0). On an empty
+  // production DB there is no demo content, so guard every deref — a fresh,
+  // demo-off boot must start cleanly, not crash on ids.athletes[0].
+  if (ids.fanId) console.log(`  /fan/${ids.fanId}     your feed`);
+  if (ids.athletes?.[0]) console.log(`  /athlete/${ids.athletes[0].id}  the idol`);
+  if (ids.clubs?.[0]) console.log(`  /club/${ids.clubs[0].id}        the club`);
 }

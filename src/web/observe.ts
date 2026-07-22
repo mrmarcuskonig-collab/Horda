@@ -92,16 +92,22 @@ export function errorPage(): string {
  * a bad deploy instead of routing users to it.
  */
 export async function healthReport(db: { query: (s: string, p?: any[]) => Promise<{ rows: any[] }> }): Promise<{ ok: boolean; body: string }> {
-  let dbOk = false, migrated = false;
+  let dbOk = false, migrated = false, timedOut = false;
+  // A health check must NEVER hang. If the DB pool is exhausted or a connection
+  // is wedged (the Neon failure mode we've hit before), an un-timed probe would
+  // block the request forever — turning "is it healthy?" into a hang, which is
+  // the worst answer. Race every probe against a short deadline and report 503.
+  const withTimeout = <T,>(p: Promise<T>, ms = 3000) =>
+    Promise.race([p, new Promise<never>((_, rej) => setTimeout(() => rej(new Error('health probe timeout')), ms))]);
   try {
-    await db.query('SELECT 1');
+    await withTimeout(db.query('SELECT 1'));
     dbOk = true;
     // rights_grant is the newest migration (0044) — its presence proves the
     // migration runner reached HEAD on this database.
-    const r = await db.query(`SELECT to_regclass('public.rights_grant')::text x`);
+    const r = await withTimeout(db.query(`SELECT to_regclass('public.rights_grant')::text x`));
     migrated = r.rows[0]?.x != null;
-  } catch { /* dbOk stays false */ }
+  } catch (e: any) { if (/timeout/.test(String(e?.message))) timedOut = true; }
   const ok = dbOk && migrated;
-  const body = JSON.stringify({ ok, db: dbOk, migrated, release: release(), at: new Date().toISOString() });
+  const body = JSON.stringify({ ok, db: dbOk, migrated, ...(timedOut ? { timedOut: true } : {}), release: release(), at: new Date().toISOString() });
   return { ok, body };
 }

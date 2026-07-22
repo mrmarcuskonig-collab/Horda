@@ -177,6 +177,17 @@ export async function getEventDetail(db: Database, eventId: string): Promise<Eve
     else if (r.mode === 'going') counts.going += r.n;       // confirmed or paid
     else counts[r.mode] += r.n;
   }
+  // Claim-rail attendees (ticket / spot claims) live in `claim`, NOT `attendance`.
+  // The per-format "Attendance by format" total counts them, so the header must
+  // too — otherwise an organiser sees "0 going" next to "· 1", which is the bug a
+  // real user hit. Live claim = claimed/approved/verified and not voided. Claims
+  // awaiting host approval count as pending, matching the RSVP semantics above.
+  const cr = (await db.query<{ going: number; pending: number }>(
+    `SELECT count(*) FILTER (WHERE status IN ('claimed','approved','verified') AND voided_at IS NULL)::int AS going,
+            count(*) FILTER (WHERE status = 'pending' AND voided_at IS NULL)::int AS pending
+       FROM claim WHERE event_id=$1`, [eventId])).rows[0];
+  counts.going += cr?.going ?? 0;
+  counts.pending += cr?.pending ?? 0;
   const host = e.host_kind ? await hostName(db, e.host_kind, e.host_id) : 'Host';
   return {
     id: e.id, title: e.title, description: e.description, coverUrl: e.cover_url, timezone: e.timezone ?? null,

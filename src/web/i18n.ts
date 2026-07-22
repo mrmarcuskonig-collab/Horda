@@ -3,7 +3,12 @@
 // Language is a per-device cookie (hz_lang). Full-app translation is incremental;
 // this deliberately covers the primary navigation surface, not every string yet.
 export type Lang = 'en' | 'de';
-export function normLang(v: string | undefined | null): Lang { return v === 'de' ? 'de' : 'en'; }
+// Horda is English-only. The DE column is retained in the dictionary for history
+// but is never served: normLang always resolves to 'en' and t() always returns
+// English, so the whole UI renders in English regardless of any hz_lang cookie.
+// (Search still understands German city/sport terms — that lives in localize.ts,
+// which is unaffected.)
+export function normLang(_v?: string | null): Lang { return 'en'; }
 
 const DICT: Record<string, { en: string; de: string }> = {
   explore:      { en: 'Explore',          de: 'Erkunden' },
@@ -38,7 +43,7 @@ const DICT: Record<string, { en: string; de: string }> = {
   following_btn:{ en: 'Following',        de: 'Folge ich' },
   unfollow:     { en: 'Unfollow',         de: 'Entfolgen' },
 };
-export function t(lang: Lang, key: string): string {
+export function t(_lang: Lang, key: string): string {
   const e = DICT[key];
-  return e ? e[lang] : key;
+  return e ? e.en : key;   // English-only
 }

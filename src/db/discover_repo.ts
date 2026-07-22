@@ -17,10 +17,22 @@ export interface Discover {
 // (claims), shares (share analytics), and the host's follower count. Cheap —
 // only the ≤8 discover events call this. All three are real, from live tables.
 async function eventStats(db: Database, e: { id: string; host_kind: string; host_id: string }): Promise<{ going: number; shares: number; followers: number }> {
-  const going = (await db.query<{ n: number }>(
-    `SELECT COALESCE(SUM(party_size),0)::int n FROM claim WHERE event_id=$1 AND status NOT IN ('refunded','no_show')`, [e.id])).rows[0]?.n ?? 0;
+  // "Going" must match what the event page header shows: claim-rail attendees
+  // (SUM of party_size for live claims) PLUS RSVP 'going' attendees. Counting
+  // only claims made the card read 0 for RSVP events; counting only attendance
+  // made it read 0 for ticketed ones. An event uses one rail or the other, so
+  // summing both is correct and never double-counts.
+  const claimGoing = (await db.query<{ n: number }>(
+    `SELECT COALESCE(SUM(party_size),0)::int n FROM claim
+     WHERE event_id=$1 AND status IN ('claimed','approved','verified') AND voided_at IS NULL`, [e.id])).rows[0]?.n ?? 0;
+  const rsvpGoing = (await db.query<{ n: number }>(
+    `SELECT count(*)::int n FROM attendance WHERE event_id=$1 AND mode='going' AND status <> 'pending'`, [e.id])).rows[0]?.n ?? 0;
+  const going = claimGoing + rsvpGoing;
+  // Shares = distinct sharers (an anonymous share counts once). Counting every
+  // analytics row inflated it — one person tapping Share twice was "2 shares".
   const shares = (await db.query<{ n: number }>(
-    `SELECT count(*)::int n FROM analytics_event WHERE event_id=$1 AND name ILIKE '%share%'`, [e.id])).rows[0]?.n ?? 0;
+    `SELECT COUNT(DISTINCT COALESCE(fan_id::text, id::text))::int n
+       FROM analytics_event WHERE event_id=$1 AND name ILIKE '%share%'`, [e.id])).rows[0]?.n ?? 0;
   const followers = (e.host_kind && e.host_id) ? (await db.query<{ n: number }>(
     `SELECT count(*)::int n FROM follow WHERE target_type::text=$1 AND target_id=$2`, [e.host_kind, e.host_id])).rows[0]?.n ?? 0 : 0;
   return { going, shares, followers };
@@ -31,7 +43,11 @@ async function eventStats(db: Database, e: { id: string; host_kind: string; host
 // cityAliases() and passed in, so this repo stays language-agnostic and the db
 // layer never imports the web layer. A match on ANY alias counts, which is how
 // "München" finds a "Munich"-tagged event and back again.
-export async function getDiscover(db: Database, filter: { sport?: string; region?: string; regionAliases?: string[] }): Promise<Discover> {
+export async function getDiscover(db: Database, filter: { sport?: string; region?: string; regionAliases?: string[]; excludeHosts?: { kind: string; id: string }[] }): Promise<Discover> {
+  // A logged-in organiser doesn't want to see their OWN events under "Public
+  // events" — that surface is for discovering OTHER people's. We pass the
+  // viewer's owned entities and exclude events they host.
+  const exclNeedles = (filter.excludeHosts ?? []).map(h => `${h.kind}:${h.id}`);
   const sports = (await db.query<any>(`SELECT key, name FROM sport WHERE is_live ORDER BY display_order`)).rows;
 
   const athleteRows = (await db.query<any>(
@@ -101,8 +117,12 @@ export async function getDiscover(db: Database, filter: { sport?: string; region
        AND (COALESCE(array_length($2::text[],1),0) = 0
             OR EXISTS (SELECT 1 FROM unnest($2::text[]) n
                        WHERE q.location ILIKE '%'||n||'%' OR q.hostregion ILIKE '%'||n||'%'))
+       -- exclude the viewer's own events (they belong under "You're running", not
+       -- under "Public events")
+       AND (COALESCE(array_length($3::text[],1),0) = 0
+            OR (q.host_kind || ':' || q.host_id::text) <> ALL($3::text[]))
      ORDER BY q.live DESC, q.starts_at
-     LIMIT 8`, [filter.sport ?? null, regNeedles])).rows;
+     LIMIT 8`, [filter.sport ?? null, regNeedles, exclNeedles])).rows;
   const upcoming = [];
   for (const e of evRows) {
     const s = await eventStats(db, e);

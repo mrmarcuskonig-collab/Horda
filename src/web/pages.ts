@@ -1178,28 +1178,19 @@ export function renderFollowing(d: { fanId: string; createHref?: string; follows
 // an athlete or club page is a choice you make later, never a fork at the door.
 export function renderSignup(next: string, follow = ''): string {
   const inp = 'display:block;width:100%;margin-top:6px;background:var(--s);border:1px solid var(--b);border-radius:10px;color:var(--bone);padding:11px;font:inherit';
-  return layout('Join the Horda', `
-    <h1>Join the Horda</h1>
-    <p class="mut">Enter your email and we’ll send a one-tap sign-in link. No password. Free. You can set up an athlete or club page later.</p>
+  return layout('Sign up', `
+    <h1>Sign up</h1>
+    <p class="mut">Enter your name and email and we’ll send a one-tap sign-in link. No password. Free. You can set up an athlete or club page later.</p>
     ${oauthButtons(next)}
     <form method="post" action="/auth/start">
       <input type="hidden" name="next" value="${esc(next || '/')}">
       ${follow ? `<input type="hidden" name="follow" value="${esc(follow)}">` : ''}
-      <label class="mut" style="display:block;margin:12px 0">Name <span style="opacity:.6">(optional)</span><input style="${inp}" name="name"></label>
+      <label class="mut" style="display:block;margin:12px 0">Name<input style="${inp}" name="name" required></label>
       <label class="mut" style="display:block;margin:12px 0">Email<input style="${inp}" type="email" name="email" required></label>
       <div class="row"><button type="submit">Email me a sign-in link</button></div>
     </form>
-    <details style="margin-top:14px"><summary class="mut" style="cursor:pointer;font-size:13px">Prefer a password?</summary>
-      <form method="post" action="/signup" style="margin-top:10px">
-        <input type="hidden" name="next" value="${esc(next || '/')}">
-        ${follow ? `<input type="hidden" name="follow" value="${esc(follow)}">` : ''}
-        <label class="mut" style="display:block;margin:12px 0">Name<input style="${inp}" name="name" required></label>
-        <label class="mut" style="display:block;margin:12px 0">Email<input style="${inp}" type="email" name="email" required></label>
-        <label class="mut" style="display:block;margin:12px 0">Password<input style="${inp}" type="password" name="password" required minlength="6"></label>
-        <div class="row"><button class="ghost" type="submit">Create account</button></div>
-      </form>
-    </details>
-    <p class="mut" style="margin-top:14px">Already have one? <a href="/login" style="border-bottom:1px solid var(--b)">Log in</a>.</p>`, { back: next || '/' });
+    <p class="mut" style="margin-top:14px">Already have one? <a href="/login" style="border-bottom:1px solid var(--b)">Log in</a>.</p>`,
+    { back: next || '/', nav: { guest: true, fanId: null } });
 }
 
 // Passwordless: after /auth/start we tell the user to check their email, and give
@@ -1390,16 +1381,8 @@ export function renderLogin(next: string): string {
       <label class="mut" style="display:block;margin:12px 0">Email<input style="${inp}" type="email" name="email" required></label>
       <div class="row"><button type="submit">Email me a sign-in link</button></div>
     </form>
-    <details style="margin-top:14px"><summary class="mut" style="cursor:pointer;font-size:13px">Use a password instead</summary>
-      <form method="post" action="/login" style="margin-top:10px">
-        <input type="hidden" name="next" value="${esc(next || '/')}">
-        <label class="mut" style="display:block;margin:12px 0">Email<input style="${inp}" type="email" name="email" required></label>
-        <label class="mut" style="display:block;margin:12px 0">Password<input style="${inp}" type="password" name="password" required></label>
-        <div class="row"><button class="ghost" type="submit">Log in</button></div>
-      </form>
-      <p class="mut" style="margin-top:8px;font-size:12.5px"><a href="/forgot" style="border-bottom:1px solid var(--b)">Forgot password?</a></p>
-    </details>
-    <p class="mut" style="margin-top:14px">New here? <a href="/signup" style="border-bottom:1px solid var(--b)">Create an account</a>.</p>`, { back: next || '/' });
+    <p class="mut" style="margin-top:14px">New here? <a href="/signup" style="border-bottom:1px solid var(--b)">Create an account</a>.</p>`,
+    { back: next || '/', nav: { guest: true, fanId: null } });
 }
 
 // --- password reset ---------------------------------------------------------

@@ -19,7 +19,8 @@ export const THEME_VARS = `
 // page's <head> that references it stays valid.
 export const THEME_BOOT = '';
 
-export const THM_CSS = `.thm{display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:999px;border:1.5px solid var(--b);background:transparent;color:var(--bone);cursor:pointer;padding:0;flex:0 0 auto}.thm:hover{border-color:var(--bone)}.thm svg{display:block}
+export const THM_CSS = `${_PEEK_CSS}
+.thm{display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:999px;border:1.5px solid var(--b);background:transparent;color:var(--bone);cursor:pointer;padding:0;flex:0 0 auto}.thm:hover{border-color:var(--bone)}.thm svg{display:block}
   .vbadge{display:inline-flex;vertical-align:-2px;margin-left:4px;color:currentColor}.vbadge svg{display:block}
   /* Mobile: a FLOATING translucent bar (the iOS 26 / Instagram pattern) — it
      hovers above the content with the page visibly moving underneath it, rather
@@ -126,6 +127,7 @@ export const THM_CSS = `.thm{display:inline-flex;align-items:center;justify-cont
 // (imports kept local to avoid pulling page renderers into the theme module)
 import { ravenMarkCurrent as _ravenMark } from './brand.ts';
 import { t as _t, type Lang as _Lang } from './i18n.ts';
+import { PEEK_CSS as _PEEK_CSS, PEEK_SCRIPT as _PEEK_SCRIPT } from './peek.ts';
 
 const RAIL_ICON = {
   explore: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m15.2 8.8-2 4.4-4.4 2 2-4.4 4.4-2Z"/></svg>`,
@@ -222,19 +224,18 @@ export function deskRail(o: { guest: boolean; fanId: string | null; lang?: _Lang
       ${item('following', followHref, RAIL_ICON.following, _t(lang, 'following'))}
       ${o.guest ? '' : item('notifications', '/notifications', RAIL_ICON.bell, _t(lang, 'notifications'), unread ? `<span class="dr-badge">${unread > 9 ? '9+' : unread}</span>` : '')}
       ${item('create', '/create', RAIL_ICON.create, _t(lang, 'create_event'))}
-      ${/* Guests don't have a profile — they have a handle worth claiming. The
-           nav slot is the same, the promise is different. */
-        o.guest
-          ? item('profile', '/signup', RAIL_ICON.profile, _t(lang, 'claim_handle_nav'))
-          : item('profile', profileHref(o), RAIL_ICON.profile, _t(lang, 'profile'))}
+      ${/* Guests get no profile slot — the "Claim your @handle" campaign is
+           deferred, and the foot already offers Log in / Sign up. Showing a
+           profile item to a logged-out visitor made the signup page look
+           logged-in. */
+        o.guest ? '' : item('profile', profileHref(o), RAIL_ICON.profile, _t(lang, 'profile'))}
     </nav>
-    <div class="dr-sep"></div>
-    <div class="dr-set"><div class="dr-srow"><span class="dr-slabel">${_t(lang, 'language')}</span>${langToggle(lang)}</div></div>
-    ${/* No "your feed" button: the feed IS Your Horda, one nav item up. */''}
+    ${/* English-only: no language toggle. No "your feed" button either — the feed
+         IS Your Horda, one nav item up. */''}
     <div class="dr-foot">${o.guest
       ? `<a class="btn ghost" href="/login">${_t(lang, 'login')}</a><a class="btn" href="/signup">${_t(lang, 'join_free')}</a>`
       : ''}</div>
-  </aside>`;
+  </aside>${_PEEK_SCRIPT}`;
 }
 
 // Universal Share button — native share sheet where available (mobile / social),
@@ -399,7 +400,7 @@ export function bottomNav(o: { active?: string; guest: boolean; fanId: string | 
     ${tab('following', following, _t(lang, 'following'), NAV_ICON.heart)}
     ${o.createHref ? tab('create', o.createHref, _t(lang, 'create_event'), NAV_ICON.plus) : ''}
     ${o.guest ? '' : tab('notifications', '/notifications', _t(lang, 'notifications'), NAV_ICON.bell)}
-    ${tab('you', you, o.guest ? _t(lang, 'claim_handle_nav') : _t(lang, 'profile'), NAV_ICON.person)}
+    ${o.guest ? tab('you', '/signup', 'Sign up', NAV_ICON.person) : tab('you', you, _t(lang, 'profile'), NAV_ICON.person)}
   </div></nav>`;
 }
 

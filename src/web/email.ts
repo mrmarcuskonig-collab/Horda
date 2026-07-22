@@ -21,12 +21,26 @@ export class ResendEmailer implements Emailer {
   private fetcher: Fetcher;
   constructor(key: string, from: string, fetcher: Fetcher = fetch) { this.key = key; this.from = from; this.fetcher = fetcher; }
   async send(m: EmailMsg): Promise<boolean> {
-    const r = await this.fetcher('https://api.resend.com/emails', {
-      method: 'POST',
-      headers: { Authorization: 'Bearer ' + this.key, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ from: this.from, to: [m.to], subject: m.subject, html: m.html, ...(m.text ? { text: m.text } : {}) }),
-    } as any);
-    return !!(r as any).ok;
+    let r: any;
+    try {
+      r = await this.fetcher('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: { Authorization: 'Bearer ' + this.key, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ from: this.from, to: [m.to], subject: m.subject, html: m.html, ...(m.text ? { text: m.text } : {}) }),
+      } as any);
+    } catch (e: any) {
+      console.error(`[email] Resend request failed (network): ${e?.message}`);
+      return false;
+    }
+    if (!r.ok) {
+      // The #1 cause of "magic link never arrives": Resend rejects sends from an
+      // unverified domain. Log the status + body so the reason is visible in the
+      // logs instead of being swallowed. Common: 403 "domain is not verified".
+      let body = ''; try { body = await r.text(); } catch { /* ignore */ }
+      console.error(`[email] Resend send FAILED ${r.status} from="${this.from}" to="${m.to}": ${body.slice(0, 400)}`);
+      return false;
+    }
+    return true;
   }
 }
 

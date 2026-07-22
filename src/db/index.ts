@@ -139,6 +139,7 @@ export async function applySchema(db: Database, migrationsDir = 'db/migrations')
         '0042': () => relExists('public.ticket_transfer'),
         '0043': () => enumHas('follow_target_type', 'association'),
         '0044': () => relExists('public.rights_grant'),
+        '0045': () => relExists('public.event_coorganizer'),
       };
       for (const f of files) {
         const probe = present[f.slice(0, 4)];

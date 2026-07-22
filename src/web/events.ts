@@ -31,11 +31,14 @@ export function renderRoster(d: {
   const nameEl = (p: EventParty) => p.entityId
     ? `<a href="${hostHref2(p.entityKind, p.entityId)}">${esc(p.name)}</a>`
     : `<span>${esc(p.name)}</span>`;
-  const claimBtn = (p: EventParty) => d.guest
-    ? `<a class="rb sm" href="/signup?next=/e/${d.eventId}">Claim this — join Horda</a>`
-    : d.canClaim
-      ? `<form method="post" action="/e/${d.eventId}/party/${p.id}/claim"><button class="rb sm p" type="submit">Claim this side</button></form>`
-      : `<span class="mut" style="font-size:12px">Unclaimed — the ${p.role === 'side' ? 'rival' : 'athlete'} claims it by joining</span>`;
+  // Invite-only: the OTHER side isn't claimable by whoever clicks first. Only the
+  // organiser invites it, via a private link meant for the rival's manager. The
+  // organiser sees "Invite the other side" (mints/shows the link); everyone else
+  // sees a waiting state. (An unclaimed non-side placeholder, e.g. an athlete on
+  // the card, is just a name until they're invited too.)
+  const claimBtn = (p: EventParty) => d.isOrganizer
+    ? `<form method="post" action="/e/${d.eventId}/party/${p.id}/invite"><button class="rb sm p" type="submit">Invite the other side →</button></form>`
+    : `<span class="mut" style="font-size:12px">Awaiting ${p.role === 'side' ? 'the other side' : 'this participant'} — the organiser sends the invite</span>`;
   const row = (p: EventParty) => `<div class="prow"><div class="pn">${nameEl(p)}${p.status === 'unclaimed' ? ' <span class="ptag">unclaimed</span>' : ''}</div>${p.status === 'unclaimed' ? claimBtn(p) : (d.isOrganizer ? `<form method="post" action="/e/${d.eventId}/party/${p.id}/remove"><button class="rb sm" type="submit">Remove</button></form>` : '')}</div>`;
   const sides = d.parties.filter(p => p.role === 'side');
   const organizers = d.parties.filter(p => p.role === 'organizer');
@@ -69,7 +72,10 @@ const ADMISSION_LABEL: Record<string, string> = {
 
 export function renderEventPage(d: EventDetail, ctx: {
   guest: boolean; fanId: string | null; myRsvp: { response: string; status: string } | null;
-  isHost?: boolean; myEntities?: { kind: string; id: string; name: string }[];
+  isHost?: boolean; isCoOrg?: boolean;
+  // a co-organizer's read-only panel: their promo link + event stats (no editing)
+  coOrg?: { promoToken: string | null; going: number; draw: { identities: number; ticketBuyers: number } | null } | null;
+  myEntities?: { kind: string; id: string; name: string }[];
   myTicket?: { id: string; status: string; listPriceCents: number | null } | null;
   listings?: { id: string; priceCents: number; seller: string }[];
   extraTop?: string;
@@ -88,6 +94,19 @@ export function renderEventPage(d: EventDetail, ctx: {
   myPromoDraw?: { identities: number; ticketBuyers: number };
 }): string {
   const my = ctx.myRsvp;
+  // "Club A vs Club B" belongs right under the event name — the matchup is the
+  // headline. The main organiser still lives in "Hosted by"; this line is the two
+  // sides. For a multi-participant event we show the first couple of names as an
+  // at-a-glance overview instead.
+  const _parties = ctx.parties ?? [];
+  const _sideA = _parties.find(p => p.role === 'side' && p.side === 'A');
+  const _sideB = _parties.find(p => p.role === 'side' && p.side === 'B');
+  const _pn = (p?: EventParty) => p ? esc(p.name || 'TBD') : 'TBD';
+  const versusLine = (d.archetype === 'versus' && (_sideA || _sideB))
+    ? `<div class="pversus">${_pn(_sideA)} <span class="vsx">vs</span> ${_pn(_sideB)}</div>`
+    : (d.archetype === 'multi'
+        ? (() => { const named = _parties.filter(p => (p.role === 'side' || p.role === 'attending_athlete') && p.name); return named.length ? `<div class="pversus pmulti">${named.slice(0, 3).map(p => esc(p.name)).join(' · ')}${named.length > 3 ? ` +${named.length - 3}` : ''}</div>` : ''; })()
+        : '');
   // How a fan reaches the host: their public socials (the real contact path, since
   // there's no in-app DM) + a link to their Horda page.
   const hostSocials = Object.entries(ctx.hostLinks ?? {}).filter(([, v]) => v)
@@ -250,12 +269,17 @@ export function renderEventPage(d: EventDetail, ctx: {
        it sits in a line of muted metadata and shouldn't shout. */
     .maplink{color:var(--mut);border-bottom:1px solid var(--b);font-size:12.5px}
     .maplink:hover{color:var(--bone)}
+    /* "Club A vs Club B" under the event name — the matchup is the headline. */
+    .pversus{font-weight:800;font-size:15px;margin:2px 0 2px;color:var(--bone);letter-spacing:-.01em}
+    .pversus .vsx{color:var(--mut);font-weight:600;font-size:12px;text-transform:uppercase;letter-spacing:.06em;margin:0 4px}
+    .pversus.pmulti{font-weight:600;font-size:13.5px;color:var(--mut)}
   </style>
   <div class="poster">
     ${d.coverUrl ? `<img src="${esc(d.coverUrl)}" alt="">` : `<div style="width:100%;height:100%;background:radial-gradient(130% 130% at 70% 8%,rgba(237,233,223,.12),transparent 55%),var(--ink)"></div>`}
     <div class="pcap">
       <span class="pkick">${esc(ADMISSION_LABEL[d.admission])}</span>
       <div class="ptitle">${esc(d.title)}</div>
+      ${versusLine}
       <div class="pmeta">${d.date ? `<span>${esc(d.date)}${d.time ? ` · ${esc(d.time)}` : ''}</span>` : ''}${(d.location && d.locationKind !== 'online') ? `<span>${esc(d.location)}</span>` : (d.locationKind === 'online' ? '<span>Online</span>' : '')}</div>
     </div>
   </div>
@@ -285,7 +309,10 @@ export function renderEventPage(d: EventDetail, ctx: {
         <div class="rsvp" style="margin-top:8px">${shareButton({ title: d.title, cls: 'rb p', label: 'Copy my promo link', url: `/e/${d.id}?p=${ctx.myPromoToken}` })}</div>
         <div class="mut" style="font-size:12.5px;margin-top:6px">You've driven <b style="color:var(--bone)">${ctx.myPromoDraw?.identities ?? 0}</b> identities · <b style="color:var(--bone)">${ctx.myPromoDraw?.ticketBuyers ?? 0}</b> ticket buyers.</div></div>` : ''}
       ${(ctx.subs && ctx.subs.length) ? `<div class="h3">On the card${ctx.isHost ? '' : ''} · ${ctx.subs.length}</div><div class="rsvp" style="flex-direction:column;align-items:stretch">${ctx.subs.map(s => `<a class="rb" style="text-align:left" href="/e/${s.id}">${esc(s.title)}${s.date ? ` <span class="mut">· ${esc(s.date)}</span>` : ''}</a>`).join('')}</div>` : ''}
-      ${ctx.isHost && !ctx.parent ? `<div class="rsvp"><a class="rb" href="/host/${d.hostKind}/${d.hostId}/new?parent=${d.id}">＋ Add a bout / sub-event</a></div>` : ''}
+      ${ctx.isHost && !ctx.parent ? `<div class="rsvp"><a class="rb" href="/host/${d.hostKind}/${d.hostId}/new?parent=${d.id}">＋ Add a bout / sub-event</a><span class="mut" style="font-size:12px;align-self:center">Same day as the main event</span></div>` : ''}
+      ${ctx.coOrg ? `<div class="card" style="border-color:var(--bone);margin-top:12px"><strong>You're co-organising this.</strong> <span class="mut">You can promote it with your own link and see how the event is doing — only the main organiser edits the event or adds bouts.</span>
+        <div class="rsvp" style="margin-top:8px">${ctx.coOrg.promoToken ? shareButton({ title: d.title, cls: 'rb p', label: 'Copy my promo link', url: `/e/${d.id}?p=${ctx.coOrg.promoToken}` }) : ''}</div>
+        <div class="mut" style="font-size:12.5px;margin-top:8px">Event so far: <b style="color:var(--bone)">${ctx.coOrg.going}</b> going${ctx.coOrg.draw ? ` · your link drove <b style="color:var(--bone)">${ctx.coOrg.draw.identities}</b> people · <b style="color:var(--bone)">${ctx.coOrg.draw.ticketBuyers}</b> ticket buyers` : ''}.</div></div>` : ''}
 
       ${ticketSection}${resaleSection}
 
