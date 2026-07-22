@@ -1,0 +1,13 @@
+import { startServer } from './src/web/server.ts';
+import { listParties } from './src/db/events_repo.ts';
+const app=await startServer(0); const base=`http://localhost:${app.port}`;
+const club=app.ids.clubs[0].id;
+const form=(o:any)=>({method:'POST' as const,redirect:'manual' as const,headers:{'content-type':'application/x-www-form-urlencoded'},body:new URLSearchParams(o).toString()});
+const mk=await fetch(base+'/events',form({host_kind:'club',host_id:club,title:'Derby',starts_at:'2027-12-01T19:00',timezone:'Europe/Berlin',location_kind:'in_person',location:'Berlin',admission:'open',access_mode:'ticket',archetype:'versus',side_b_name:'FC Rival',fmt_inperson:'1',ip_cost:'open'}));
+const evId=(mk.headers.get('location')||'').match(/[0-9a-f]{8}-[0-9a-f-]+/)?.[0]||'';
+const sideB=(await listParties(app.db,evId)).find(p=>p.side==='B');
+const r=await fetch(base+`/e/${evId}/party/${sideB.id}/invite`,form({}));
+console.log('status',r.status,'loc',r.headers.get('location'));
+const b=await r.text();
+console.log('body snippet:', b.slice(0,300).replace(/\n/g,' '));
+await app.close(); process.exit(0);

@@ -1,7 +1,5 @@
-import { PGliteDatabase } from './src/db/index.ts';
-const db = await PGliteDatabase.open();
-for (const t of ['athlete','club','team','association']) {
-  const r = await db.query<any>(`SELECT column_name FROM information_schema.columns WHERE table_name=$1 ORDER BY ordinal_position`,[t]);
-  console.log(t+':', r.rows.map((x:any)=>x.column_name).join(', '));
-}
-process.exit(0);
+import { startServer } from './src/web/server.ts';
+const app = await startServer(0);
+const cols = await app.db.query(`SELECT column_name FROM information_schema.columns WHERE table_name='event' ORDER BY ordinal_position`);
+console.log('EVENT COLS:', cols.rows.map(r=>r.column_name).join(', '));
+await app.close(); process.exit(0);

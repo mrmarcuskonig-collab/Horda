@@ -177,13 +177,13 @@ async function fresh() {
   await ctx.close();
 }
 
-// ---- J6: map keeps the language and shows the map ---------------------------
+// ---- J6: English-only — the map is English even after a legacy de cookie ----
 {
   const { ctx, p } = await fresh();
   await p.goto(base + '/set-lang?l=de', { waitUntil: 'networkidle' });
   await p.goto(base + '/map', { waitUntil: 'networkidle' });
   const lang = await p.evaluate(() => document.documentElement.getAttribute('lang'));
-  ok('J6 map page stays in German after de is set', lang === 'de', `lang=${lang}`);
+  ok('J6 map is English even with a legacy de cookie (no language jump)', lang === 'en', `lang=${lang}`);
   await ctx.close();
 }
 
@@ -203,6 +203,45 @@ async function fresh() {
   const card = await p.$('a[href^="/e/"]');
   if (card) { await card.click(); await p.waitForLoadState('networkidle'); await p.waitForTimeout(150);
     ok('J8 event page throws no uncaught JS error', errs.length === 0, errs[0] || ''); }
+  await ctx.close();
+}
+
+// ---- J9: mobile — tapping an event card opens the half-sheet (not full nav) --
+{
+  const ctx = await b.newContext({ viewport: { width: 390, height: 780 }, isMobile: true, hasTouch: true });
+  const p = await ctx.newPage();
+  await p.goto(base + '/', { waitUntil: 'networkidle' });
+  const beforeUrl = path(p.url());
+  const card = await p.$('a[href^="/e/"]');
+  ok('J9.setup mobile home has an event card', !!card);
+  if (card) {
+    await card.click();
+    await p.waitForTimeout(700);   // fetch + slide
+    const sheetOpen = await p.evaluate(() => {
+      const s = document.getElementById('hz-peek');
+      const scrim = document.getElementById('hz-peekscrim');
+      if (!s || !scrim) return { open: false };
+      const cs = getComputedStyle(scrim);
+      const bodyHtml = (document.querySelector('#hz-peek .hz-pkbody') || {}).innerHTML || '';
+      return { open: scrim.classList.contains('on') && cs.display !== 'none', hasContent: /poster|evgrid|Add to calendar|Claim|Get ticket|Get access|Hosted by/.test(bodyHtml) };
+    });
+    // The list DOM stays mounted behind the sheet (progressive overlay); the peek
+    // sheet is what's visibly open.
+    const listStillMounted = await p.$$eval('a[href^="/e/"]', (a: any[]) => a.length > 0);
+    ok('J9 tapping an event card opens the peek half-sheet (list stays behind it)', sheetOpen.open && listStillMounted, `from ${beforeUrl}`);
+    ok('J9 the sheet is populated with the event content', !!sheetOpen.hasContent);
+  }
+  await ctx.close();
+}
+// ---- J10: desktop — event card navigates normally (no sheet) ----------------
+{
+  const { ctx, p } = await fresh();
+  await p.goto(base + '/', { waitUntil: 'networkidle' });
+  const card = await p.$('a[href^="/e/"]');
+  if (card) {
+    await card.click(); await p.waitForLoadState('networkidle');
+    ok('J10 on desktop, an event card navigates to the full event page', path(p.url()).startsWith('/e/'));
+  }
   await ctx.close();
 }
 
