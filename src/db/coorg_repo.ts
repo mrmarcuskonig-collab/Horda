@@ -107,3 +107,26 @@ export async function coOrgParty(db: Database, eventId: string, accountId: strin
 export async function coOrganizedEventIds(db: Database, accountId: string): Promise<string[]> {
   return (await db.query<{ event_id: string }>(`SELECT event_id FROM event_coorganizer WHERE account_id=$1`, [accountId])).rows.map(r => r.event_id);
 }
+
+export interface OrganizedRow { eventId: string; title: string; date: string | null; startsAt: string | null; hostKind: string | null; hostId: string | null; role: 'organizer' | 'co-organizer'; }
+/**
+ * The upcoming events this account ORGANISES — as the main organiser (hosts via
+ * an owned entity) or as a co-organiser. Soonest first (left → right). `ownerKeys`
+ * are the account's owned entities as "kind:id" strings; `coOrgIds` are event ids
+ * they co-organise.
+ */
+export async function organizedUpcoming(db: Database, ownerKeys: string[], coOrgIds: string[], limit = 20): Promise<OrganizedRow[]> {
+  if (!ownerKeys.length && !coOrgIds.length) return [];
+  const rows = (await db.query<any>(
+    `SELECT e.id, e.name title,
+            to_char(e.starts_at AT TIME ZONE COALESCE(e.timezone,'UTC'),'Dy DD Mon') date,
+            e.starts_at, e.host_kind, e.host_id,
+            ((e.host_kind || ':' || e.host_id::text) = ANY($1::text[])) AS owned
+       FROM event e
+      WHERE (e.starts_at IS NULL OR now() < COALESCE(e.ends_at, e.starts_at + interval '3 hours'))
+        AND e.parent_event_id IS NULL
+        AND ( (e.host_kind || ':' || e.host_id::text) = ANY($1::text[]) OR e.id = ANY($2::uuid[]) )
+      ORDER BY e.starts_at ASC NULLS LAST
+      LIMIT $3`, [ownerKeys, coOrgIds, limit])).rows;
+  return rows.map(r => ({ eventId: r.id, title: r.title, date: r.date ?? null, startsAt: r.starts_at ?? null, hostKind: r.host_kind ?? null, hostId: r.host_id ?? null, role: r.owned ? 'organizer' : 'co-organizer' }));
+}

@@ -50,6 +50,32 @@ export async function getFormat(db: Database, formatId: string): Promise<EventFo
   return r ? map(r) : null;
 }
 
+// The people attending, grouped by the format they chose — so the organiser can
+// expand a way-in and see exactly who's coming. Each attendee links to their public
+// profile ONLY when one exists: a fan who also owns an athlete/club/association page.
+// A plain fan (claimed a spot with just a name) has no public page, so it's name-only.
+export interface FormatAttendee { fanId: string; name: string; handle: string | null; partySize: number; profile: { kind: string; id: string } | null }
+export async function formatAttendees(db: Database, eventId: string): Promise<Record<string, FormatAttendee[]>> {
+  const rows = (await db.query<any>(
+    `SELECT c.format_id, c.party_size, f.id fan_id, f.display_name name, f.handle,
+            o.owner_kind ekind, o.owner_id eid
+     FROM claim c JOIN fan f ON f.id = c.fan_id
+     LEFT JOIN LATERAL (
+       SELECT owner_kind, owner_id FROM ownership ow
+       WHERE f.account_id IS NOT NULL AND ow.account_id = f.account_id
+       ORDER BY CASE owner_kind WHEN 'athlete' THEN 0 WHEN 'club' THEN 1 WHEN 'team' THEN 2 WHEN 'association' THEN 3 ELSE 4 END
+       LIMIT 1
+     ) o ON true
+     WHERE c.event_id = $1 AND c.status IN ('claimed','approved','verified') AND c.voided_at IS NULL
+     ORDER BY f.display_name`, [eventId])).rows;
+  const out: Record<string, FormatAttendee[]> = {};
+  for (const r of rows) {
+    const key = r.format_id ?? '__unassigned';
+    (out[key] ??= []).push({ fanId: r.fan_id, name: r.name, handle: r.handle ?? null, partySize: r.party_size ?? 1, profile: r.eid ? { kind: r.ekind, id: r.eid } : null });
+  }
+  return out;
+}
+
 // bind a claim to the format the fan chose (single choice; switching allowed).
 export async function setClaimFormat(db: Database, claimId: string, formatId: string | null): Promise<void> {
   await db.query(`UPDATE claim SET format_id=$2 WHERE id=$1`, [claimId, formatId]);

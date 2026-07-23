@@ -146,7 +146,7 @@ const FEATURES: Benefit[] = [
 
 type AboutPage = 'about' | 'creators' | 'features' | 'pricing' | 'changelog';
 const NAV: { key: AboutPage; label: string; href: string; dd: [string, string][] }[] = [
-  { key: 'creators', label: 'Who it’s for', href: '/about/creators', dd: [['Clubs & organisers', '/about/creators#clubs'], ['Athletes', '/about/creators#athletes'], ['Federations', '/about/creators#federations'], ['Fans', '/about/creators#fans']] },
+  { key: 'creators', label: 'Who it’s for', href: '/about/creators', dd: [['Event organisers', '/about/creators#organisers'], ['Athletes', '/about/creators#athletes'], ['Clubs & federations', '/about/creators#clubs'], ['Fans', '/about/creators#fans']] },
   { key: 'features', label: 'What you can do', href: '/about/features', dd: [['See who drove your tickets', '/about/features'], ['Free & paid tickets', '/about/features'], ['QR check‑in', '/about/features'], ['Two‑sided events', '/about/features'], ['Fight cards & sub‑events', '/about/features'], ['Verified presence', '/about/features']] },
   { key: 'pricing', label: 'Pricing', href: '/about/pricing', dd: [['Free events — free', '/about/pricing'], ['Paid tickets — flat 10%', '/about/pricing'], ['Attribution — always free', '/about/pricing']] },
   // Built in the open: the changelog is a top-level marketing surface, not a
@@ -166,11 +166,13 @@ function aboutShell(active: AboutPage, guest: boolean, title: string, body: stri
   ${THEME_VARS}
   *{margin:0;box-sizing:border-box}
   html{scroll-behavior:smooth}
-  body{background:var(--ink);color:var(--bone);font-family:"Inter",-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif;line-height:1.5;padding-bottom:90px;-webkit-font-smoothing:antialiased}
+  body{background:var(--ink);color:var(--bone);font-family:"Inter",-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif;line-height:1.5;padding-bottom:40px;-webkit-font-smoothing:antialiased}
   a{color:inherit;text-decoration:none}
-  ${THM_CSS}
+  /* Standalone marketing site — NO app chrome (no left rail, no bottom tab bar,
+     no peek sheet). The about pages carry the brand, not the product UI. */
   .mnav{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:14px;padding:13px 22px;border-bottom:1px solid var(--b);position:sticky;top:0;background:var(--scrim);backdrop-filter:blur(12px);z-index:30}
-  .mnav .mark{display:flex;align-items:center;justify-self:center;color:var(--bone)}.mnav .mark svg{display:block}
+  .mnav .mark{display:flex;align-items:center;gap:9px;justify-self:center;color:var(--bone)}.mnav .mark svg{display:block}
+  .mnav .mark b{font-size:19px;font-weight:800;letter-spacing:-.02em}
   .links{display:flex;gap:8px;justify-self:start}
   .navitem{position:relative;padding:8px 6px}
   .navitem .topl{font-size:14.5px;font-weight:600;color:var(--mut)}.navitem:hover .topl,.navitem.on .topl{color:var(--bone)}
@@ -203,6 +205,19 @@ function aboutShell(active: AboutPage, guest: boolean, title: string, body: stri
   .pillar{display:block;border:1px solid var(--b);border-radius:20px;padding:26px 24px;background:var(--s);transition:border-color .15s}
   .pillar:hover{border-color:var(--bone)}
   .pillar .pn{font-size:24px;font-weight:900;letter-spacing:-.02em}.pillar p{color:var(--mut);font-size:14px;margin:8px 0 14px;line-height:1.55}.pillar .go{font-weight:700;font-size:13.5px}
+  /* Audience cards — the conversion spine: one card per audience, each naming the
+     OUTCOME Horda drives and a direct CTA into that audience's path. */
+  .aud{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:8px}@media(max-width:760px){.aud{grid-template-columns:1fr}}
+  .audcard{display:flex;flex-direction:column;border:1px solid var(--b);border-radius:20px;padding:28px 26px;background:var(--s);transition:border-color .15s,transform .15s}
+  .audcard:hover{border-color:var(--acc);transform:translateY(-2px)}
+  .audcard .who{font-size:12px;letter-spacing:.16em;text-transform:uppercase;font-weight:800;color:var(--acc)}
+  .audcard .out{font-size:26px;font-weight:900;letter-spacing:-.02em;line-height:1.1;margin:12px 0 10px}
+  @media(max-width:760px){.audcard .out{font-size:22px}}
+  .audcard p{color:var(--mut);font-size:14.5px;line-height:1.6;margin:0 0 18px}
+  .audcard .metric{display:flex;gap:10px;margin:0 0 18px;flex-wrap:wrap}
+  .audcard .metric span{font-size:12.5px;color:var(--bone);background:var(--ink);border:1px solid var(--b);border-radius:999px;padding:4px 11px}
+  .audcard .cta{margin-top:auto}
+  .btn.acc{background:var(--acc);color:var(--accink,#fff);border-color:var(--acc)}.btn.acc:hover{opacity:.92}
   .manifesto{border-top:1px solid var(--b);margin-top:64px;padding-top:40px}
   .manifesto .ln{font-size:30px;font-weight:800;letter-spacing:-.02em;line-height:1.15;max-width:24ch;margin:0 0 14px}
   .manifesto .ln b{color:var(--bone)}.manifesto .ln{color:var(--mut)}
@@ -246,48 +261,67 @@ function aboutShell(active: AboutPage, guest: boolean, title: string, body: stri
 </style></head><body>
   <header class="mnav">
     <nav class="links">${NAV.map(navItem).join('')}</nav>
-    <a class="mark" href="/" aria-label="Horda — home">${ravenMarkCurrent(30)}</a>
-    <div class="right">${themeToggle()}${guest ? `<a class="btn ghost sm" href="/login">Log in</a>` : ''}<a class="btn sm" href="${createHref}">Create an event</a></div>
+    <a class="mark" href="/" aria-label="Horda — home">${ravenMarkCurrent(26)}<b>Horda</b></a>
+    <div class="right">${guest ? `<a class="btn ghost sm" href="/login">Log in</a>` : ''}<a class="btn sm" href="${createHref}">Create an event</a></div>
   </header>
   <div class="wrap">${body}</div>
   <div class="foot"><div class="fl"><a href="/about/creators">Who it’s for</a><a href="/about/features">Features</a><a href="/about/pricing">Pricing</a><a href="/about">Overview</a><a href="/changelog">Changelog</a>${discordFootLink()}<a href="/agb">AGB</a><a href="/impressum">Impressum</a><a href="/datenschutz">Datenschutz</a></div>The events home for sports and competitive culture. joinhorda.com</div>
-  ${bottomNav({ guest, fanId: null })}
 </body></html>`;
 }
 
-// MAIN /about — leads with the differentiator (attributed reach), then the loop.
+// MAIN /about — a conversion page built around the four audiences. Each audience
+// card leads with the OUTCOME Horda drives for them, then the CTA into their path.
 export function renderAbout(guest: boolean): string {
   const createHref = '/create';
+  const athleteHref = guest ? '/signup?next=/onboarding/athlete' : '/onboarding/athlete';
+  const claimHref = guest ? '/signup?next=/onboarding/claim' : '/onboarding/claim';
   const body = `
     <section class="bighero">
-      <div class="kick">The events layer for competitive sport</div>
-      <h1 class="hl">Know exactly which fans and tickets you drove.</h1>
-      <p class="lead">Horda runs your events — free or paid tickets, QR check‑in, verified presence — and measures the reach behind them. Two‑sided and roster‑based, so every club and athlete sees the fans and tickets they drove, and can get paid for it. Generic ticketing can’t tell you who brought whom. We can.</p>
-      <div class="ctarow"><a class="btn" href="${createHref}">Create an event →</a><a class="btn ghost" href="/about/features">See what you can do</a></div>
+      <div class="kick">The events home for competitive sport</div>
+      <h1 class="hl">The event sells the tickets. Horda shows who drove them.</h1>
+      <p class="lead">Run your match, fight night, race or run club — free or paid tickets, QR check‑in, verified presence — and see exactly which club, athlete and fan brought the crowd. Generic ticketing can’t tell you who brought whom. That’s the whole point of Horda.</p>
+      <div class="ctarow"><a class="btn acc" href="${createHref}">Create an event →</a><a class="btn ghost" href="#audiences">Find your outcome</a></div>
     </section>
 
-    <h2 class="sec">A worked example</h2>
+    <h2 class="sec" id="audiences">What Horda does for you</h2>
+    <p class="secsub">Pick who you are. Every one of them walks away with something they couldn’t get before.</p>
+    <div class="aud">
+      <div class="audcard">
+        <div class="who">Event organisers</div>
+        <div class="out">Sell out the night — and see who filled every seat.</div>
+        <p>Create an event in a minute, issue free or paid tickets, invite co‑organisers, and scan people in at the door. Afterwards the share panel breaks down exactly which club, athlete and link drove the sales.</p>
+        <div class="metric"><span>Tickets sold</span><span>Who drove them</span><span>Who showed up</span></div>
+        <div class="cta"><a class="btn acc" href="${createHref}">Create an event →</a></div>
+      </div>
+      <div class="audcard">
+        <div class="who">Athletes</div>
+        <div class="out">Turn your following into countable, paid reach.</div>
+        <p>Your roster link makes your draw a number, not a guess — “Rico drove 312 fans and 140 ticket buyers to this fight.” That’s hard proof of your pull when you negotiate an appearance fee, and the reason to promote here, not just on Instagram.</p>
+        <div class="metric"><span>Fans driven</span><span>Ticket buyers</span><span>Proof of draw</span></div>
+        <div class="cta"><a class="btn acc" href="${athleteHref}">Create your page →</a></div>
+      </div>
+      <div class="audcard">
+        <div class="who">Clubs &amp; federations</div>
+        <div class="out">Fill the stands, and pull your rivals in with you.</div>
+        <p>List the away side before they’re even on Horda — they join to claim their side, their fans and their ticket share. Run a whole season of fixtures; attribution rolls up the pyramid from federation to club to athlete.</p>
+        <div class="metric"><span>Both fanbases</span><span>Season‑wide</span><span>Rivals onboarded</span></div>
+        <div class="cta"><a class="btn acc" href="${claimHref}">Claim your club →</a></div>
+      </div>
+      <div class="audcard">
+        <div class="who">Fans</div>
+        <div class="out">Prove you were actually there.</div>
+        <p>Claim a spot with just your email — no password wall. Get a QR ticket, show it at the door, and your presence is stamped onto your Record: a passport of where you really showed up, not what you streamed.</p>
+        <div class="metric"><span>QR ticket</span><span>Verified presence</span><span>Your Record</span></div>
+        <div class="cta"><a class="btn" href="/">Find an event →</a></div>
+      </div>
+    </div>
+
+    <h2 class="sec">How it works, in one match</h2>
     <div class="pcard">
       <h3>FC Kreuzberg vs. FC Rival — Regionalliga‑Pokal.</h3>
       <p>Kreuzberg creates the match and lists FC Rival as the away side — <b style="color:var(--bone)">even though Rival isn’t on Horda yet</b>. The event goes live; both fanbases can claim tickets. To claim their side, their fans and their share of the tickets, <b style="color:var(--bone)">Rival joins Horda</b> — the event drags the rival club, and its fanbase, onto the platform. On the day you scan tickets at the gate. Afterwards you see it in numbers: <b style="color:var(--bone)">Rival’s captain drove 210 fans and 88 ticket buyers</b>; Kreuzberg drove 341 and 150. Reach, measured — and, later, paid.</p>
-      <a class="btn" href="${createHref}">Create an event →</a>
+      <a class="btn acc" href="${createHref}">Create an event →</a>
     </div>
-
-    <h2 class="sec">Start here</h2>
-    <div class="pillars">
-      <a class="pillar" href="/about/creators"><div class="pn">Who it’s for</div><p>Clubs &amp; organisers, athletes, federations — and the fans who show up.</p><span class="go">See who →</span></a>
-      <a class="pillar" href="/about/features"><div class="pn">What you can do</div><p>Sell tickets, scan people in, and see exactly who drove them.</p><span class="go">The features →</span></a>
-      <a class="pillar" href="/about/pricing"><div class="pn">Pricing</div><p>Free events are free. Paid tickets: a flat 10%. Attribution always free.</p><span class="go">What it costs →</span></a>
-    </div>
-
-    <h2 class="sec">Built in the open</h2>
-    <p class="secsub">We ship every week and we publish it — including what isn’t built yet.</p>
-    <div class="pillars" style="margin-bottom:2px">
-      <a class="pillar" href="/changelog"><div class="pn">Changelog</div><p>Everything we’ve shipped, dated. Plus what we’re building next, listed before it exists.</p><span class="go">See what we shipped →</span></a>
-      <a class="pillar" href="/changelog#building"><div class="pn">Now building</div><p>Our next moves, in public. Hold us to them.</p><span class="go">What’s coming →</span></a>
-      <a class="pillar" href="/changelog#ask"><div class="pn">Ask for a feature</div><p>Most of what’s on the changelog exists because someone asked for it.</p><span class="go">Tell us →</span></a>
-    </div>
-    ${discordModule()}
 
     <div class="manifesto">
       <p class="ln">Every match has <b>two sides</b>. A tournament has <b>many</b>. Both bring their own fans.</p>
@@ -296,7 +330,7 @@ export function renderAbout(guest: boolean): string {
     </div>
 
     <div class="closeb"><h3>Run your next event where the reach is measured.</h3><a class="btn" href="${createHref}">Create an event →</a></div>`;
-  return aboutShell('about', guest, 'The events layer for competitive sport', body);
+  return aboutShell('about', guest, 'The events home for competitive sport', body);
 }
 
 // /about/creators — who it's for, each with an outcome + a concrete example.
@@ -311,17 +345,17 @@ export function renderAboutCreators(guest: boolean): string {
       <p class="lead">Organisers sell the tickets, athletes bring the fans, federations connect the pyramid — and fans get proof they were there. Each side gets the reach it drove.</p>
     </section>
 
-    <h2 class="sec" id="clubs">Clubs &amp; organisers</h2>
-    <div class="pcard"><h3>Sell out the night — and see who filled the seats.</h3><p>Create a match, a fight night or a run club in a minute. Issue free or paid tickets, scan people in at the door, and invite co‑organisers and the rival side. Afterwards you see the breakdown: which club, which athlete, which link drove the tickets. <b style="color:var(--bone)">Example:</b> a Kreisliga cup lists both clubs; the away club joins to claim its side; you sell 500 tickets and know exactly who brought them.</p><a class="btn" href="${createHref}">Create an event →</a> <a class="btn ghost" href="${claimHref}">Claim your club page</a></div>
+    <h2 class="sec" id="organisers">Event organisers</h2>
+    <div class="pcard"><h3>Sell out the night — and see who filled the seats.</h3><p>Create a match, a fight night or a run club in a minute. Issue free or paid tickets, scan people in at the door, and invite co‑organisers and the rival side. Afterwards you see the breakdown: which club, which athlete, which link drove the tickets. <b style="color:var(--bone)">The outcome:</b> a full house you can explain — you know who brought them, not just how many turned up.</p><a class="btn acc" href="${createHref}">Create an event →</a> <a class="btn ghost" href="${claimHref}">Claim an organiser page</a></div>
 
-    <h2 class="sec" id="athletes">Athletes &amp; creators</h2>
-    <div class="pcard"><h3>Turn your Instagram share into a measured, paid channel.</h3><p>Athletes, coaches, sports influencers — anyone with a following. Today you promote an event by posting to socials, unmeasured and unpaid. On Horda your roster link makes your draw countable: <b style="color:var(--bone)">“Rico drove 312 fans and 140 ticket buyers to this fight.”</b> That number is your leverage — hard proof of your draw when you negotiate an appearance fee, and the reason to promote here instead of just on Instagram.</p><a class="btn" href="${athleteHref}">Create your page →</a></div>
+    <h2 class="sec" id="athletes">Athletes</h2>
+    <div class="pcard"><h3>Turn your Instagram share into a measured, paid channel.</h3><p>Athletes, coaches, sports influencers — anyone with a following. Today you promote an event by posting to socials, unmeasured and unpaid. On Horda your roster link makes your draw countable: <b style="color:var(--bone)">“Rico drove 312 fans and 140 ticket buyers to this fight.”</b> <b style="color:var(--bone)">The outcome:</b> hard proof of your draw when you negotiate an appearance fee — and a reason to promote here, not just on Instagram.</p><a class="btn acc" href="${athleteHref}">Create your page →</a></div>
 
-    <h2 class="sec" id="federations">Federations &amp; leagues</h2>
-    <div class="pcard"><h3>Run a whole competition, not just one event.</h3><p>Associations sanction leagues, clubs field teams, athletes compete — on Horda it connects. List your member clubs (they claim to take over — a growth loop), run a season of fixtures, and let promotion cascade: the federation promotes, its clubs amplify, their athletes amplify. Attribution rolls up the whole tree.</p><a class="btn" href="${claimHref}">Claim your federation page →</a></div>
+    <h2 class="sec" id="clubs">Clubs &amp; federations</h2>
+    <div class="pcard"><h3>Fill the stands, pull your rivals in, run a whole season.</h3><p>List the away side even before they’re on Horda — they join to claim their side, their fans and their ticket share (a growth loop generic ticketing can’t have). Federations sanction leagues, clubs field teams, athletes compete, and it all connects: promotion cascades and attribution rolls up the whole pyramid. <b style="color:var(--bone)">The outcome:</b> both fanbases in the building and your rivals onboarded — season after season.</p><a class="btn acc" href="${claimHref}">Claim your club or federation →</a></div>
 
     <h2 class="sec" id="fans">Fans</h2>
-    <div class="pcard"><h3>Prove you were actually there.</h3><p>Claim a spot with just your email — no password wall. Get a QR ticket, show it at the door, and your presence is stamped onto your <b style="color:var(--bone)">Record</b> — a passport of where you really showed up, not what you streamed. Share the “I was there” card and pull your friends into the next one.</p><a class="btn" href="/">Find an event →</a></div>
+    <div class="pcard"><h3>Prove you were actually there.</h3><p>Claim a spot with just your email — no password wall. Get a QR ticket, show it at the door, and your presence is stamped onto your <b style="color:var(--bone)">Record</b> — a passport of where you really showed up, not what you streamed. <b style="color:var(--bone)">The outcome:</b> proof you were in the room, and an “I was there” card that pulls your friends into the next one.</p><a class="btn" href="/">Find an event →</a></div>
 
     <div class="closeb"><h3>Run your next event where the reach is measured.</h3><a class="btn" href="${createHref}">Create an event →</a></div>`;
   return aboutShell('creators', guest, 'Who it’s for', body);

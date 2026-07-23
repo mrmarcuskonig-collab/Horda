@@ -29,7 +29,7 @@ const DICT: Record<string, { en: string; de: string }> = {
   login:        { en: 'Log in',           de: 'Anmelden' },
   join_free:    { en: 'Join free',        de: 'Kostenlos beitreten' },
   your_feed:    { en: 'Your feed',        de: 'Dein Feed' },
-  events_head:  { en: 'Public events · live & upcoming', de: 'Öffentliche Events · live & bevorstehend' },
+  events_head:  { en: 'Events · live & upcoming', de: 'Events · live & bevorstehend' },
   clubs_head:   { en: 'Clubs & federations', de: 'Vereine & Verbände' },
   going:        { en: 'going',            de: 'dabei' },
   shares:       { en: 'shares',           de: 'geteilt' },

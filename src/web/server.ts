@@ -44,7 +44,7 @@ import { listMedia, addMedia, deleteMedia, listSponsors, addSponsor, deleteSpons
 import { track, conversionRate, metricCounts, defaultRoomLabel, roomState, setRoomConfig, setResult, getRoomConfig, listRoomMessages, postRoomMessage, canSeeLiveRoom, createGoal, listGoals, activeGoalProgress, getGoal, maybeGoalSignup, trackConversion, roomPresence } from '../db/hook_repo.ts';
 import { renderEventRoom, renderMediaStudio, renderInsights, goalBar } from './hook_web.ts';
 import { spotsInfo, formatSpots, getClaim, createClaim, getPass, verifyPass, fanRecord, recordCount, crowdStanding, grantConsent, feedDoors, recentPresence, attendingEvents, myClaimedIn } from '../db/claim_rail_repo.ts';
-import { listFormats, addFormat, formatCounts, setClaimFormat, getFormat } from '../db/event_format_repo.ts';
+import { listFormats, addFormat, formatCounts, setClaimFormat, getFormat, formatAttendees } from '../db/event_format_repo.ts';
 import { notify, listNotifications, unreadCount, markAllRead } from '../db/notif_repo.ts';
 import { parseSeasonLines, shiftDate } from '../db/events_repo.ts';
 import { renderNotifications, renderConnections } from './pages.ts';
@@ -62,7 +62,7 @@ import { getPayments, verifyWebhook } from './payments.ts';
 import { getPayoutAccount, upsertPayoutAccount, setPayoutStatus, isPayoutsEnabled } from '../db/payouts_repo.ts';
 import { changelogFeed, changelogMarkdown, rssFeed, sitemapXml, robotsTxt, llmsTxt } from './feeds.ts';
 import { reportError, errorPage, healthReport } from './observe.ts';
-import { createSideInvite, ensureSideInvite, sideInviteByToken, acceptSideInvite, isCoOrganizer, eventCoorganizers, coOrgParty } from '../db/coorg_repo.ts';
+import { createSideInvite, ensureSideInvite, sideInviteByToken, acceptSideInvite, isCoOrganizer, eventCoorganizers, coOrgParty, coOrganizedEventIds, organizedUpcoming } from '../db/coorg_repo.ts';
 import { eventCardSvg } from './card.ts';
 import { svgToPng, inlineImage } from './raster.ts';
 import { walletStatus, googleWalletUrl, buildPkpass, type PassData } from './wallet.ts';
@@ -650,11 +650,15 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
         }
         const id = await createScheduledEvent(db, { ...subArgs, recurrence: f.recurrence, parentEventId: parentId });
         await applyFormats(id);
-        // Multi-party spine: the host is always an organizer; versus events get two
-        // sides (side A = host, side B = an unclaimed rival to be claimed by joining);
-        // an optional roster of attending athletes seeds unclaimed slots. Every party
-        // auto-gets a promo link. Measurement only — no money moves.
-        await addParty(db, { eventId: id, role: 'organizer', entityKind: f.host_kind, entityId: f.host_id, status: 'accepted' });
+        // Multi-party spine. In a VERSUS event the organising account IS a competitor,
+        // so it takes Side A directly — we do NOT also mint a separate "Organiser"
+        // party (that duplicate is what put the host "on top as organiser" above the
+        // matchup). For single/open and multi events the host isn't a side, so it gets
+        // the organiser party. Whoever is Side A must be the account that organised the
+        // event; to put a different Side A on top, that side organises it themselves.
+        // Every party auto-gets a promo link. Measurement only — no money moves.
+        if (baseArgs.archetype !== 'versus')
+          await addParty(db, { eventId: id, role: 'organizer', entityKind: f.host_kind, entityId: f.host_id, status: 'accepted' });
         // Side B / roster: if the organiser picked a REAL entity from the
         // typeahead, link it (kind+id) instead of minting a placeholder — a
         // duplicate ghost would strand that side's attribution. Free text still
@@ -1292,7 +1296,7 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
         if (!d) return html(res, 'Not found', 404);
         if (!await canEdit(d.hostKind ?? '', d.hostId ?? '')) return redirect(res, `/e/${em[1]}`);  // guest list is owner-only
         const payoutAcct = (d.hostKind && d.hostId) ? await getPayoutAccount(db, d.hostKind, d.hostId) : null;
-        return html(res, renderManage(d, await getGuestList(db, em[1]), await formatCounts(db, em[1]), await shareAttribution(db, em[1]), await partyAttribution(db, em[1]), (d.hostKind && d.hostId) ? { hostKind: d.hostKind, hostId: d.hostId, connected: !!payoutAcct?.chargesEnabled } : undefined, viewerGuest ? null : viewer));
+        return html(res, renderManage(d, await getGuestList(db, em[1]), await formatCounts(db, em[1]), await shareAttribution(db, em[1]), await partyAttribution(db, em[1]), (d.hostKind && d.hostId) ? { hostKind: d.hostKind, hostId: d.hostId, connected: !!payoutAcct?.chargesEnabled } : undefined, viewerGuest ? null : viewer, await formatAttendees(db, em[1])));
       }
       if ((em = path.match(/^\/host\/(athlete|club|team|association)\/([^/]+)\/new$/))) {
         const parentId = url.searchParams.get('parent');
@@ -1575,9 +1579,32 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
         if (viewerGuest && (sport || region)) res.setHeader('set-cookie', `hz_filter=${encodeURIComponent((sport || '') + '|' + (region || ''))}; Path=/; Max-Age=1800; SameSite=Lax`);
         // Logged-in home leads with the viewer's own feed of upcoming events from
         // the crowds they follow (the "events I prefer").
-        const rawDoors = viewerGuest ? [] : await feedDoors(db, viewer);
-        const doors = await Promise.all(rawDoors.map(async x => ({ eventId: x.eventId, title: x.title, date: x.date, hostName: x.hostName || (x.hostKind && x.hostId ? await hostName(db, x.hostKind, x.hostId) : ''), remaining: x.remaining, mine: x.mine })));
-        return html(res, renderDiscover({ guest: viewerGuest, fanId: viewer, sport, region, data, regions: REGIONS, lang, unread, doors }));
+        // "Your events" = the events YOU organise (main organiser or co-organiser),
+        // soonest first. Not "from who you follow" — that's what Public events is for.
+        let organized: { eventId: string; title: string; date: string | null; hostName: string; role: 'organizer' | 'co-organizer' }[] = [];
+        if (!viewerGuest && account) {
+          const ownerKeys = ownedForNav.map(o => `${o.kind}:${o.id}`);
+          const coIds = await coOrganizedEventIds(db, account.id);
+          const rows = await organizedUpcoming(db, ownerKeys, coIds);
+          organized = await Promise.all(rows.map(async r => ({ eventId: r.eventId, title: r.title, date: r.date, hostName: r.hostKind && r.hostId ? await hostName(db, r.hostKind, r.hostId) : '', role: r.role })));
+        }
+        // Public "Events · live & upcoming": include the events the viewer has
+        // CLAIMED a pass/ticket for (even if outside the top window), and mark them.
+        let upcoming = data.upcoming as (typeof data.upcoming[number] & { claimed?: boolean })[];
+        if (!viewerGuest && account) {
+          const claimedSet = await myClaimedIn(db, viewer, upcoming.map(e => e.id));
+          upcoming = upcoming.map(e => ({ ...e, claimed: claimedSet.has(e.id) }));
+          // pull in any claimed upcoming events not already shown, so a ticket you
+          // hold is never missing from the list.
+          const present = new Set(upcoming.map(e => e.id));
+          const attending = await attendingEvents(db, viewer);
+          for (const a of attending) {
+            if (present.has(a.eventId) || (a.startsAt && new Date(a.startsAt).getTime() < Date.now())) continue;
+            upcoming.push({ id: a.eventId, title: a.title, date: a.date ?? undefined, host: (a.hostKind && a.hostId ? await hostName(db, a.hostKind, a.hostId) : ''), admission: 'open', going: 0, shares: 0, followers: 0, live: false, coverUrl: null, claimed: true } as any);
+            present.add(a.eventId);
+          }
+        }
+        return html(res, renderDiscover({ guest: viewerGuest, fanId: viewer, sport, region, data: { ...data, upcoming }, regions: REGIONS, lang, unread, organized }));
       }
       if (path === '/map') {
         // Event map: plot UPCOMING public events at their host's region.
@@ -1814,19 +1841,25 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
         if (m[1] !== viewer) return html(res, '<p>This feed is private. <a href="/">Home</a></p>', 403);
         const home = await getFanHome(db, m[1]);
         const follows = await getFollows(db, m[1]);
-        const fanAct = renderChecklist(await fanChecklist(db, m[1]));
         // "Your pages": the creator side of the SAME account — switch here, and
         // manage the events each page runs. Only on the owner's own fan home.
         const ownPages = (account && m[1] === viewer)
           ? await Promise.all((await ownedEntities(db, account.id)).map(async e => ({ ...e, events: await listProfileEvents(db, e.kind, e.id) })))
           : [];
-        const doors = await feedDoors(db, m[1]);
-        // The three bands (see renderFanHome): what you run, what you hold a
-        // ticket for, what you might still claim.
+        // Your events, four bands: what you run (owned pages, above), what you
+        // CO-run (co-organiser on someone else's event), what you hold a ticket
+        // for, and everyone you follow. Co-running is a separate band because you
+        // don't own the event — you promote it and see its stats, but don't edit it.
         const attending = await attendingEvents(db, m[1]);
-        const rp = await recentPresence(db, m[1]);
-        const morningAfter = rp ? { title: rp.title, date: rp.date, recordTotal: (await recordCount(db, m[1])).total } : null;
-        return html(res, renderFanHome({ fanId: m[1], fanName: 'You', home, follows, activation: fanAct, pages: ownPages, createHref: viewerCreateHref, doors, attending, morningAfter }));
+        const coIds = account ? await coOrganizedEventIds(db, account.id) : [];
+        const ownerKeys = ownPages.map(p => `${p.kind}:${p.id}`);
+        const coRunning = coIds.length
+          ? await Promise.all((await organizedUpcoming(db, ownerKeys, coIds)).filter(r => r.role === 'co-organizer').map(async r => ({
+              eventId: r.eventId, title: r.title, date: r.date,
+              hostName: (r.hostKind && r.hostId) ? await hostName(db, r.hostKind, r.hostId) : '',
+            })))
+          : [];
+        return html(res, renderFanHome({ fanId: m[1], fanName: 'You', home, follows, pages: ownPages, createHref: viewerCreateHref, attending, coRunning }));
       }
       // §4a/§6: hosted themed OG image for an athlete (rich share cards). SVG for
       // now; PNG rasterization is a follow-up once an image lib is added.

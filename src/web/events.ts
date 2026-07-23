@@ -41,12 +41,19 @@ export function renderRoster(d: {
     : `<span class="mut" style="font-size:12px">Awaiting ${p.role === 'side' ? 'the other side' : 'this participant'} — the organiser sends the invite</span>`;
   const row = (p: EventParty) => `<div class="prow"><div class="pn">${nameEl(p)}${p.status === 'unclaimed' ? ' <span class="ptag">unclaimed</span>' : ''}</div>${p.status === 'unclaimed' ? claimBtn(p) : (d.isOrganizer ? `<form method="post" action="/e/${d.eventId}/party/${p.id}/remove"><button class="rb sm" type="submit">Remove</button></form>` : '')}</div>`;
   const sides = d.parties.filter(p => p.role === 'side');
-  const organizers = d.parties.filter(p => p.role === 'organizer');
+  const sameEntity = (a: EventParty, b: EventParty) => !!a.entityId && a.entityKind === b.entityKind && a.entityId === b.entityId;
+  // When the event has sides, the organising account IS Side A — so we never show a
+  // separate "Organiser" row that duplicates it. (New versus events don't create one;
+  // this also folds any legacy organiser party that matches a side.)
+  const organizers = sides.length ? [] : d.parties.filter(p => p.role === 'organizer' && !sides.some(s => sameEntity(p, s)));
   const athletes = d.parties.filter(p => p.role === 'attending_athlete');
   const sponsors = d.parties.filter(p => p.role === 'sponsor' || p.role === 'venue');
   const sideA = sides.find(s => s.side === 'A'); const sideB = sides.find(s => s.side === 'B');
+  // Side A sits on top precisely because it's the organiser — label it so.
+  const vslot = (p: EventParty | undefined, label: string) =>
+    `<div class="vside">${p ? `<div class="vlbl">${label}</div>${row(p)}` : `<div class="vlbl">${label}</div><div class="mut">TBD</div>`}</div>`;
   const versus = (sideA || sideB)
-    ? `<div class="versus"><div class="vside">${sideA ? row(sideA) : '<div class="mut">TBD</div>'}</div><div class="vs">VS</div><div class="vside">${sideB ? row(sideB) : '<div class="mut">TBD</div>'}</div></div>`
+    ? `<div class="versus">${vslot(sideA, 'Side A · organiser')}<div class="vs">VS</div>${vslot(sideB, 'Side B')}</div>`
     : '';
   const group = (label: string, list: EventParty[]) => list.length ? `<div class="pgrp"><div class="pgl">${label}</div>${list.map(row).join('')}</div>` : '';
   return `<div class="h3">Line-up</div>
@@ -54,6 +61,7 @@ export function renderRoster(d: {
       .versus{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:12px;margin:8px 0}
       .versus .vside{border:1px solid var(--b);border-radius:12px;padding:12px}
       .versus .vs{font-weight:800;color:var(--mut);font-size:13px}
+      .versus .vlbl{font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--mut);margin-bottom:4px}
       .pgrp{margin:10px 0}.pgl{font-size:11px;letter-spacing:1px;text-transform:uppercase;color:var(--mut);margin-bottom:6px}
       .prow{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:7px 0;border-bottom:1px solid var(--b)}
       .prow .pn a:hover{border-bottom:1px solid var(--b)}
@@ -927,7 +935,8 @@ export function renderManage(d: EventDetail, guests: { response: string; status:
   formats: { id: string; kind: string; label: string; channelUrl: string | null; requiresTicket: boolean; priceCents: number | null; going: number; revenueCents: number }[] = [],
   attribution: { fanId: string; name: string; token: string; clicks: number; claims: number }[] = [],
   promo?: { rows: { partyId: string; name: string; role: string; side: string | null; token: string; kind: string; status: string; clicks: number; identities: number; ticketBuyers: number; subEvent?: string }[]; total: { identities: number; ticketBuyers: number; clicks: number } },
-  payout?: { hostKind: string; hostId: string; connected: boolean }, viewerFanId?: string | null): string {
+  payout?: { hostKind: string; hostId: string; connected: boolean }, viewerFanId?: string | null,
+  attendees: Record<string, { fanId: string; name: string; handle: string | null; partySize: number; profile: { kind: string; id: string } | null }[]> = {}): string {
   // Paid event → surface payout status: connect payouts (KYC) before selling.
   const payoutBanner = (d.admission === 'paid' && payout)
     ? (payout.connected
@@ -937,12 +946,18 @@ export function renderManage(d: EventDetail, guests: { response: string; status:
   // The share panel — every participant's promo link with its live counts, the
   // roll-up across sub-events, and a "+ create custom link". Measurement only.
   const roleLabel: Record<string, string> = { organizer: 'Organiser', side: 'Side', attending_athlete: 'On the card', sponsor: 'Partner', venue: 'Venue', promoter: 'Custom link' };
-  const sharePanel = (promo && promo.rows.length)
+  // In a versus event the organising account is Side A, so drop the legacy
+  // "Organiser" promo row that duplicates it — Side A carries that link.
+  const promoRows = (promo?.rows ?? []).filter(r =>
+    !(r.role === 'organizer' && (promo?.rows ?? []).some(x => x.role === 'side')));
+  const sideLabel = (r: { side: string | null }) => r.side === 'A' ? ' A · organiser' : r.side ? ' ' + r.side : '';
+  const sharePanel = (promo && promoRows.length)
     ? `<h2>Share panel · ${promo.total.identities} identities · ${promo.total.ticketBuyers} ticket buyers</h2>
        <p class="mut" style="font-size:12.5px">Every participant has a ready-to-share promo link. Counts roll up across sub-events. Measurement only — no payouts yet.</p>
-       <div class="promos">${promo.rows.map(r => `<div class="promo"><div class="pl"><b>${esc(r.name)}</b> <span class="prole">${esc(roleLabel[r.role] ?? r.role)}${r.side ? ' ' + r.side : ''}${r.subEvent ? ` · ${esc(r.subEvent)}` : ''}${r.status === 'unclaimed' ? ' · unclaimed' : ''}</span><div class="pc">${r.identities} identities · ${r.ticketBuyers} tickets · ${r.clicks} clicks</div></div>${shareButton({ title: d.title, cls: 'rb sm', label: 'Copy', url: `/e/${d.id}?p=${r.token}` })}</div>`).join('')}</div>
-       <form method="post" action="/e/${d.id}/promo" class="rsvp" style="margin-top:10px"><input name="label" placeholder="Custom link label (e.g. an influencer)" class="tkin" style="width:220px"><button class="rb" type="submit">＋ Create custom link</button></form>
-       <style>.promos{display:flex;flex-direction:column;gap:8px;margin:8px 0}.promo{display:flex;align-items:center;justify-content:space-between;gap:10px;border:1px solid var(--b);border-radius:12px;padding:10px 12px}.promo .prole{font-size:11px;color:var(--mut);text-transform:uppercase;letter-spacing:.5px;margin-left:6px}.promo .pc{font-size:12.5px;color:var(--mut);margin-top:3px}</style>`
+       <div class="promos">${promoRows.map(r => `<div class="promo"><div class="pl"><b>${esc(r.name)}</b> <span class="prole">${esc(roleLabel[r.role] ?? r.role)}${esc(sideLabel(r))}${r.subEvent ? ` · ${esc(r.subEvent)}` : ''}${r.status === 'unclaimed' ? ' · unclaimed' : ''}</span><div class="pc">${r.identities} identities · ${r.ticketBuyers} tickets · ${r.clicks} clicks</div></div>${shareButton({ title: d.title, cls: 'rb sm', label: 'Copy', url: `/e/${d.id}?p=${r.token}` })}</div>`).join('')}
+         <form method="post" action="/e/${d.id}/promo" class="promo promo-new"><div class="pl"><b>＋ Custom link</b> <span class="prole">for an influencer, a partner, anyone</span><input name="label" placeholder="Label this link" class="tkin plabel"></div><button class="rb sm p" type="submit">Create</button></form>
+       </div>
+       <style>.promos{display:flex;flex-direction:column;gap:8px;margin:8px 0}.promo{display:flex;align-items:center;justify-content:space-between;gap:10px;border:1px solid var(--b);border-radius:12px;padding:10px 12px}.promo .prole{font-size:11px;color:var(--mut);text-transform:uppercase;letter-spacing:.5px;margin-left:6px}.promo .pc{font-size:12.5px;color:var(--mut);margin-top:3px}.promo-new{border-style:dashed}.promo-new .pl{display:flex;flex-direction:column;gap:6px;flex:1}.promo-new .plabel{width:100%;max-width:260px;margin-top:2px}</style>`
     : '';
   const money2 = (c: number) => `€${(c / 100).toFixed(2).replace(/\.00$/, '')}`;
   const totalGoing = formats.reduce((a, f) => a + f.going, 0);
@@ -954,11 +969,31 @@ export function renderManage(d: EventDetail, guests: { response: string; status:
        <ul>${movers.map(m => `<li><span class="hl">${esc(m.name)}</span><span class="dt"><b>${m.claims}</b> claim${m.claims === 1 ? '' : 's'} · ${m.clicks} click${m.clicks === 1 ? '' : 's'}</span></li>`).join('')}</ul>
        <p class="mut" style="font-size:12px">From fans who shared under their name. Measurement only.</p>`
     : '';
+  // Who's coming, per way-in. Fold any legacy format-less claims into the first
+  // format — exactly how formatCounts folds the numbers, so list and count agree.
+  const attFor = (fmtId: string, i: number) => {
+    const list = [...(attendees[fmtId] ?? [])];
+    if (i === 0 && attendees['__unassigned']) list.push(...attendees['__unassigned']);
+    return list;
+  };
+  const attendeeRow = (a: { name: string; handle: string | null; partySize: number; profile: { kind: string; id: string } | null }) => {
+    const nm = a.profile ? `<a href="${hostHref(a.profile.kind, a.profile.id)}">${esc(a.name)}</a>` : `<span>${esc(a.name)}</span>`;
+    const meta = [a.handle ? '@' + esc(a.handle) : '', a.partySize > 1 ? `+${a.partySize - 1} guest${a.partySize - 1 === 1 ? '' : 's'}` : ''].filter(Boolean).join(' · ');
+    return `<li class="attrow"><span class="an">${nm}</span>${meta ? `<span class="am">${meta}</span>` : ''}</li>`;
+  };
+  const fmtCard = (f: typeof formats[number], i: number) => {
+    const list = attFor(f.id, i);
+    const head = `<div class="fk">${f.kind === 'stream' ? '📺 ' : '📍 '}${esc(f.label)}${f.requiresTicket && f.priceCents ? ` · ${money2(f.priceCents)}` : ' · free'}</div><div class="fn">${f.going}</div><div class="fl">${f.kind === 'stream' ? 'watching' : 'attending'}${f.requiresTicket ? ` · ${money2(f.revenueCents)} sold` : ''}</div>${f.channelUrl ? `<a class="fu" href="${esc(f.channelUrl)}" target="_blank" rel="noopener">Channel ↗</a>` : ''}`;
+    // Expandable only when there's a list to show; the summary caret hints at it.
+    return list.length
+      ? `<details class="fmtcard"><summary>${head}<div class="fmore">See who's coming →</div></summary><ul class="attlist">${list.map(attendeeRow).join('')}</ul></details>`
+      : `<div class="fmtcard">${head}</div>`;
+  };
   const formatBreakdown = formats.length
     ? `<h2>Attendance by format · ${totalGoing}</h2>
-       <div class="fmtgrid">${formats.map(f => `<div class="fmtcard"><div class="fk">${f.kind === 'stream' ? '📺 ' : '📍 '}${esc(f.label)}${f.requiresTicket && f.priceCents ? ` · ${money2(f.priceCents)}` : ' · free'}</div><div class="fn">${f.going}</div><div class="fl">${f.kind === 'stream' ? 'watching' : 'attending'}${f.requiresTicket ? ` · ${money2(f.revenueCents)} sold` : ''}</div>${f.channelUrl ? `<a class="fu" href="${esc(f.channelUrl)}" target="_blank" rel="noopener">Channel ↗</a>` : ''}</div>`).join('')}</div>
+       <div class="fmtgrid">${formats.map(fmtCard).join('')}</div>
        ${totalRev ? `<p class="mut" style="margin-top:6px">Tickets sold on Horda: <b>${money2(totalRev)}</b></p>` : ''}
-       <style>.fmtgrid{display:grid;gap:10px;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));margin:10px 0}.fmtcard{border:1px solid var(--b);border-radius:12px;padding:12px;background:var(--s)}.fk{font-size:12.5px;font-weight:600}.fn{font-size:30px;font-weight:800;font-variant-numeric:tabular-nums;margin-top:4px}.fl{font-size:11.5px;color:var(--mut);text-transform:uppercase;letter-spacing:.5px}.fu{font-size:12px;border-bottom:1px solid var(--b);display:inline-block;margin-top:6px}</style>`
+       <style>.fmtgrid{display:grid;gap:10px;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));margin:10px 0}.fmtcard{border:1px solid var(--b);border-radius:12px;padding:12px;background:var(--s)}details.fmtcard{cursor:pointer}details.fmtcard>summary{list-style:none;cursor:pointer}details.fmtcard>summary::-webkit-details-marker{display:none}.fk{font-size:12.5px;font-weight:600}.fn{font-size:30px;font-weight:800;font-variant-numeric:tabular-nums;margin-top:4px}.fl{font-size:11.5px;color:var(--mut);text-transform:uppercase;letter-spacing:.5px}.fu{font-size:12px;border-bottom:1px solid var(--b);display:inline-block;margin-top:6px}.fmore{font-size:12px;color:var(--acc);margin-top:8px;font-weight:600}details.fmtcard[open] .fmore{display:none}.attlist{list-style:none;padding:0;margin:10px 0 2px;border-top:1px solid var(--b)}.attrow{display:flex;align-items:baseline;justify-content:space-between;gap:8px;padding:7px 0;border-bottom:1px solid var(--b)}.attrow .an{font-size:13.5px;font-weight:600}.attrow .an a:hover{border-bottom:1px solid var(--b)}.attrow .am{font-size:11.5px;color:var(--mut)}</style>`
     : '';
   return renderManageInner(d, guests, payoutBanner + sharePanel + formatBreakdown + attributionBlock, viewerFanId ?? null);
 }

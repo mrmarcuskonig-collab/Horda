@@ -77,11 +77,11 @@ if(b){b.addEventListener('click',function(){
 
 export function renderDiscover(d: {
   guest: boolean; fanId: string | null; sport?: string; region?: string; createHref?: string; lang?: Lang; unread?: number;
-  doors?: { eventId: string; title: string; date: string | null; hostName: string; remaining: number | null; mine: boolean }[];
+  organized?: { eventId: string; title: string; date: string | null; hostName: string; role: 'organizer' | 'co-organizer' }[];
   data: { sports: { key: string; name: string }[]; regions?: string[];
     athletes: { id: string; name: string; region: string | null; sport: string | null; avatar: string | null; banner: string | null; verified?: boolean }[];
     clubs: { id: string; name: string; region: string | null; sport: string | null; avatar: string | null; verified?: boolean }[];
-    upcoming: { id: string; title: string; date?: string; host: string; admission: string; going?: number; shares?: number; followers?: number; live?: boolean; coverUrl?: string | null }[];
+    upcoming: { id: string; title: string; date?: string; host: string; admission: string; going?: number; shares?: number; followers?: number; live?: boolean; coverUrl?: string | null; claimed?: boolean }[];
     results: { headline: string; date?: string }[] };
   regions: string[];
 }): string {
@@ -134,9 +134,13 @@ export function renderDiscover(d: {
   const admLabel = (a: string) => a === 'paid' ? 'Ticketed' : a === 'apply' ? 'Apply' : 'Free';
   const featured = d.data.upcoming.length ? `<h2>${esc(tr('events_head'))}</h2><div class="feat">${d.data.upcoming.map(e => {
     const big = e.coverUrl ? `<img class="fimg" src="${esc(e.coverUrl)}" alt="">` : `<img class="fimg" src="${esc(svgDataUri(bannerSvg({ name: e.title, sport: null }, defaultThemeForSport(null), { backdrop: true })))}" alt="">`;
-    const chip = e.live ? `<span class="livepill" style="top:11px;left:11px"><span class="live-dot"></span>${esc(tr('live_now'))}</span>` : `<div class="fid"><span class="fnm">${esc(admLabel(e.admission))}</span></div>`;
+    // An event YOU hold a pass/ticket for is marked in orange (the accent) — top
+    // chip + accent border — so your own tickets stand out in the public list.
+    const chip = e.claimed ? `<span class="claimedpill" style="top:11px;left:11px">✓ You're in</span>`
+      : e.live ? `<span class="livepill" style="top:11px;left:11px"><span class="live-dot"></span>${esc(tr('live_now'))}</span>`
+      : `<div class="fid"><span class="fnm">${esc(admLabel(e.admission))}</span></div>`;
     const meta = `${esc(e.host)} · ${e.live ? '<b style="color:var(--acc)">happening now</b>' : esc(e.date ?? 'soon')}`;
-    return `<a class="fcard${e.live ? ' islive' : ''}" href="/e/${e.id}">${big}<div class="fscrim"></div>${chip}` +
+    return `<a class="fcard${e.live ? ' islive' : ''}${e.claimed ? ' claimed' : ''}" href="/e/${e.id}">${big}<div class="fscrim"></div>${chip}` +
       `<div class="fcap"><div class="ftitle">${esc(e.title)}</div><div class="fmeta">${meta}</div><div class="fstats">${estats(e)}</div></div></a>`;
   }).join('')}</div>` : '';
 
@@ -166,12 +170,17 @@ export function renderDiscover(d: {
     : ((!d.data.athletes.length && !d.data.clubs.length)
         ? `<p class="mut" style="margin-top:14px">Nothing here for that filter yet — try another sport or region.</p>` : '');
 
-  // Logged-in home leads with YOUR events — the upcoming, claimable events from the
-  // athletes & clubs you follow. Empty → a nudge to follow. (No "create feed" banner.)
-  const doors = d.doors ?? [];
-  const yourEvents = d.guest ? '' : (doors.length
-    ? `<h2>Your events <span class="h2note">from who you follow</span></h2><div class="dlist">${doors.slice(0, 10).map(ev => `<a class="dcard" href="/e/${ev.eventId}"><div class="dav">${avatarSvg(ev.hostName || '?')}</div><div class="dmeta"><div class="dt-title">${esc(ev.title)}</div><div class="dt-sub">${esc(ev.hostName || '')}${ev.date ? ' · ' + esc(ev.date) : ''}</div></div><span class="dbadge">${ev.mine ? 'Claimed' : ev.remaining != null ? `${ev.remaining} left` : 'Open'}</span></a>`).join('')}</div>`
-    : `<div class="joinb"><div><strong>Your feed is empty</strong><div class="bsub">Follow athletes &amp; clubs and their upcoming events show up here.</div></div><a class="btn" href="/following">Find people to follow →</a></div>`);
+  // Logged-in home leads with the events YOU ORGANISE — as the main organiser or a
+  // co-organiser — soonest first, left → right. A horizontal rail: if they don't
+  // all fit, the next card peeks so it's obvious you can slide for more. Empty → a
+  // nudge to create your first event. (Events you've CLAIMED live under Events ·
+  // live & upcoming below, marked in orange — not here.)
+  const organized = d.organized ?? [];
+  const orgCard = (ev: NonNullable<typeof d.organized>[number]) =>
+    `<a class="ocard" href="/e/${ev.eventId}"><div class="orole">${ev.role === 'co-organizer' ? 'Co-organiser' : 'You organise'}</div><div class="otitle">${esc(ev.title)}</div><div class="osub">${esc(ev.hostName || '')}${ev.date ? ' · ' + esc(ev.date) : ''}</div></a>`;
+  const yourEvents = d.guest ? '' : (organized.length
+    ? `<h2>Your events <span class="h2note">that you organize</span></h2><div class="orow">${organized.map(orgCard).join('')}</div>`
+    : `<div class="joinb"><div><strong>You're not organising anything yet</strong><div class="bsub">Create an event — a match, a fight night, a run club — and it shows up here.</div></div><a class="btn" href="${esc(d.createHref || '/create')}">Create an event →</a></div>`);
 
   // The shared desktop rail (identical to every other page).
   const deskRailHtml = deskRail({ guest: d.guest, fanId: d.fanId, lang, unread: d.unread ?? 0, active: 'explore', region: d.region, sport: d.sport });
@@ -254,6 +263,20 @@ export function renderDiscover(d: {
   .ecover{position:relative;height:88px;background:radial-gradient(120% 120% at 70% 20%,var(--s),transparent 60%),var(--ink);border-bottom:1px solid var(--b)}
   .ecard.islive{border-color:var(--acc)}
   .livepill{position:absolute;top:8px;left:8px;display:inline-flex;align-items:center;gap:5px;background:var(--acc);color:#fff;font-size:10px;font-weight:800;letter-spacing:1px;border-radius:999px;padding:3px 8px}
+  /* An event you hold a ticket for: accent chip + accent border on its card. */
+  .claimedpill{position:absolute;display:inline-flex;align-items:center;gap:4px;background:var(--acc);color:#fff;font-size:10px;font-weight:800;letter-spacing:.5px;border-radius:999px;padding:3px 9px;z-index:2}
+  .fcard.claimed{border-color:var(--acc);box-shadow:0 0 0 1px var(--acc)}
+  /* "Your events that you organise" — a horizontal rail; the next card peeks so
+     it's obvious you can slide for more. Cards are ~78% wide on mobile → ~1.3
+     visible with a peek; the row grows to fit more on wider screens. */
+  .orow{display:flex;gap:12px;overflow-x:auto;padding-bottom:8px;margin:16px 0 26px;scroll-snap-type:x mandatory;-webkit-overflow-scrolling:touch}
+  .orow::-webkit-scrollbar{height:0}
+  .ocard{flex:0 0 78%;max-width:300px;scroll-snap-align:start;background:var(--s);border:1px solid var(--b);border-radius:14px;padding:13px 15px;display:block;transition:border-color .15s}
+  @media(min-width:560px){.ocard{flex-basis:300px}}
+  .ocard:hover{border-color:var(--bone)}
+  .ocard .orole{font-size:10px;font-weight:800;letter-spacing:1px;text-transform:uppercase;color:var(--acc);margin-bottom:5px}
+  .ocard .otitle{font-weight:800;font-size:15.5px;line-height:1.25;letter-spacing:-.01em}
+  .ocard .osub{color:var(--mut);font-size:12.5px;margin-top:3px}
   .livepill .live-dot{background:#fff;box-shadow:0 0 0 3px rgba(255,255,255,.3);width:6px;height:6px}
   .etitle{font-weight:500;font-size:14px;padding:11px 13px 2px}.esub{color:var(--mut);font-size:12px;padding:0 13px 8px}
   /* TikTok-style engagement chips on event cards */
@@ -1005,7 +1028,7 @@ export function renderSettings(d: { fanId: string; fanName: string; email?: stri
       <div class="setbar"><span>Signed in${d.email ? `<span class="setsub">${esc(d.email)}</span>` : ''}</span></div>
     </div>
     ${creatorRows}
-    ${group('Your Horda', row('Your Record', '/record', 'Where you actually showed up') + row('Your profile & feed', `/fan/${esc(d.fanId)}`) + row('Following — My Hordas', `/fan/${esc(d.fanId)}#hordas`))}
+    ${group('Your events', row('Your events', `/fan/${esc(d.fanId)}`, 'What you run, co-run and are going to') + row('Your Record', '/record', 'Where you actually showed up') + row('Following — My Hordas', `/fan/${esc(d.fanId)}#hordas`))}
     ${group('Support', row('About Horda', '/about')
       + row('Changelog — what we just shipped', '/changelog', 'And what we’re building next')
       + (hasDiscord() ? row('Join our Discord ↗', discordUrl(), 'Ask for a feature, argue with our decisions') : '')
@@ -1480,6 +1503,8 @@ export function renderClaimQueue(d: { claims: { id: string; accountEmail: string
 export function renderFanHome(d: { fanId: string; fanName: string; home: FanHome; follows: { type: string; id: string; name: string }[]; activation?: string; createHref?: string; doors?: { eventId: string; title: string; date: string | null; hostKind: string | null; hostId: string | null; remaining: number | null; tier: string; mine: boolean }[]; morningAfter?: { title: string; date: string; recordTotal: number } | null; pages?: { kind: string; id: string; name: string; events: { id: string; title: string; date?: string }[] }[];
   /** Events you hold a spot at — see the three-band note below. */
   attending?: { eventId: string; title: string; date: string | null; status: string; passToken: string | null; partySize: number; formatLabel: string | null }[];
+  /** Events you co-organise (someone else owns them; you promote + see stats). */
+  coRunning?: { eventId: string; title: string; date: string | null; hostName: string }[];
 }): string {
   const { home } = d;
   const ehref = (k: string, id: string) => k === 'athlete' ? `/athlete/${id}` : `/${k}/${id}`;
@@ -1516,6 +1541,13 @@ export function renderFanHome(d: { fanId: string; fanName: string; home: FanHome
   const following = d.follows.length
     ? `<h2 id="hordas">My Hordas</h2><p class="mut" style="font-size:12.5px;margin:-4px 0 8px">Everyone you follow.</p><div class="row">${d.follows.map(f => `<a class="tag mutd" href="/${f.type === 'club' ? 'club' : f.type === 'athlete' ? 'athlete' : 'club'}/${f.id}">${esc(f.name)}</a>`).join(' ')}</div>`
     : `<h2 id="hordas">My Hordas</h2><p class="mut" style="font-size:12.5px;margin:-4px 0 8px">You're not following anyone yet. <a href="/" style="border-bottom:1px solid var(--b)">Discover athletes &amp; clubs →</a></p>`;
+
+  // You're co-running: events someone else owns where you're a co-organiser. You
+  // don't edit them — you promote with your own link and watch the stats.
+  const coRunning = d.coRunning ?? [];
+  const coRunningBlock = coRunning.length
+    ? `<h2>You're co-running</h2><p class="mut" style="font-size:12.5px;margin:-4px 0 8px">Someone else hosts these — you co-run them: your own share link, and the numbers.</p><div class="doorlist">${coRunning.map(e => `<a class="doorcard" href="/e/${e.eventId}"><div style="flex:1"><div class="hl">${esc(e.title)}</div><div class="dt">${esc(e.date ?? 'soon')}${e.hostName ? ` · by ${esc(e.hostName)}` : ''}</div></div><span class="tag mutd">Co-running</span></a>`).join('')}</div>`
+    : '';
 
   const notifs = home.notifications.length
     ? `<h2>Notifications ${unread ? `<span class="tag ok">${unread} new</span>` : ''}</h2><ul>${home.notifications.map(n => `<li><span class="tag mutd">${esc(n.kind)}</span><span class="hl">${esc(n.headline)}</span></li>`).join('')}</ul>` : '';
@@ -1556,23 +1588,29 @@ export function renderFanHome(d: { fanId: string; fanName: string; home: FanHome
     ? `<h2>You're going to</h2><p class="mut" style="font-size:12.5px;margin:-4px 0 8px">You hold a spot at these. Your pass is one tap away.</p><div class="doorlist">${attending.map(attRow).join('')}</div>`
     : '';
 
-  return layout(`${d.fanName}'s Horda`, `
+  return layout('Your events', `
     <style>
       .doorlist{display:flex;flex-direction:column;gap:8px;margin:8px 0}
       .doorcard{display:flex;align-items:center;gap:12px;border:1px solid var(--b);border-radius:14px;padding:13px 15px;background:var(--s);text-decoration:none;color:var(--bone)}
       .doorcard:hover{border-color:var(--bone)}
-      .uptodate{text-align:center;color:var(--mut);font-size:12px;letter-spacing:1px;text-transform:uppercase;margin:14px 0;padding-top:12px;border-top:1px solid var(--b)}
+      /* Top selector: Your events (active) · Settings · Log out */
+      .proftop{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:2px 0 14px;flex-wrap:wrap}
+      .proftabs{display:flex;gap:8px;flex-wrap:wrap}
+      .pt{font-size:13px;font-weight:600;padding:7px 13px;border:1px solid var(--b);border-radius:999px;color:var(--bone);text-decoration:none}
+      .pt:hover{border-color:var(--bone)}
+      .pt.active{background:var(--acc);border-color:var(--acc);color:#fff}
+      .pt.out{color:var(--mut)}
     </style>
-    <h1>Your Horda</h1>
+    <div class="proftop">
+      <div class="proftabs"><a class="pt active" href="/fan/${esc(d.fanId)}">Your events</a><a class="pt" href="/settings">Settings</a></div>
+      <a class="pt out" href="/logout">Log out</a>
+    </div>
     <p class="mut">${esc(d.fanName)} · following ${d.follows.length} · <a href="/record" style="border-bottom:1px solid var(--b)">your Record →</a></p>
-    ${d.activation ?? ''}
-    ${d.morningAfter ? `<div class="card" style="border-color:var(--bone)"><div style="font-size:11px;letter-spacing:1.5px;text-transform:uppercase;color:var(--mut);font-weight:800">The morning after</div><strong style="font-size:16px">You were at ${esc(d.morningAfter.title)} · ${esc(d.morningAfter.date)}.</strong><div class="mut" style="font-size:13px;margin-top:4px">Your Record is now <strong>${d.morningAfter.recordTotal}</strong> verified ${d.morningAfter.recordTotal === 1 ? 'presence' : 'presences'}. Here's what's next.</div><div class="row" style="margin-top:8px"><a class="tag" href="/record">Your Record →</a></div></div>` : ''}
     ${pagesBlock}
+    ${coRunningBlock}
     ${attendingBlock}
-    ${feed}${following}${notifs}
-    <h2>Account</h2>
-    <div class="row"><a class="tag" href="/settings">Settings</a><a class="tag mutd" href="/logout">Log out</a></div>
-    <div class="prov">Not a stream to watch — a ranked set of doors. When you've seen them, it ends.</div>`, { back: '/', nav: { active: 'you', guest: false, fanId: d.fanId, createHref: d.createHref } });
+    ${following}
+    <div class="prov">Your events: what you run, what you co-run, what you're going to, and your Hordas. Notifications live under the bell.</div>`, { back: '/', nav: { active: 'you', guest: false, fanId: d.fanId, createHref: d.createHref } });
 }
 
 // --- club page -----------------------------------------------------------
