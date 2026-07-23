@@ -46,12 +46,15 @@ const guestEv = await get(`/e/${(await app.db.query<{ id: string }>(`SELECT id F
 ok('public event page leads with the claim (no content/shop)', guestEv.includes('Claim your spot') || guestEv.includes('Get ticket') || guestEv.includes('Get access') || guestEv.includes('waitlist'));
 
 const fan = await get(`/fan/${app.ids.fanId}`);
-// Three bands, three jobs: what you RUN, what you HOLD A TICKET FOR, what you
-// might still claim. One undifferentiated "Your doors" list put the event you're
-// organising on Saturday next to one you might fancy.
-ok('fan home separates running / going / might-be-for-you', fan.includes('Your Horda') && fan.includes('Might be for you'));
-ok('feed is finite — ends visibly OR empty state', fan.includes("You're up to date") || fan.includes('Find your scene'));
-ok('doctrine guardrail line present', fan.includes('a ranked set of doors'));
+// "Your events": the profile page is your personal events dashboard — what you
+// RUN, what you CO-RUN, what you're GOING TO, and your Hordas (follows). It is
+// titled "Your events", carries the Settings/Log out selector on top, and does
+// NOT carry the discovery feed or notifications (those live elsewhere).
+ok('profile page is titled "Your events" (not "Your Horda")', fan.includes('>Your events</a>') && !fan.includes('<h1>Your Horda</h1>'));
+ok('top selector offers Settings + Log out', fan.includes('href="/settings"') && fan.includes('href="/logout"'));
+ok('the four bands are present (run / co-run / going / Hordas)', fan.includes("You're running") && fan.includes("My Hordas"));
+ok('no discovery feed on the profile ("Might be for you" is gone)', !fan.includes('Might be for you'));
+ok('no notifications on the profile (they live under the bell)', !fan.includes('<h2>Notifications'));
 
 const clubPage = await get(`/club/${club}`);
 ok('club page: branded (Club kindtag), no league table (superfan-first)', clubPage.includes('>Club<') && !clubPage.includes('League table'));
@@ -165,7 +168,7 @@ ok('athlete profile shows its events + a FEATURED cross-post', athleteImg.includ
 const land = await get('/?guest=1');
 ok('start screen: broad sport menu + free location field (no hard-coded cities)', land.includes('All sports') && land.includes('Boxing') && land.includes('Basketball') && land.includes('Everywhere') && land.includes('City or country') && !land.includes('>Hamburg</a>'));
 ok('location field offers type-ahead suggestions + use-my-location', land.includes('<datalist id="loclist"') && land.includes('id="locbtn"') && land.includes('navigator.geolocation'));
-ok('start screen leads with events + map (no results section)', land.includes('Public events') && land.includes('class="fcard"') && land.includes('class="mapcard"') && !land.includes('Latest results'));
+ok('start screen leads with events + map (no results section)', land.includes('Events · live &amp; upcoming') && land.includes('class="fcard"') && land.includes('class="mapcard"') && !land.includes('Latest results'));
 ok('no "create feed" activation banner (guest leads with events)', !land.includes('Get your feed') && land.includes('class="fcard"'));
 // logged-in home leads with a personalized feed, not the activation banner
 const homeIn = await get('/');
@@ -517,7 +520,13 @@ ok('rival side is invite-only (no open "Claim this side"; awaits the organiser)'
 ok('versus matchup ("A vs B") shows under the event title', /class="pversus"/.test(vsGuest) && vsGuest.includes('FC Rival'));
 // organizer share panel: every participant has a promo link with live counts
 const vsManage = await get(`/manage/${vsId}`);
-ok('organizer share panel lists per-participant promo links', vsManage.includes('Share panel') && vsManage.includes('?p=') && vsManage.includes('Create custom link'));
+ok('organizer share panel lists per-participant promo links', vsManage.includes('Share panel') && vsManage.includes('?p=') && vsManage.includes('Custom link'));
+// The organising account is Side A — it must NOT also appear as a separate "Organiser"
+// row on top of the matchup, and Side A is labelled as the organiser.
+ok('versus manage: host is Side A · organiser (no duplicate "Organiser" row)',
+  vsManage.includes('A · organiser') && !/class="prole">Organiser</.test(vsManage));
+// the custom-link creator is styled like the other promo cards (dashed promo card)
+ok('custom-link creator matches the promo-card look', vsManage.includes('promo-new'));
 // claim via a participant promo link is attributed to that party (party:token)
 const sideBTok = (vsManage.match(/\?p=(p[a-z0-9]+)/g) || []).map(s => s.split('=')[1]);
 const promoTok = sideBTok[0] || '';

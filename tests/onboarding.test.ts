@@ -71,9 +71,10 @@ ok('claim search finds the club + offers Claim', cs.includes('FC Beispiel') && c
 console.log('\n[onboarding · /about marketing site (4 pages + nav)]');
 const about = await (await fetch(base + '/about')).text();
 ok('/about main: nav links to the three pages', about.includes('href="/about/creators"') && about.includes('href="/about/features"') && about.includes('href="/about/pricing"'));
-ok('/about main: attributed-reach hero + pillars + worked example', about.includes('Know exactly which fans and tickets you drove') && about.includes('class="pillar"') && about.includes('A worked example') && about.includes('ticket buyers'));
+ok('/about main: four audience cards (organisers/athletes/clubs/fans) each with an outcome + CTA', about.includes('class="audcard"') && about.includes('Event organisers') && about.includes('Athletes') && about.includes('Clubs &amp; federations') && about.includes('Fans') && about.includes('How it works, in one match') && about.includes('ticket buyers'));
+ok('/about main is a standalone marketing site — no app rail/bottom bar', !about.includes('class="bnav"') && !about.includes('class="drail"'));
 const cr = await (await fetch(base + '/about/creators')).text();
-ok('/about/creators: clubs + athletes + federations + fans + CTAs', cr.includes('id="clubs"') && cr.includes('id="athletes"') && cr.includes('id="federations"') && cr.includes('id="fans"') && cr.includes('/onboarding/athlete') && cr.includes('/onboarding/claim'));
+ok('/about/creators: organisers + athletes + clubs + fans + CTAs', cr.includes('id="organisers"') && cr.includes('id="athletes"') && cr.includes('id="clubs"') && cr.includes('id="fans"') && cr.includes('/onboarding/athlete') && cr.includes('/onboarding/claim'));
 const ft = await (await fetch(base + '/about/features')).text();
 ok('/about/features: outcome-led + fight-night walkthrough', ft.includes('Sell tickets. Scan them in') && ft.includes('A fight night, end to end') && ft.includes('promo link'));
 const pr = await (await fetch(base + '/about/pricing')).text();

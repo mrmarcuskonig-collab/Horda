@@ -38,8 +38,10 @@ const parties = (await db.query<any>(`SELECT id, role, side, promo_token FROM ev
 const fan = async (n: string) => (await db.query<any>(`INSERT INTO fan (display_name) VALUES ($1) RETURNING id`, [n])).rows[0].id;
 
 // --- every party gets a link, automatically ---------------------------------
-ok('a versus event auto-creates organizer + both sides', parties.length === 3 && parties.some(p => p.side === 'A') && parties.some(p => p.side === 'B'));
-ok('every party gets its own promo token', parties.every(p => !!p.promo_token) && new Set(parties.map(p => p.promo_token)).size === 3);
+// The organising account IS Side A (no separate duplicate "organizer" party).
+ok('a versus event auto-creates both sides, host = Side A (no duplicate organiser)',
+  parties.length === 2 && parties.some(p => p.side === 'A') && parties.some(p => p.side === 'B') && !parties.some(p => p.role === 'organizer'));
+ok('every party gets its own promo token', parties.every(p => !!p.promo_token) && new Set(parties.map(p => p.promo_token)).size === 2);
 const sideB = parties.find(p => p.side === 'B')!.promo_token;
 
 // --- the rival's link drives claims -----------------------------------------
