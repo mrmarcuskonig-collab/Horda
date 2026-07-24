@@ -132,6 +132,58 @@ export async function sessionAccount(db: Database, token: string | undefined): P
 export async function deleteSession(db: Database, token: string): Promise<void> {
   await db.query(`DELETE FROM session WHERE token=$1`, [token]);
 }
+// "Sign out everywhere" — drop every session for the account. The magic-link
+// model has no password to change, so this is the way to lock out other devices.
+export async function deleteAllSessions(db: Database, accountId: string): Promise<void> {
+  await db.query(`DELETE FROM session WHERE account_id=$1`, [accountId]);
+}
+export async function updateAccountPhone(db: Database, accountId: string, phone: string | null): Promise<void> {
+  const p = (phone ?? '').trim().slice(0, 40) || null;
+  await db.query(`UPDATE account SET phone=$2 WHERE id=$1`, [accountId, p]);
+}
+export async function getAccountPhone(db: Database, accountId: string): Promise<string | null> {
+  return (await db.query<{ phone: string | null }>(`SELECT phone FROM account WHERE id=$1`, [accountId])).rows[0]?.phone ?? null;
+}
+// Notification preferences (0047). Default is ON; we store only the overrides,
+// so getNotifPrefs returns the set of categories the account has switched OFF.
+export async function notifDisabled(db: Database, accountId: string, channel = 'email'): Promise<Set<string>> {
+  const rows = (await db.query<{ category: string }>(`SELECT category FROM notification_pref WHERE account_id=$1 AND channel=$2 AND enabled=false`, [accountId, channel])).rows;
+  return new Set(rows.map(r => r.category));
+}
+export async function setNotifPref(db: Database, accountId: string, category: string, enabled: boolean, channel = 'email'): Promise<void> {
+  await db.query(
+    `INSERT INTO notification_pref (account_id, category, channel, enabled) VALUES ($1,$2,$3,$4)
+     ON CONFLICT (account_id, category, channel) DO UPDATE SET enabled=$4, updated_at=now()`,
+    [accountId, category, channel, enabled]);
+}
+// Permanently delete an account and the fan data scoped to it. Refuses if the
+// account still OWNS entities (pages) — those must be handled first, so we never
+// orphan a public page. Fan-scoped rows are removed by fan_id; the account +
+// its sessions last.
+export async function deleteAccount(db: Database, accountId: string): Promise<{ ok: boolean; error?: string }> {
+  const owns = (await db.query<{ n: number }>(`SELECT count(*)::int n FROM ownership WHERE account_id=$1`, [accountId])).rows[0]?.n ?? 0;
+  if (owns > 0) return { ok: false, error: 'You still manage one or more pages. Remove or transfer them first.' };
+  const fans = (await db.query<{ id: string }>(`SELECT id FROM fan WHERE account_id=$1`, [accountId])).rows.map(r => r.id);
+  await db.query('BEGIN');
+  try {
+    for (const fid of fans) {
+      for (const t of ['sport_follow', 'follow', 'attendance', 'loyalty_event', 'presence']) {
+        await db.query(`DELETE FROM ${t} WHERE fan_id=$1`, [fid]).catch(() => {});
+      }
+      await db.query(`DELETE FROM pass WHERE claim_id IN (SELECT id FROM claim WHERE fan_id=$1)`, [fid]).catch(() => {});
+      await db.query(`DELETE FROM claim WHERE fan_id=$1`, [fid]).catch(() => {});
+    }
+    await db.query(`DELETE FROM notification_pref WHERE account_id=$1`, [accountId]).catch(() => {});
+    await db.query(`DELETE FROM session WHERE account_id=$1`, [accountId]);
+    await db.query(`DELETE FROM fan WHERE account_id=$1`, [accountId]);
+    await db.query(`DELETE FROM account WHERE id=$1`, [accountId]);
+    await db.query('COMMIT');
+    return { ok: true };
+  } catch (e) {
+    await db.query('ROLLBACK');
+    return { ok: false, error: 'Could not delete the account. Please try again.' };
+  }
+}
 
 export async function fanForAccount(db: Database, accountId: string): Promise<string | null> {
   return (await db.query<{ id: string }>(`SELECT id FROM fan WHERE account_id=$1 LIMIT 1`, [accountId])).rows[0]?.id ?? null;

@@ -96,7 +96,7 @@ export function renderDiscover(d: {
   // Chip labels render in the viewer's language (Fußball, Radsport, …) — a German
   // fan couldn't recognise their sport when every chip was English. The English
   // label is the fallback; sportLabelL swaps in the German one when lang=de.
-  const POPULAR_KEYS: [string, string][] = [['football', 'Football'], ['basketball', 'Basketball'], ['boxing', 'Boxing'], ['tennis', 'Tennis'], ['running', 'Running'], ['mma', 'MMA'], ['cycling', 'Cycling'], ['volleyball', 'Volleyball'], ['handball', 'Handball'], ['ice_hockey', 'Ice hockey'], ['triathlon', 'Triathlon']];
+  const POPULAR_KEYS: [string, string][] = [['football', 'Football'], ['basketball', 'Basketball'], ['boxing', 'Boxing'], ['tennis', 'Tennis'], ['running', 'Running'], ['mma', 'MMA'], ['esports', 'Esports'], ['digital_sports', 'Digital sports'], ['cycling', 'Cycling'], ['volleyball', 'Volleyball'], ['handball', 'Handball'], ['ice_hockey', 'Ice hockey'], ['triathlon', 'Triathlon']];
   const sportChips = `<div class="chips scroll">${chip(tr('all_sports'), !d.sport, qp(undefined, d.region))}${POPULAR_KEYS.map(([k, n]) => chip(sportLabelL(k, n, lang), d.sport === k, qp(k, d.region))).join('')}</div>`;
 
   // Location: a free field (works for a rural village or Los Angeles) with
@@ -784,7 +784,9 @@ const SPORTS: [string, string][] = [
   ['skiing', 'Skiing'], ['snowboarding', 'Snowboarding'], ['cross_country_skiing', 'Cross-country skiing'], ['figure_skating', 'Figure skating'], ['speed_skating', 'Speed skating'], ['biathlon', 'Biathlon'],
   ['motorsport', 'Motorsport'], ['karting', 'Karting'], ['motocross', 'Motocross'], ['rally', 'Rally'],
   ['equestrian', 'Equestrian'], ['archery', 'Archery'], ['shooting', 'Shooting'], ['darts', 'Darts'], ['bowling', 'Bowling'], ['pool', 'Pool / billiards'],
-  ['esports', 'Esports'], ['chess', 'Chess'], ['cheerleading', 'Cheerleading'], ['dance', 'Dance'],
+  // Competitive gaming + digitally‑mediated sport (sim racing, virtual cycling
+  // like Zwift, virtual rowing). A real and growing category on Horda.
+  ['esports', 'Esports'], ['digital_sports', 'Digital sports'], ['sim_racing', 'Sim racing'], ['chess', 'Chess'], ['cheerleading', 'Cheerleading'], ['dance', 'Dance'],
   // Hybrid racing — its own category, not a flavour of running or CrossFit.
   // This is where the mass-participation events actually are right now.
   ['hyrox', 'HYROX'], ['hybrid', 'Hybrid sports'], ['obstacle_racing', 'Obstacle racing (OCR)'], ['spartan', 'Spartan Race'], ['deka', 'DEKA'],
@@ -877,7 +879,9 @@ export function renderCustomize(d: { athleteId: string; fanId: string | null; sp
       .tgl{display:inline-flex;align-items:center;gap:5px;font-size:12px;color:var(--mut);margin-left:4px;cursor:pointer}.tgl input{accent-color:var(--bone)}
       .secrow.drag{opacity:.45}
     </style>
-    <h1>Edit your page</h1>
+    ${profileTabs({ fanId: d.fanId ?? d.athleteId, active: 'profile', profileHref: `/athlete/${esc(d.athleteId)}/customize` })}
+    <h1>Profile</h1>
+    <p class="mut" style="margin:-4px 0 6px">Your public page — photo, background, sections and links. This is what fans see.</p>
 
     <div class="card" style="margin-top:6px">
       <h2 style="font-size:13px;letter-spacing:1px;text-transform:uppercase;margin-bottom:6px">Profile details</h2>
@@ -1004,14 +1008,33 @@ export function renderPros(d: { guest: boolean; fanId: string | null }): string 
   `, { back: '/', nav: { active: 'home', guest: d.guest, fanId: d.fanId } });
 }
 
+// The profile hub's shared top selector — one control on every hub surface, so
+// "click your profile" lands somewhere with obvious siblings. The Profile tab only
+// shows for creators (accounts that own an athlete page); a plain fan has no public
+// profile, so they get Your events / Notifications / Settings only.
+export function profileTabs(d: { fanId: string; active: 'events' | 'profile' | 'notifications' | 'settings'; profileHref?: string }): string {
+  const tab = (key: string, href: string, label: string) => `<a class="pt${d.active === key ? ' active' : ''}" href="${esc(href)}">${esc(label)}</a>`;
+  return `<style>
+      .proftop{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:2px 0 14px;flex-wrap:wrap}
+      .proftabs{display:flex;gap:8px;flex-wrap:wrap}
+      .pt{font-size:13px;font-weight:600;padding:7px 13px;border:1px solid var(--b);border-radius:999px;color:var(--bone);text-decoration:none}
+      .pt:hover{border-color:var(--bone)}
+      .pt.active{background:var(--acc);border-color:var(--acc);color:#fff}
+      .pt.out{color:var(--mut)}
+    </style>
+    <div class="proftop">
+      <div class="proftabs">${tab('events', `/fan/${d.fanId}`, 'Your events')}${d.profileHref ? tab('profile', d.profileHref, 'Profile') : ''}${tab('notifications', '/notifications/settings', 'Notifications')}${tab('settings', '/settings', 'Settings')}</div>
+      <a class="pt out" href="/logout">Log out</a>
+    </div>`;
+}
+
 // --- settings (Instagram-style grouped list) -------------------------------
-export function renderSettings(d: { fanId: string; fanName: string; email?: string; editPageHref?: string; insightsHref?: string; createHref?: string }): string {
+export function renderSettings(d: { fanId: string; fanName: string; handle?: string | null; email?: string; phone?: string | null; ownsPages?: boolean; editPageHref?: string; insightsHref?: string; createHref?: string; notice?: string; error?: string }): string {
   const chev = '<span style="color:var(--mut)">›</span>';
   const row = (label: string, href: string, sub = '') => `<a class="setrow" href="${esc(href)}"><span>${esc(label)}${sub ? `<span class="setsub">${esc(sub)}</span>` : ''}</span>${chev}</a>`;
   const group = (title: string, rows: string) => `<div class="setgroup"><div class="seth">${esc(title)}</div>${rows}</div>`;
-  const creatorRows = d.editPageHref
-    ? group('Creathor', row('Edit your page', d.editPageHref, 'Photos, sports, tiers, sections, goals') + (d.insightsHref ? row('Insights', d.insightsHref, 'Event-day conversion & more') : '') + (d.createHref ? row('Create a post or event', d.createHref) : ''))
-    : group('Creathor', row('Become a Creathor', '/pros', 'Get your athlete page + revenue') + row('Claim your club', '/create', 'Manage a club or league page'));
+  const inp = 'display:block;width:100%;margin-top:6px;background:var(--ink);border:1px solid var(--b);border-radius:10px;color:var(--bone);padding:11px 12px;font:inherit';
+  const fieldLabel = 'font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--mut);font-weight:700';
   return layout('Settings', `
     <style>
       .setgroup{margin:18px 0}
@@ -1021,18 +1044,73 @@ export function renderSettings(d: { fanId: string; fanName: string; email?: stri
       .setgroup .setrow:last-of-type{border-radius:0 0 12px 12px;border-bottom:1px solid var(--b)}
       .setsub{display:block;font-size:12px;color:var(--mut);margin-top:2px}
       .setrow.danger{color:#e5707a}
-      .setbar{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 16px;border:1px solid var(--b);border-radius:12px;background:var(--s);font-size:15px}
+      .setcard{border:1px solid var(--b);border-radius:12px;background:var(--s);padding:16px}
+      .setcard + .setcard{margin-top:8px}
+      .setcard h4{font-size:14px;font-weight:700;margin:0 0 2px}.setcard .fh{font-size:12.5px;color:var(--mut);margin:0 0 10px}
+      .flash{border-radius:10px;padding:10px 12px;font-size:13.5px;margin:10px 0}
+      .flash.ok{border:1px solid #3fb950;color:#7ee2a0}.flash.err{border:1px solid #e5484d;color:#e5707a}
+      .unhint{font-size:12.5px;margin-top:6px;min-height:16px;color:var(--mut)}
+      .unhint.ok{color:#7ee2a0;font-weight:600}.unhint.bad{color:#e5707a;font-weight:600}
     </style>
+    ${profileTabs({ fanId: d.fanId, active: 'settings', profileHref: d.editPageHref })}
     <h1>Settings</h1>
+    ${d.notice ? `<div class="flash ok">${esc(d.notice)}</div>` : ''}
+    ${d.error ? `<div class="flash err">${esc(d.error)}</div>` : ''}
+
     <div class="setgroup"><div class="seth">Account</div>
-      <div class="setbar"><span>Signed in${d.email ? `<span class="setsub">${esc(d.email)}</span>` : ''}</span></div>
+      <form class="setcard" method="post" action="/account/profile">
+        <h4>Name &amp; username</h4>
+        <p class="fh">Your username is your @handle — change it any time it isn’t taken.</p>
+        <label style="${fieldLabel}">Name<input style="${inp}" name="name" value="${esc(d.fanName)}" maxlength="80"></label>
+        <label style="${fieldLabel};display:block;margin-top:10px">Username<span style="position:relative;display:block"><span style="position:absolute;left:12px;top:50%;transform:translateY(-30%);color:var(--mut)">@</span><input style="${inp};padding-left:26px" id="unamefield" name="username" value="${esc(d.handle ?? '')}" placeholder="yourname" autocomplete="off" pattern="[A-Za-z0-9_]{3,20}" title="3–20 letters, numbers or underscores" data-current="${esc((d.handle ?? '').toLowerCase())}"></span></label>
+        <div id="unamestatus" class="unhint"></div>
+        <div class="row" style="margin-top:12px"><button class="btn" type="submit">Save</button></div>
+      </form>
+      <script>(function(){
+        var i=document.getElementById('unamefield'),s=document.getElementById('unamestatus'),t;
+        if(!i||!s)return;
+        function set(cls,txt){s.className='unhint '+cls;s.textContent=txt;}
+        function check(){
+          var v=i.value.trim().replace(/^@/,'').toLowerCase();
+          if(v===(i.getAttribute('data-current')||'')){set('','');return;}
+          if(!/^[a-z0-9_]{3,20}$/.test(v)){set('bad', v?'Use 3–20 letters, numbers or underscores':'');return;}
+          set('','Checking availability…');
+          fetch('/account/username-available?u='+encodeURIComponent(v),{headers:{accept:'application/json'}})
+            .then(function(r){return r.json()})
+            .then(function(d){ if(v!==i.value.trim().replace(/^@/,'').toLowerCase())return;
+              if(!d.valid){set('bad','Use 3–20 letters, numbers or underscores');}
+              else if(d.available){set('ok','✓ @'+v+' is available');}
+              else{set('bad','✗ @'+v+' is taken');} })
+            .catch(function(){set('','');});
+        }
+        i.addEventListener('input',function(){clearTimeout(t);t=setTimeout(check,280);});
+      })();</script>
+      <div class="setcard">
+        <h4>Email</h4>
+        <p class="fh">Where your sign-in links and event reminders go.</p>
+        <div style="${inp};opacity:.85">${esc(d.email ?? '—')}</div>
+      </div>
+      <form class="setcard" method="post" action="/account/phone">
+        <h4>Phone <span class="fh" style="display:inline">· optional</span></h4>
+        <p class="fh">Only used for event reminders. Never a login or shared publicly.</p>
+        <input style="${inp}" name="phone" value="${esc(d.phone ?? '')}" placeholder="+49 …" inputmode="tel" maxlength="40">
+        <div class="row" style="margin-top:12px"><button class="btn ghost" type="submit">Save phone</button></div>
+      </form>
+      <div class="setcard">
+        <h4>Sign-in &amp; security</h4>
+        <p class="fh">Horda is passwordless — you sign in with a magic link by email, so there’s no password to manage. Signed out of a shared device?</p>
+        <form method="post" action="/account/signout-all"><button class="btn ghost" type="submit">Log out on all devices</button></form>
+      </div>
+      <details class="setcard" style="border-color:rgba(229,72,77,.4)">
+        <summary style="cursor:pointer;font-weight:700;color:#e5707a">Delete account</summary>
+        <p class="fh" style="margin-top:10px">This permanently removes your account, your follows, and your claims. It can’t be undone.${d.ownsPages ? ' <b style="color:var(--bone)">You still manage one or more pages — remove or transfer them first.</b>' : ''}</p>
+        ${d.ownsPages ? '' : `<form method="post" action="/account/delete"><label style="${fieldLabel}">Type DELETE to confirm<input style="${inp}" name="confirm" placeholder="DELETE" autocomplete="off"></label><div class="row" style="margin-top:12px"><button class="btn" style="background:#e5484d;border-color:#e5484d;color:#fff" type="submit">Delete my account</button></div></form>`}
+      </details>
     </div>
-    ${creatorRows}
-    ${group('Your events', row('Your events', `/fan/${esc(d.fanId)}`, 'What you run, co-run and are going to') + row('Your Record', '/record', 'Where you actually showed up') + row('Following — My Hordas', `/fan/${esc(d.fanId)}#hordas`))}
+
     ${group('Support', row('About Horda', '/about')
       + row('Changelog — what we just shipped', '/changelog', 'And what we’re building next')
-      + (hasDiscord() ? row('Join our Discord ↗', discordUrl(), 'Ask for a feature, argue with our decisions') : '')
-      + row('Reserve a handle', '/claim-handle'))}
+      + (hasDiscord() ? row('Join our Discord ↗', discordUrl(), 'Ask for a feature, argue with our decisions') : ''))}
     <div class="setgroup">
       <a class="setrow danger" href="/logout"><span>Log out</span></a>
     </div>
@@ -1041,22 +1119,92 @@ export function renderSettings(d: { fanId: string; fanName: string; email?: stri
 }
 
 // --- notifications (logged-in): organizer + fan activity --------------------
+// Luma-style: a clean, roomy list split into "New" (unread) and "Earlier", each
+// row a soft avatar-style icon, a headline, and a right-aligned timestamp.
 export function renderNotifications(d: { fanId: string; createHref?: string; items: { kind: string; headline: string; href: string | null; createdAt: string; read: boolean }[] }): string {
-  const icon = (k: string) => k === 'claim_new' ? '🎟' : k === 'claim_confirmed' ? '✅' : k === 'event_live' ? '🔴' : k === 'season_created' ? '📅' : '🔔';
+  const icon = (k: string) => k === 'claim_new' ? '🎟' : k === 'claim_confirmed' ? '✅' : k === 'event_live' ? '🔴' : k === 'season_created' ? '📅' : k === 'follow' ? '➕' : '🔔';
   const row = (n: { kind: string; headline: string; href: string | null; createdAt: string; read: boolean }) =>
-    `<a class="ntf${n.read ? '' : ' un'}" href="${esc(n.href || '#')}"><span class="nic">${icon(n.kind)}</span><span class="ntx"><span class="nh">${esc(n.headline)}</span><span class="nd">${esc(n.createdAt)}</span></span></a>`;
+    `<a class="ntf${n.read ? '' : ' un'}" href="${esc(n.href || '#')}">
+       <span class="nic">${icon(n.kind)}</span>
+       <span class="ntx"><span class="nh">${esc(n.headline)}</span><span class="nd">${esc(n.createdAt)}</span></span>
+       ${n.read ? '' : '<span class="ndot" aria-label="unread"></span>'}
+     </a>`;
+  const unread = d.items.filter(n => !n.read);
+  const earlier = d.items.filter(n => n.read);
+  const section = (title: string, list: typeof d.items) => list.length ? `<div class="nsec">${esc(title)}</div><div class="nlist">${list.map(row).join('')}</div>` : '';
   return layout('Notifications', `
     <style>
-      .ntf{display:flex;align-items:flex-start;gap:12px;padding:13px 14px;border:1px solid var(--b);border-bottom:0;background:var(--s);color:var(--bone)}
-      .ntf:first-of-type{border-radius:12px 12px 0 0}.ntf:last-of-type{border-radius:0 0 12px 12px;border-bottom:1px solid var(--b)}
-      .ntf.un{background:rgba(229,72,77,.06);border-left:3px solid #e5484d}
-      .nic{font-size:18px;flex:0 0 auto;line-height:1.3}
-      .ntx{display:flex;flex-direction:column;min-width:0}.nh{font-size:14.5px;line-height:1.35}.nd{font-size:12px;color:var(--mut);margin-top:2px}
+      .nsec{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--mut);font-weight:800;margin:22px 2px 8px}
+      .nlist{display:flex;flex-direction:column}
+      .ntf{display:flex;align-items:center;gap:13px;padding:14px 14px;border-bottom:1px solid var(--b);color:var(--bone);text-decoration:none}
+      .ntf:hover{background:var(--s)}
+      .ntf .nic{width:40px;height:40px;flex:0 0 auto;display:flex;align-items:center;justify-content:center;font-size:18px;border-radius:50%;background:var(--s);border:1px solid var(--b)}
+      .ntf.un .nic{border-color:var(--acc)}
+      .ntx{display:flex;flex-direction:column;min-width:0;flex:1}.nh{font-size:14.5px;line-height:1.35}.nd{font-size:12px;color:var(--mut);margin-top:3px}
+      .ndot{width:9px;height:9px;border-radius:50%;background:var(--acc);flex:0 0 auto}
+      .nempty{text-align:center;color:var(--mut);padding:48px 16px}
     </style>
     <h1>Notifications</h1>
-    ${d.items.length ? d.items.map(row).join('') : '<p class="mut" style="margin-top:12px">Nothing yet. When someone confirms for one of your events — or an organizer confirms your spot — it shows up here.</p>'}
-    <div class="prov">Attendance confirmations, approvals and live-event alerts for the crowds and events you run or follow.</div>
-  `, { back: '/', nav: { active: 'you', guest: false, fanId: d.fanId, createHref: d.createHref } });
+    ${d.items.length ? `${section(unread.length ? 'New' : '', unread)}${section('Earlier', earlier)}` : '<div class="nempty">You’re all caught up.<br><span style="font-size:13px">Ticket claims, approvals and live-event alerts for the crowds and events you run or follow will show up here.</span></div>'}
+  `, { back: `/fan/${d.fanId}`, nav: { active: 'notifications', guest: false, fanId: d.fanId, createHref: d.createHref } });
+}
+
+// Notification categories (Luma-style groups). One flat list drives both the
+// preferences page and the POST handler, so they can never drift.
+export const NOTIF_GROUPS: { group: string; items: { key: string; label: string; desc: string }[] }[] = [
+  { group: 'Events you attend', items: [
+    { key: 'invites', label: 'Event invites', desc: 'When an organiser invites you to an event' },
+    { key: 'reminders', label: 'Event reminders', desc: 'Before an event you claimed a spot at' },
+    { key: 'blasts', label: 'Event blasts', desc: 'Announcements from organisers of events you’re attending' },
+    { key: 'updates', label: 'Event updates', desc: 'Time, place or details changed' },
+  ]},
+  { group: 'Events you host', items: [
+    { key: 'registrations', label: 'New registrations', desc: 'When someone claims a spot at your event' },
+    { key: 'approvals', label: 'Approvals needed', desc: 'When someone needs your approval to attend' },
+  ]},
+  { group: 'Pages you manage', items: [
+    { key: 'new_members', label: 'New followers', desc: 'When someone follows a page you run' },
+  ]},
+  { group: 'Horda', items: [
+    { key: 'product_updates', label: 'Product updates', desc: 'What we ship, occasionally' },
+  ]},
+];
+export const NOTIF_KEYS = NOTIF_GROUPS.flatMap(g => g.items.map(i => i.key));
+
+// --- notification preferences (Luma-style "how do you want to be notified") ---
+export function renderNotifPrefs(d: { fanId: string; createHref?: string; disabled: Set<string>; hasPhone: boolean; notice?: string; profileHref?: string }): string {
+  const on = (k: string) => !d.disabled.has(k);
+  const row = (it: { key: string; label: string; desc: string }) => `
+    <label class="nprow">
+      <span class="npmeta"><span class="npl">${esc(it.label)}</span><span class="npd">${esc(it.desc)}</span></span>
+      <span class="npch"><input type="checkbox" name="${it.key}" ${on(it.key) ? 'checked' : ''}><span class="npsw"></span><span class="npchl">Email</span></span>
+    </label>`;
+  const group = (g: typeof NOTIF_GROUPS[number]) => `<div class="npsec">${esc(g.group)}</div><div class="npcard">${g.items.map(row).join('')}</div>`;
+  return layout('Notifications', `
+    <style>
+      .npsec{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--mut);font-weight:800;margin:22px 2px 8px}
+      .npcard{border:1px solid var(--b);border-radius:14px;background:var(--s);overflow:hidden}
+      .nprow{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:14px 16px;border-bottom:1px solid var(--b);cursor:pointer}
+      .nprow:last-child{border-bottom:0}
+      .npmeta{display:flex;flex-direction:column;min-width:0}.npl{font-size:14.5px;font-weight:600}.npd{font-size:12.5px;color:var(--mut);margin-top:2px}
+      .npch{display:flex;align-items:center;gap:9px;flex:0 0 auto}
+      .npch input{position:absolute;opacity:0;width:0;height:0}
+      .npsw{width:38px;height:22px;border-radius:999px;background:var(--b);position:relative;transition:.15s;flex:0 0 auto}
+      .npsw::after{content:"";position:absolute;top:2px;left:2px;width:18px;height:18px;border-radius:50%;background:var(--bone);transition:.15s}
+      .npch input:checked + .npsw{background:var(--acc)}.npch input:checked + .npsw::after{transform:translateX(16px)}
+      .npchl{font-size:12px;color:var(--mut);min-width:38px}
+      .flash.ok{border:1px solid #3fb950;color:#7ee2a0;border-radius:10px;padding:10px 12px;font-size:13.5px;margin:10px 0}
+    </style>
+    ${profileTabs({ fanId: d.fanId, active: 'notifications', profileHref: d.profileHref })}
+    <h1>Notifications</h1>
+    <p class="mut">Choose how you’re notified about updates, invites and the events you run. Alerts also appear under the bell in the nav.</p>
+    ${d.notice ? `<div class="flash ok">${esc(d.notice)}</div>` : ''}
+    <form method="post" action="/notifications/settings">
+      ${NOTIF_GROUPS.map(group).join('')}
+      <p class="mut" style="font-size:12px;margin:16px 0 0">Email is live today${d.hasPhone ? '' : ' — add a phone in Settings for SMS reminders when they land'}. WhatsApp &amp; push are coming.</p>
+      <div class="row" style="margin-top:14px"><button class="btn" type="submit">Save preferences</button></div>
+    </form>
+  `, { back: `/fan/${d.fanId}`, nav: { active: 'notifications', guest: false, fanId: d.fanId, createHref: d.createHref } });
 }
 
 // --- connections manager (owner) — request/admit/reject/remove club & league links
@@ -1166,10 +1314,10 @@ export function renderMemberWelcome(d: { name: string; tierName: string; memberN
 }
 
 // /following — everything you follow, with a search to find more + unfollow.
-export function renderFollowing(d: { fanId: string; createHref?: string; follows: { type: string; id: string; name: string }[]; q?: string; results?: { kind: string; id: string; name: string; region: string | null }[] }): string {
+export function renderFollowing(d: { fanId: string; createHref?: string; follows: { type: string; id: string; name: string }[]; sports?: { key: string; name: string }[]; q?: string; results?: { kind: string; id: string; name: string; region: string | null }[] }): string {
   const inp = 'background:var(--s);border:1px solid var(--b);border-radius:12px;color:var(--bone);padding:11px 13px;font:inherit;width:100%';
-  const href = (type: string, id: string) => type === 'athlete' ? `/athlete/${id}` : `/${type}/${id}`;
-  const kindTag = (k: string) => k === 'athlete' ? 'Athlete' : k === 'club' ? 'Club' : k === 'team' ? 'Team' : k === 'association' ? 'Federation' : k;
+  const href = (type: string, id: string) => type === 'sport' ? `/?sport=${encodeURIComponent(id)}` : type === 'athlete' ? `/athlete/${id}` : `/${type}/${id}`;
+  const kindTag = (k: string) => k === 'athlete' ? 'Athlete' : k === 'club' ? 'Club' : k === 'team' ? 'Team' : k === 'association' ? 'Federation' : k === 'sport' ? 'Sport' : k;
   const followRow = (f: { type: string; id: string; name: string }) =>
     `<div class="frow"><a class="fmeta" href="${href(f.type, f.id)}"><span class="fav">${avatarSvg(f.name)}</span><span><span class="fnm">${esc(f.name)}</span><span class="fk">${esc(kindTag(f.type))}</span></span></a>
       <form method="post" action="/unfollow"><input type="hidden" name="target_type" value="${esc(f.type)}"><input type="hidden" name="target_id" value="${esc(f.id)}"><button class="btn ghost sm" type="submit">Unfollow</button></form></div>`;
@@ -1185,13 +1333,26 @@ export function renderFollowing(d: { fanId: string; createHref?: string; follows
       .fav{width:42px;height:42px;border-radius:50%;overflow:hidden;border:1px solid var(--b);flex:0 0 auto}.fav svg{width:100%;height:100%;display:block}
       .fnm{display:block;font-weight:600;font-size:14.5px}.fk{display:block;color:var(--mut);font-size:12px;margin-top:1px}
       .fsearch{display:flex;gap:8px;margin:14px 0 6px}
+      .fgh{font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--mut);font-weight:800;margin:16px 0 2px}
     </style>
     <h1>Following</h1>
-    <p class="mut">The athletes, clubs &amp; federations you back — their events fill your home feed.</p>
-    <form class="fsearch" method="get" action="/following"><input name="q" value="${esc(d.q ?? '')}" placeholder="Search athletes, clubs, federations…" style="${inp}" autocomplete="off"><button class="btn" type="submit">Search</button></form>
+    <p class="mut">Everything you back — athletes, clubs, federations and whole sports. Their events fill your home feed.</p>
+    <form class="fsearch" method="get" action="/following"><input name="q" value="${esc(d.q ?? '')}" placeholder="Search athletes, clubs, federations, sports…" style="${inp}" autocomplete="off"><button class="btn" type="submit">Search</button></form>
     ${d.q ? `<h2 class="mut" style="font-size:12px;letter-spacing:1.5px;text-transform:uppercase;margin:18px 0 6px">Results for “${esc(d.q)}”</h2>${(d.results && d.results.length) ? d.results.map(resultRow).join('') : '<p class="mut" style="margin-top:8px">No match — try another name.</p>'}` : ''}
-    <h2 class="mut" style="font-size:12px;letter-spacing:1.5px;text-transform:uppercase;margin:22px 0 6px">You follow · ${d.follows.length}</h2>
-    ${d.follows.length ? d.follows.map(followRow).join('') : '<p class="mut" style="margin-top:8px">You’re not following anyone yet. Search above, or <a href="/" style="border-bottom:1px solid var(--b)">explore events</a>.</p>'}
+    ${(() => {
+      const sportFollows = (d.sports ?? []).map(s => ({ type: 'sport', id: s.key, name: s.name }));
+      const groups: [string, { type: string; id: string; name: string }[]][] = [
+        ['Sports', sportFollows],
+        ['Athletes', d.follows.filter(f => f.type === 'athlete')],
+        ['Clubs & teams', d.follows.filter(f => f.type === 'club' || f.type === 'team')],
+        ['Federations', d.follows.filter(f => f.type === 'association')],
+      ];
+      const total = d.follows.length + sportFollows.length;
+      if (!total) return '<h2 class="mut" style="font-size:12px;letter-spacing:1.5px;text-transform:uppercase;margin:22px 0 6px">You follow · 0</h2><p class="mut" style="margin-top:8px">You’re not following anyone or any sport yet. Search above, or <a href="/" style="border-bottom:1px solid var(--b)">explore events</a>.</p>';
+      return `<h2 class="mut" style="font-size:12px;letter-spacing:1.5px;text-transform:uppercase;margin:22px 0 6px">You follow · ${total}</h2>` +
+        groups.filter(([, list]) => list.length).map(([label, list]) =>
+          `<div class="fgh">${esc(label)} · ${list.length}</div>${list.map(followRow).join('')}`).join('');
+    })()}
   `;
   return layout('Following', body, { back: '/', nav: { active: 'following', guest: false, fanId: d.fanId, createHref: d.createHref } });
 }
@@ -1533,7 +1694,7 @@ export function renderFanHome(d: { fanId: string; fanName: string; home: FanHome
         const evs = pg.events.length
           ? `<ul style="list-style:none;margin:8px 0 0">${pg.events.slice(0, 5).map(e => `<li style="display:flex;align-items:center;gap:8px;padding:5px 0;border-top:1px solid var(--b)"><a class="hl" href="/e/${e.id}" style="flex:1">${esc(e.title)}</a><span class="dt">${esc(e.date ?? '')}</span><a class="tag mutd" href="/manage/${e.id}">Manage</a></li>`).join('')}</ul>`
           : `<p class="mut" style="font-size:12.5px;margin:6px 0 0">No events yet.</p>`;
-        return `<div class="card"><div class="row" style="justify-content:space-between;margin:0"><a class="hl" href="${ehref(pg.kind, pg.id)}">${esc(pg.name)} <span class="tag mutd">${esc(pg.kind)}</span></a><a class="tag" href="/host/${pg.kind}/${pg.id}/new">＋ Event</a></div>${nextUp}${evs}</div>`;
+        return `<div class="card"><div class="row" style="justify-content:space-between;margin:0"><a class="hl" href="${ehref(pg.kind, pg.id)}">${esc(pg.name)} <span class="tag mutd">${esc(pg.kind)}</span></a><span class="row" style="gap:6px;margin:0"><a class="tag mutd" href="/embed/${pg.kind}/${pg.id}/code" title="Show your events on your own website">Embed</a><a class="tag" href="/host/${pg.kind}/${pg.id}/new">＋ Event</a></span></div>${nextUp}${evs}</div>`;
       }).join('')}<div class="row"><a class="tag mutd" href="/create">＋ Create another page</a></div>`
     : `<div class="card" style="border-color:var(--bone)"><strong>Competing? Become a Creathor.</strong><p class="mut" style="font-size:12.5px;margin:6px 0 10px">It's just an upgrade on this account — your fan feed stays exactly as it is. Get an athlete page, run events, and earn from tiers that run themselves.</p><div class="row"><a class="btn sm" href="/pros">Get your athlete page →</a><a class="tag mutd" href="/create">Claim a club</a></div></div>`;
   const unread = home.notifications.filter(n => !n.read).length;
@@ -1593,19 +1754,18 @@ export function renderFanHome(d: { fanId: string; fanName: string; home: FanHome
       .doorlist{display:flex;flex-direction:column;gap:8px;margin:8px 0}
       .doorcard{display:flex;align-items:center;gap:12px;border:1px solid var(--b);border-radius:14px;padding:13px 15px;background:var(--s);text-decoration:none;color:var(--bone)}
       .doorcard:hover{border-color:var(--bone)}
-      /* Top selector: Your events (active) · Settings · Log out */
-      .proftop{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:2px 0 14px;flex-wrap:wrap}
-      .proftabs{display:flex;gap:8px;flex-wrap:wrap}
-      .pt{font-size:13px;font-weight:600;padding:7px 13px;border:1px solid var(--b);border-radius:999px;color:var(--bone);text-decoration:none}
-      .pt:hover{border-color:var(--bone)}
-      .pt.active{background:var(--acc);border-color:var(--acc);color:#fff}
-      .pt.out{color:var(--mut)}
+      /* Quick access to every public page you own — your athlete page, your clubs,
+         your associations — so "where do I see my profile / my pages" is obvious. */
+      .mypages{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:2px 0 14px}
+      .mypages .mplab{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--mut);font-weight:700;margin-right:2px}
+      .mpchip{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--b);border-radius:999px;padding:6px 12px;font-size:13px;font-weight:600;color:var(--bone)}
+      .mpchip:hover{border-color:var(--bone)}
+      .mpchip .mpk{font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--mut)}
     </style>
-    <div class="proftop">
-      <div class="proftabs"><a class="pt active" href="/fan/${esc(d.fanId)}">Your events</a><a class="pt" href="/settings">Settings</a></div>
-      <a class="pt out" href="/logout">Log out</a>
-    </div>
-    <p class="mut">${esc(d.fanName)} · following ${d.follows.length} · <a href="/record" style="border-bottom:1px solid var(--b)">your Record →</a></p>
+    ${profileTabs({ fanId: d.fanId, active: 'events', profileHref: (() => { const a = (d.pages ?? []).find(p => p.kind === 'athlete'); return a ? `/athlete/${a.id}/customize` : undefined; })() })}
+    ${(d.pages && d.pages.length)
+      ? `<div class="mypages"><span class="mplab">Your pages</span>${d.pages.map(pg => `<a class="mpchip" href="${ehref(pg.kind, pg.id)}">${esc(pg.name)}<span class="mpk">${esc(pg.kind)}</span></a>`).join('')}</div>`
+      : ''}
     ${pagesBlock}
     ${coRunningBlock}
     ${attendingBlock}

@@ -140,6 +140,8 @@ export async function applySchema(db: Database, migrationsDir = 'db/migrations')
         '0043': () => enumHas('follow_target_type', 'association'),
         '0044': () => relExists('public.rights_grant'),
         '0045': () => relExists('public.event_coorganizer'),
+        '0046': () => relExists('public.sport_follow'),
+        '0047': () => relExists('public.notification_pref'),
       };
       for (const f of files) {
         const probe = present[f.slice(0, 4)];

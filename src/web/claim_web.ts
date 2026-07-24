@@ -133,30 +133,53 @@ export function renderCheckin(d: { eventId: string; title: string; claimed: numb
     </form>
     <p class="mut" style="font-size:12px">Phone-only, no hardware. If a fan can't show a QR, type their code. Offline queueing lands with the Wallet pass.</p>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jsQR/1.4.0/jsQR.min.js"></script>
-    <script>(function(){var stream=null;window.hzScan=function(){
-      var v=document.getElementById('cam'),cv=document.getElementById('cv'),msg=document.getElementById('scanmsg'),btn=document.getElementById('scanbtn');
-      if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){msg.textContent='Camera not available on this device — type the code below.';return}
-      btn.style.display='none';v.style.display='block';msg.textContent='Scanning… point at the QR';
-      navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'}}).then(function(s){
-        stream=s;v.srcObject=s;v.setAttribute('playsinline',true);v.play();
-        var ctx=cv.getContext('2d');
-        function tick(){
-          if(v.readyState===v.HAVE_ENOUGH_DATA&&window.jsQR){
-            cv.width=v.videoWidth;cv.height=v.videoHeight;ctx.drawImage(v,0,0,cv.width,cv.height);
-            var img=ctx.getImageData(0,0,cv.width,cv.height);
-            var code=jsQR(img.data,img.width,img.height,{inversionAttempts:'dontInvert'});
-            if(code&&code.data){
-              var t=(code.data||'').trim();var m=t.match(/[0-9a-fA-F]{16,}/);if(m)t=m[0];
-              document.getElementById('tokfield').value=t;
-              if(stream){stream.getTracks().forEach(function(tr){tr.stop()})}
-              document.getElementById('checkform').submit();return;
-            }
-          }
-          requestAnimationFrame(tick);
+    <script>(function(){
+      var stream=null, running=false, detector=null;
+      function el(id){return document.getElementById(id);}
+      // Accept the raw token whether the QR encodes just the code or a full URL.
+      function extract(s){s=(s||'').trim();var u=s.match(/[?&]token=([0-9a-fA-F]{12,})/)||s.match(/\\/pass\\/([0-9a-fA-F]{12,})/);if(u)return u[1];var m=s.match(/[0-9a-fA-F]{12,}/);return m?m[0]:s;}
+      function found(raw){
+        if(!running)return; running=false;
+        el('tokfield').value=extract(raw);
+        if(stream){stream.getTracks().forEach(function(t){t.stop()});}
+        el('scanmsg').textContent='Ticket read — checking in…';
+        el('checkform').submit();
+      }
+      function stop(m){running=false;if(stream){stream.getTracks().forEach(function(t){t.stop()});}el('cam').style.display='none';el('scanbtn').style.display='';el('scanmsg').textContent=m;}
+      window.hzScan=function(){
+        var v=el('cam'),msg=el('scanmsg'),btn=el('scanbtn');
+        if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia||!window.isSecureContext){
+          msg.textContent='Camera needs a secure (https) connection — type the code below.';return;
         }
-        requestAnimationFrame(tick);
-      }).catch(function(){msg.textContent='Camera blocked — allow access or type the code below.';btn.style.display='';v.style.display='none';});
-    };})();</script>
+        btn.style.display='none';v.style.display='block';msg.textContent='Starting camera…';
+        navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'},width:{ideal:1280},height:{ideal:720}},audio:false}).then(function(s){
+          stream=s;v.srcObject=s;v.setAttribute('playsinline','');v.muted=true;running=true;
+          var start=function(){msg.textContent='Point the camera at the ticket QR — fill the frame.';loop();};
+          v.onloadedmetadata=function(){var p=v.play();if(p&&p.catch)p.catch(function(){});start();};
+          // Some browsers fire play readiness without loadedmetadata — belt & braces.
+          if(v.readyState>=1){var p=v.play();if(p&&p.catch)p.catch(function(){});start();}
+          // Native detector is far more reliable than a JS decoder where present.
+          if('BarcodeDetector' in window){try{detector=new window.BarcodeDetector({formats:['qr_code']});}catch(e){detector=null;}}
+        }).catch(function(err){
+          stop(err&&err.name==='NotAllowedError'?'Camera blocked — allow access in your browser, or type the code below.':'Couldn’t open the camera — type the code below.');
+        });
+      };
+      function loop(){
+        if(!running)return;
+        var v=el('cam');
+        if(v.readyState>=2&&v.videoWidth){
+          if(detector){
+            detector.detect(v).then(function(codes){if(codes&&codes.length){found(codes[0].rawValue);}}).catch(function(){detector=null;});
+          }
+          if(!detector&&window.jsQR){
+            var cv=el('cv'),ctx=cv.getContext('2d',{willReadFrequently:true});
+            cv.width=v.videoWidth;cv.height=v.videoHeight;ctx.drawImage(v,0,0,cv.width,cv.height);
+            try{var img=ctx.getImageData(0,0,cv.width,cv.height);var c=window.jsQR(img.data,img.width,img.height,{inversionAttempts:'attemptBoth'});if(c&&c.data)found(c.data);}catch(e){}
+          }
+        }
+        if(running)requestAnimationFrame(loop);
+      }
+    })();</script>
   `, { back: `/e/${d.eventId}`, nav: { active: 'you', guest: false, fanId: null } });
 }
 

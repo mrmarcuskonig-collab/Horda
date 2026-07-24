@@ -4,7 +4,8 @@
 import { createServer, type Server } from 'node:http';
 import { randomUUID } from 'node:crypto';
 import { oauthProviders, authUrl as oauthAuthUrl, exchange as oauthExchange, isEnabled as oauthEnabled } from './oauth.ts';
-import { renderAbout, renderAboutCreators, renderAboutFeatures, renderAboutPricing, renderChangelog } from './pitch.ts';
+import { renderAbout, renderAboutCreators, renderAboutFeatures, renderAboutPricing, renderChangelog, renderAboutEmbed } from './pitch.ts';
+import { renderEmbedWidget, renderEmbedCode, entityHref } from './embed.ts';
 import { discordUrl, hasDiscord, discordFootLink, discordBtn } from './community.ts';
 import { renderImpressum, renderDatenschutz } from './legal.ts';
 import { renderTerms, renderWithdrawal } from './terms.ts';
@@ -16,6 +17,7 @@ import { getClubPage, getOrCreateSport } from '../db/repo.ts';
 import {
   getAthleteProfile, getFanHome, getFollows, getUpcomingBout, getPrediction,
   followEntity, unfollowEntity, isFollowing, makePrediction, attend, getAttendance, getAffiliations, getLatestPost, setAthleteProfile, createAthlete, createPost,
+  followSport, unfollowSport, followedSports, updateFanName, updateFanHandle, handleTaken,
 } from '../db/engagement_repo.ts';
 import {
   getBranding, setBranding, getClub, getTeamsOfClub, getTeam, getRoster,
@@ -26,7 +28,7 @@ import { FAVICON_SVG } from './brand.ts';
 import { buildResultShare, buildFightShare, buildWeekDrop } from '../content/index.ts';
 import { createScheduledEvent, rsvp, getRsvp, getEventDetail, getGuestList, listUpcomingByHost, listProfileEvents, hostName, icsFor, approveRegistration, markPaid, featureEvent, getTicketFor, giftTicket, listTicket, getListings, buyListing, priceLabel, getOrCreateShareToken, recordShareClick, shareAttribution, addParty, listParties, claimSide, removeParty, recordPromoClick, subEvents, parentOf, partyAttribution, myParty } from '../db/events_repo.ts';
 import { getTier, getTiers, setTier, joinMembership, cancelMembershipBySub, getMembership, memberCount, recordLoyalty, loyaltyScore, isSuperfan, topSuperfans, type TierLevel } from '../db/membership_repo.ts';
-import { signup, verifyLogin, createSession, sessionAccount, deleteSession, fanForAccount, owns, ownedEntities, grantOwnership, accountRole, setOnboarded, upsertOauthAccount, createPasswordReset, resetPassword, activateCreatorLayer, setBirthYear, accountFlags, isAdultYear, startLogin, consumeLogin } from '../db/auth_repo.ts';
+import { signup, verifyLogin, createSession, sessionAccount, deleteSession, deleteAllSessions, updateAccountPhone, getAccountPhone, deleteAccount, notifDisabled, setNotifPref, fanForAccount, owns, ownedEntities, grantOwnership, accountRole, setOnboarded, upsertOauthAccount, createPasswordReset, resetPassword, activateCreatorLayer, setBirthYear, accountFlags, isAdultYear, startLogin, consumeLogin } from '../db/auth_repo.ts';
 import { getDiscover, REGIONS, searchEntities } from '../db/discover_repo.ts';
 import { renderEventPage, renderCreateEvent, renderManage, renderCheckout, renderPayouts } from './events.ts';
 import { seedDemo, type DemoIds } from './seed.ts';
@@ -47,7 +49,7 @@ import { spotsInfo, formatSpots, getClaim, createClaim, getPass, verifyPass, fan
 import { listFormats, addFormat, formatCounts, setClaimFormat, getFormat, formatAttendees } from '../db/event_format_repo.ts';
 import { notify, listNotifications, unreadCount, markAllRead } from '../db/notif_repo.ts';
 import { parseSeasonLines, shiftDate } from '../db/events_repo.ts';
-import { renderNotifications, renderConnections } from './pages.ts';
+import { renderNotifications, renderConnections, renderNotifPrefs, NOTIF_KEYS } from './pages.ts';
 import { formatPicker } from './claim_web.ts';
 import { requestLink, setLinkStatus, getLink, activeParents, parentsOf, childrenOf } from '../db/connection_repo.ts';
 import { renderPass, renderRecord, renderCheckin, claimCta } from './claim_web.ts';
@@ -464,6 +466,8 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
       }
       if (req.method === 'POST' && path === '/follow') {
         const f = await parseForm(req);
+        // Sports live in their own store (text key, not a uuid entity).
+        if (f.target_type === 'sport') { await followSport(db, viewer, f.target_id); return redirect(res, req.headers.referer ?? '/following'); }
         await followEntity(db, viewer, f.target_type as any, f.target_id);
         await recordLoyalty(db, viewer, f.target_type, f.target_id, 'follow');
         await maybeGoalSignup(db, f.target_type, f.target_id, viewer, 'follow');
@@ -1008,6 +1012,21 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
         await markAllRead(db, viewer);   // opening the page clears the unread badge
         return html(res, renderNotifications({ fanId: viewer, createHref: viewerCreateHref, items }));
       }
+      // Notification PREFERENCES (Luma-style) — how you get notified, per category.
+      if (req.method !== 'POST' && path === '/notifications/settings') {
+        if (viewerGuest || !account) return redirect(res, '/signup?next=' + encodeURIComponent(path));
+        const disabled = await notifDisabled(db, account.id);
+        const hasPhone = !!(await getAccountPhone(db, account.id));
+        const profileHref = ownedAthleteForNav ? `/athlete/${ownedAthleteForNav.id}/customize` : undefined;
+        return html(res, renderNotifPrefs({ fanId: viewer, createHref: viewerCreateHref, disabled, hasPhone, profileHref, notice: url.searchParams.get('ok') || undefined }));
+      }
+      if (req.method === 'POST' && path === '/notifications/settings') {
+        if (viewerGuest || !account) return redirect(res, '/signup');
+        const f = await parseForm(req);
+        // Unchecked boxes don't submit, so iterate the canonical key list.
+        for (const k of NOTIF_KEYS) await setNotifPref(db, account.id, k, f[k] === 'on');
+        return redirect(res, '/notifications/settings?ok=' + encodeURIComponent('Preferences saved.'));
+      }
       // --- entity connections (athlete↔club↔league) --------------------------
       if ((em = path.match(/^\/(athlete|club)\/([^/]+)\/connections$/))) {
         if (viewerGuest) return redirect(res, '/signup?next=' + encodeURIComponent(path));
@@ -1475,6 +1494,26 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
       if (path === '/about/creators') return html(res, renderAboutCreators(viewerGuest));
       if (path === '/about/features') return html(res, renderAboutFeatures(viewerGuest));
       if (path === '/about/pricing') return html(res, renderAboutPricing(viewerGuest));
+      if (path === '/about/embed') return html(res, renderAboutEmbed(viewerGuest));
+      // Embeddable events widget — a club/athlete drops this <iframe> on their own
+      // site. Public + read-only; frameable (we set no X-Frame-Options).
+      if ((em = path.match(/^\/embed\/(athlete|club|team|association)\/([^/]+)$/))) {
+        const [_x, kind, id] = em;
+        const nm = await hostName(db, kind, id).catch(() => '');
+        if (!nm) return html(res, 'Not found', 404);
+        const evs = (await listProfileEvents(db, kind, id)).filter(e => !e.past)
+          .map(e => ({ id: e.id, title: e.title, date: e.date, live: e.live }));
+        return html(res, renderEmbedWidget({ kind, id, name: nm, events: evs, origin }));
+      }
+      // Owner-facing snippet page (auth: must own the entity).
+      if ((em = path.match(/^\/embed\/(athlete|club|team|association)\/([^/]+)\/code$/))) {
+        const [_x, kind, id] = em;
+        if (viewerGuest) return redirect(res, '/signup?next=' + encodeURIComponent(path));
+        if (!await canEdit(kind, id)) return redirect(res, entityHref(kind, id));
+        const nm = await hostName(db, kind, id).catch(() => '');
+        if (!nm) return html(res, 'Not found', 404);
+        return html(res, renderEmbedCode({ kind, id, name: nm, origin, fanId: viewer }));
+      }
       if (path === '/athletes') return redirect(res, '/about/creators');
       if (path === '/clubs') return redirect(res, '/about/creators');
       if (path === '/pros' || path === '/about/creators/pros') {
@@ -1510,7 +1549,52 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
         if (viewerGuest) return redirect(res, '/signup?next=' + encodeURIComponent(path));
         const editHref = ownedAthleteForNav ? `/athlete/${ownedAthleteForNav.id}/customize` : undefined;
         const insHref = ownedAthleteForNav ? `/athlete/${ownedAthleteForNav.id}/insights` : undefined;
-        return html(res, renderSettings({ fanId: viewer, fanName: account?.displayName || 'You', email: account?.email, editPageHref: editHref, insightsHref: insHref, createHref: viewerCreateHref }));
+        const handle = (await db.query<{ handle: string | null }>(`SELECT handle FROM fan WHERE id=$1`, [viewer])).rows[0]?.handle ?? null;
+        const phone = account ? await getAccountPhone(db, account.id) : null;
+        const ownsCount = account ? (await ownedEntities(db, account.id)).length : 0;
+        return html(res, renderSettings({ fanId: viewer, fanName: account?.displayName || 'You', handle, email: account?.email, phone, ownsPages: ownsCount > 0, editPageHref: editHref, insightsHref: insHref, createHref: viewerCreateHref, notice: url.searchParams.get('ok') || undefined, error: url.searchParams.get('err') || undefined }));
+      }
+      // Live username availability — the settings field polls this as you type.
+      if (path === '/account/username-available') {
+        if (viewerGuest) { res.writeHead(200, { 'content-type': 'application/json' }); res.end('{"valid":false}'); return; }
+        const u = (url.searchParams.get('u') || '').trim().replace(/^@/, '').toLowerCase();
+        const valid = /^[a-z0-9_]{3,20}$/.test(u);
+        const current = (await db.query<{ handle: string | null }>(`SELECT handle FROM fan WHERE id=$1`, [viewer])).rows[0]?.handle?.toLowerCase() === u;
+        const available = valid && (current || !(await handleTaken(db, u, viewer)));
+        res.writeHead(200, { 'content-type': 'application/json', 'cache-control': 'no-store' });
+        res.end(JSON.stringify({ valid, available, current }));
+        return;
+      }
+      // Account edits (magic-link model: no passwords). Name + username live on the
+      // fan; phone on the account; sessions are the "security" surface.
+      if (req.method === 'POST' && path === '/account/profile') {
+        if (viewerGuest) return redirect(res, '/signup');
+        const f = await parseForm(req);
+        if (typeof f.name === 'string' && f.name.trim()) await updateFanName(db, viewer, f.name);
+        if (typeof f.username === 'string' && f.username.trim()) {
+          const r = await updateFanHandle(db, viewer, f.username);
+          if (!r.ok) return redirect(res, '/settings?err=' + encodeURIComponent(r.error || 'Could not update username.'));
+        }
+        return redirect(res, '/settings?ok=' + encodeURIComponent('Saved.'));
+      }
+      if (req.method === 'POST' && path === '/account/phone') {
+        if (viewerGuest || !account) return redirect(res, '/signup');
+        const f = await parseForm(req);
+        await updateAccountPhone(db, account.id, f.phone ?? null);
+        return redirect(res, '/settings?ok=' + encodeURIComponent('Phone updated.'));
+      }
+      if (req.method === 'POST' && path === '/account/signout-all') {
+        if (viewerGuest || !account) return redirect(res, '/');
+        await deleteAllSessions(db, account.id);
+        res.writeHead(303, { 'set-cookie': 'hz_session=; Path=/; Max-Age=0', location: '/' }); res.end(); return;
+      }
+      if (req.method === 'POST' && path === '/account/delete') {
+        if (viewerGuest || !account) return redirect(res, '/');
+        const f = await parseForm(req);
+        if ((f.confirm || '').trim().toUpperCase() !== 'DELETE') return redirect(res, '/settings?err=' + encodeURIComponent('Type DELETE to confirm.'));
+        const r = await deleteAccount(db, account.id);
+        if (!r.ok) return redirect(res, '/settings?err=' + encodeURIComponent(r.error || 'Could not delete.'));
+        res.writeHead(303, { 'set-cookie': 'hz_session=; Path=/; Max-Age=0', location: '/' }); res.end(); return;
       }
       if (path === '/signup') {
         return html(res, renderSignup(url.searchParams.get('next') ?? '/', url.searchParams.get('follow') ?? ''));
@@ -1545,20 +1629,27 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
       if (path === '/following') {
         if (viewerGuest) return redirect(res, '/signup?next=' + encodeURIComponent(path));
         const follows = await getFollows(db, viewer);
+        const sportKeys = await followedSports(db, viewer);
+        const sports = sportKeys.map(k => ({ key: k, name: sportLabel(k) }));
         const q = (url.searchParams.get('q') || '').trim();
         let results: { kind: string; id: string; name: string; region: string | null }[] = [];
         if (q) {
           const like = '%' + q.toLowerCase() + '%';
           const ath = (await db.query<any>(`SELECT id, display_name name, region FROM athlete WHERE lower(display_name) LIKE $1 ORDER BY display_name LIMIT 8`, [like])).rows.map(r => ({ kind: 'athlete', id: r.id, name: r.name, region: r.region ?? null }));
           const cl = (await db.query<any>(`SELECT id, name, region FROM club WHERE lower(name) LIKE $1 ORDER BY name LIMIT 8`, [like])).rows.map(r => ({ kind: 'club', id: r.id, name: r.name, region: r.region ?? null }));
-          results = [...ath, ...cl];
+          // Sports match by key or English label — a sport is a first-class thing to follow now.
+          const ql = q.toLowerCase();
+          const sp = Object.entries(SPORT_EN_LABELS).filter(([k, n]) => k.includes(ql.replace(/\s+/g, '_')) || n.toLowerCase().includes(ql))
+            .slice(0, 6).map(([k, n]) => ({ kind: 'sport', id: k, name: n, region: null }));
+          results = [...sp, ...ath, ...cl];
         }
-        return html(res, renderFollowing({ fanId: viewer, createHref: viewerCreateHref, follows, q, results }));
+        return html(res, renderFollowing({ fanId: viewer, createHref: viewerCreateHref, follows, sports, q, results }));
       }
       if (req.method === 'POST' && path === '/unfollow') {
         if (viewerGuest) return redirect(res, '/signup?next=' + encodeURIComponent(path));
         const f = await parseForm(req);
-        await unfollowEntity(db, viewer, f.target_type, f.target_id);
+        if (f.target_type === 'sport') await unfollowSport(db, viewer, f.target_id);
+        else await unfollowEntity(db, viewer, f.target_type, f.target_id);
         return redirect(res, req.headers.referer ?? '/following');
       }
       if (path === '/') {

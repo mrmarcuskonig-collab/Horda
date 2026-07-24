@@ -217,8 +217,40 @@ export async function getFollows(db: Database, fanId: string): Promise<{ type: s
 
 // ---- helper -------------------------------------------------------------
 async function entityName(db: Database, type: string, id: string): Promise<string> {
-  const tbl = type === 'athlete' ? 'athlete' : type === 'team' ? 'team' : 'club';
+  if (type === 'sport') return id.charAt(0).toUpperCase() + id.slice(1).replace(/_/g, ' ');
+  const tbl = type === 'athlete' ? 'athlete' : type === 'team' ? 'team' : type === 'association' ? 'association' : 'club';
   const col = type === 'athlete' ? 'display_name' : 'name';
   const r = await db.query<any>(`SELECT ${col} AS n FROM ${tbl} WHERE id=$1`, [id]);
   return r.rows[0]?.n ?? id;
+}
+
+// --- followable sports (0046) — a fan follows a whole sport; its events feed in.
+export async function followSport(db: Database, fanId: string, sportKey: string): Promise<void> {
+  await db.query(`INSERT INTO sport_follow (fan_id, sport_key) VALUES ($1,$2) ON CONFLICT DO NOTHING`, [fanId, sportKey.toLowerCase()]);
+}
+export async function unfollowSport(db: Database, fanId: string, sportKey: string): Promise<void> {
+  await db.query(`DELETE FROM sport_follow WHERE fan_id=$1 AND sport_key=$2`, [fanId, sportKey.toLowerCase()]);
+}
+export async function followedSports(db: Database, fanId: string): Promise<string[]> {
+  return (await db.query<{ sport_key: string }>(`SELECT sport_key FROM sport_follow WHERE fan_id=$1 ORDER BY created_at`, [fanId])).rows.map(r => r.sport_key);
+}
+
+// --- account/profile edits: name + username (handle), with a friendly uniqueness
+// check on top of the DB's UNIQUE constraint.
+export async function updateFanName(db: Database, fanId: string, name: string): Promise<void> {
+  const n = name.trim().slice(0, 80);
+  if (n) await db.query(`UPDATE fan SET display_name=$2 WHERE id=$1`, [fanId, n]);
+}
+export async function handleTaken(db: Database, handle: string, exceptFanId: string): Promise<boolean> {
+  const h = handle.toLowerCase();
+  const r = await db.query<{ n: number }>(`SELECT count(*)::int n FROM fan WHERE lower(handle)=$1 AND id<>$2`, [h, exceptFanId]);
+  return (r.rows[0]?.n ?? 0) > 0;
+}
+/** Returns { ok } or { ok:false, error }. Enforces format + uniqueness. */
+export async function updateFanHandle(db: Database, fanId: string, handle: string): Promise<{ ok: boolean; error?: string }> {
+  const h = handle.trim().replace(/^@/, '').toLowerCase();
+  if (!/^[a-z0-9_]{3,20}$/.test(h)) return { ok: false, error: 'Use 3–20 letters, numbers or underscores.' };
+  if (await handleTaken(db, h, fanId)) return { ok: false, error: 'That username is taken.' };
+  try { await db.query(`UPDATE fan SET handle=$2 WHERE id=$1`, [fanId, h]); return { ok: true }; }
+  catch { return { ok: false, error: 'That username is taken.' }; }
 }

@@ -144,7 +144,7 @@ const FEATURES: Benefit[] = [
   { t: 'A record of real presence', d: 'Checked‑in fans get an “I was there” stamp — a passport of where they actually showed up, and a shareable card that pulls the next fan in.' },
 ];
 
-type AboutPage = 'about' | 'creators' | 'features' | 'pricing' | 'changelog';
+type AboutPage = 'about' | 'creators' | 'features' | 'pricing' | 'changelog' | 'embed';
 const NAV: { key: AboutPage; label: string; href: string; dd: [string, string][] }[] = [
   { key: 'creators', label: 'Who it’s for', href: '/about/creators', dd: [['Event organisers', '/about/creators#organisers'], ['Athletes', '/about/creators#athletes'], ['Clubs & federations', '/about/creators#clubs'], ['Fans', '/about/creators#fans']] },
   { key: 'features', label: 'What you can do', href: '/about/features', dd: [['See who drove your tickets', '/about/features'], ['Free & paid tickets', '/about/features'], ['QR check‑in', '/about/features'], ['Two‑sided events', '/about/features'], ['Fight cards & sub‑events', '/about/features'], ['Verified presence', '/about/features']] },
@@ -415,6 +415,29 @@ export function renderAboutPricing(guest: boolean): string {
 
     <div class="closeb"><h3>Start free. Sell tickets when you’re ready.</h3><a class="btn" href="${createHref}">Create an event →</a></div>`;
   return aboutShell('pricing', guest, 'Pricing', body);
+}
+
+// /about/embed — the how-to Q&A for putting your events widget on your own site.
+export function renderAboutEmbed(guest: boolean): string {
+  const qa: [string, string][] = [
+    ['What is the events widget?', 'A small box you can put on your own website that shows your upcoming Horda events with live “Tickets →” links. Visitors click through to Horda to claim or buy. It always shows your latest events — you never have to update it by hand.'],
+    ['Where do I get my embed code?', 'Open Horda, go to <b>Your events</b>, and next to the page you manage tap <b>Embed on your website</b>. You’ll get a one‑line <code>&lt;iframe&gt;</code> snippet, a live preview, and a Copy button.'],
+    ['How do I add it to my website?', 'Paste the snippet into any HTML block on your site. In most website builders that’s an element called “Embed”, “HTML”, or “Custom code”. WordPress: add a <b>Custom HTML</b> block. Wix: <b>Embed &rarr; Embed HTML</b>. Squarespace: a <b>Code</b> block. Webflow: an <b>Embed</b> element. Then publish.'],
+    ['Will it stay up to date?', 'Yes. The widget reads your events live from Horda, so when you add, edit, cancel or sell out an event, your website reflects it automatically — no re‑pasting.'],
+    ['Can I change the size?', 'Yes — edit the <code>width</code> and <code>height</code> in the snippet. It’s responsive and caps at a tidy width, so it fits a sidebar or a full column.'],
+    ['Is anything private exposed?', 'No. The widget is public and read‑only. It shows only what’s already public — your events and their ticket links. Nothing about your account, your attendees, or your revenue is in it.'],
+    ['Can athletes and federations embed too?', 'Yes. Any page you manage — an athlete page, a club, a team or a federation — has its own embed code with that page’s events.'],
+  ];
+  const body = `
+    <section class="phero">
+      <div class="kick">Embed on your website</div>
+      <h1 class="hl">Put your events on your own site.</h1>
+      <p class="lead">Show every event and ticket you’re selling right on your website — one paste, always up to date. Here’s how.</p>
+    </section>
+    <h2 class="sec">Questions &amp; answers</h2>
+    <div class="grid" style="grid-template-columns:1fr">${qa.map(([q, a]) => `<div class="card"><h3>${q}</h3><p>${a}</p></div>`).join('')}</div>
+    <div class="closeb"><h3>Get your embed code from “Your events”.</h3><a class="btn" href="/create">Create an event →</a></div>`;
+  return aboutShell('embed', guest, 'Embed on your website', body);
 }
 
 // /changelog — built in the open. Shipping velocity is the pitch: a founder-led
