@@ -52,22 +52,16 @@ export function mapsChooser(o: { query: string; label?: string; cls?: string }):
   const gIcon = `<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M12 21c4-4.5 6-7.9 6-10.7a6 6 0 1 0-12 0C6 13.1 8 16.5 12 21Z"/><circle cx="12" cy="10.3" r="2.2"/></svg>`;
   const aIcon = `<svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor" aria-hidden="true"><path d="M16.4 12.8c0-2 1.6-3 1.7-3-.9-1.4-2.4-1.5-2.9-1.6-1.2-.1-2.4.7-3 .7-.6 0-1.6-.7-2.6-.7-1.3 0-2.6.8-3.3 2-1.4 2.4-.4 6 1 8 .7 1 1.5 2 2.5 2 1 0 1.4-.6 2.6-.6 1.2 0 1.5.6 2.6.6 1.1 0 1.8-1 2.4-1.9.8-1.1 1.1-2.2 1.1-2.3 0 0-2.1-.8-2.1-3.2zM14.5 6.6c.5-.7.9-1.6.8-2.6-.8 0-1.8.5-2.4 1.2-.5.6-1 1.6-.8 2.5.9.1 1.8-.4 2.4-1.1z"/></svg>`;
 
-  // localStorage is a per-device preference, not data we own — nothing here is
-  // worth a round-trip to the server or a row in the DB.
-  const js = `(function(btn,which){
-    var K='hz_maps', q=${JSON.stringify(o.query)};
-    var urls={google:${JSON.stringify(googleMapsUrl(o.query))},apple:${JSON.stringify(appleMapsUrl(o.query))}};
-    try{ localStorage.setItem(K, which); }catch(e){}
-    window.open(urls[which],'_blank','noopener');
-    var d=btn.closest('details'); if(d) d.open=false;
-  })(this,'%W%')`;
-
+  // The destination URLs ride on data-attributes and the click is wired in
+  // MAPS_SCRIPT — NOT an inline onclick. An inline handler would embed the
+  // double-quoted URL inside a double-quoted attribute and silently break the
+  // whole button. localStorage keeps the per-device preference; no server round-trip.
   return `<details class="mapch">
     <summary class="${esc2(o.cls || 'rb')}" role="button">${label} ↗</summary>
     <div class="mapmenu">
       <div class="mapnote">${q ? 'Take me to it in…' : 'Open in…'}</div>
-      <button type="button" data-maps="google" onclick="${js.replace('%W%', 'google')}">${gIcon} Google Maps</button>
-      <button type="button" data-maps="apple" onclick="${js.replace('%W%', 'apple')}">${aIcon} Apple Maps</button>
+      <button type="button" data-maps="google" data-url="${g}">${gIcon} Google Maps</button>
+      <button type="button" data-maps="apple" data-url="${a}">${aIcon} Apple Maps</button>
       <noscript><a href="${g}" target="_blank" rel="noopener">Google Maps</a> · <a href="${a}" target="_blank" rel="noopener">Apple Maps</a></noscript>
     </div>
   </details>`;
@@ -85,9 +79,22 @@ export const MAPS_SCRIPT = `<script>(function(){
   var K='hz_maps';
   var pref=null; try{ pref=localStorage.getItem(K); }catch(e){}
   var isApple=/iPhone|iPad|iPod|Macintosh/.test(navigator.userAgent||'');
+  function openIn(which,url){
+    try{ localStorage.setItem(K, which); }catch(e){}
+    var w=window.open(url,'_blank'); if(w){ try{ w.opener=null; }catch(e){} }
+    else { location.href=url; }   // popup blocked → navigate this tab instead
+  }
   [].forEach.call(document.querySelectorAll('.mapch'),function(d){
     var menu=d.querySelector('.mapmenu');
     var g=menu.querySelector('[data-maps="google"]'), a=menu.querySelector('[data-maps="apple"]');
+    // Each option opens its own map. The URL rides on data-url (no inline onclick).
+    [].forEach.call(menu.querySelectorAll('button[data-maps]'),function(b){
+      b.addEventListener('click',function(ev){
+        ev.preventDefault();
+        openIn(b.getAttribute('data-maps'), b.getAttribute('data-url'));
+        d.open=false;
+      });
+    });
     // Put the likely one first. The other stays one glance away.
     if(isApple && a && g) menu.insertBefore(a,g);
     if(pref==='google'||pref==='apple'){

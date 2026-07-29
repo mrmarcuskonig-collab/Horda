@@ -310,7 +310,7 @@ export function renderDiscover(d: {
     ${empty}
   </div>
   <div class="prov">The events home for sports and competitive culture.<br><a href="/about" style="border-bottom:1px solid var(--b)">For athletes &amp; clubs — see what you get →</a>
-    <span class="provl"><a href="/changelog">Changelog</a>${discordFootLink()}<a href="/agb">AGB</a><a href="/impressum">Impressum</a><a href="/datenschutz">Datenschutz</a></span></div>
+    <span class="provl"><a href="/changelog">Changelog</a>${discordFootLink()}<a href="/agb">Terms</a><a href="/impressum">Legal notice</a><a href="/datenschutz">Privacy</a></span></div>
   ${bottomNav({ active: 'home', guest: d.guest, fanId: d.fanId, createHref: d.createHref })}
 ${SHARE_SCRIPT}
 </body></html>`;
@@ -434,7 +434,8 @@ export function renderAthletePage(d: {
   const isMember = !!d.membership;
   const viewerTier = d.membership?.tierLevel ?? null;
   const tRank = (l?: string | null) => l === 'clubhouse' ? 2 : (l === 'supporter' || l === 'members') ? 1 : 0;
-  const canSee = (vis?: string) => !!d.canEdit || tRank(viewerTier) >= tRank(vis);
+  // Fan tiers retired — every post is open (no members-only locking).
+  const canSee = (_vis?: string) => true;
   const money = (c: number, cur = 'EUR') => `${cur === 'EUR' ? '€' : cur + ' '}${(c / 100).toFixed(2).replace(/\.00$/, '')}`;
   const p = d.profile;
   const first = (p.name.split(' ')[0] || p.name).replace(/[^A-Za-z]/g, '') || p.name;
@@ -522,20 +523,11 @@ export function renderAthletePage(d: {
     : (vis === 'supporter' || vis === 'members') ? { mark: '★', label: 'Supporters', req: 'Supporter' }
       : { mark: '', label: 'Open', req: 'Supporter' };
   const postCard = (po: { body: string; date?: string; visibility?: string }) => {
-    const vis = po.visibility || 'public';
-    const allowed = canSee(vis);
-    const m = visMeta(vis);
-    const chip = vis === 'public'
-      ? `<span class="vchip open">Open</span>`
-      : `<span class="vchip excl${allowed ? ' got' : ''}">${m.mark} ${m.label}${allowed ? ' · unlocked' : ''}</span>`;
-    const teaser = (po.body || '').slice(0, 130).trim();
-    const body = allowed
-      ? `<p style="white-space:pre-wrap">${linkify(po.body)}</p>`
-      : `<div class="lockwrap"><p class="blur" aria-hidden="true">${esc(teaser)}…</p><div class="lockover"><span class="lockpill">${m.mark} ${m.req}-only</span><a class="btn sm" href="${d.guest ? '/signup' : '#join'}">${d.guest ? 'Join to unlock' : `Unlock with ${m.req}`}</a></div></div>`;
-    return `<article class="post"><div class="pa"><span class="pav">${av}</span><div class="pmeta"><strong>${esc(p.name)}</strong> ${chip}<div class="dt">${esc(po.date ?? '')}</div></div></div>${body}</article>`;
+    const body = `<p style="white-space:pre-wrap">${linkify(po.body)}</p>`;
+    return `<article class="post"><div class="pa"><span class="pav">${av}</span><div class="pmeta"><strong>${esc(p.name)}</strong><div class="dt">${esc(po.date ?? '')}</div></div></div>${body}</article>`;
   };
   const postsBlock = p.posts.length
-    ? `<section class="card"><div class="ch"><h2>From ${esc(first)}</h2></div><p class="feednote">Open drops for everyone · <span class="hl">★ Supporters</span> and <span class="hl">✦ Clubhouse</span> unlock the inside ones.</p>${p.posts.map(postCard).join('')}</section>`
+    ? `<section class="card"><div class="ch"><h2>From ${esc(first)}</h2></div>${p.posts.map(postCard).join('')}</section>`
     : '';
 
   // Media — native-first grid (photos + video), with optional social embeds.
@@ -995,13 +987,13 @@ export function renderPros(d: { guest: boolean; fanId: string | null }): string 
     <div class="prohero">
       <div class="mut" style="font-size:12px;letter-spacing:2px;text-transform:uppercase;font-weight:800">Horda for athletes</div>
       <h1>Your fights, your fans, your revenue.</h1>
-      <p class="mut" style="max-width:52ch">Post a result in one line — Horda writes the recap, makes the share cards, and updates your page. Then earn from subscriber tiers that run themselves. Built for boxers and footballers who train more than they post.</p>
+      <p class="mut" style="max-width:52ch">Post a result in one line — Horda writes the recap, makes the share cards, and updates your page. Run your events, sell tickets, and see exactly who you brought to the door. Built for boxers and footballers who train more than they post.</p>
       <div class="row"><a class="btn" href="${cta}">Create your page →</a><a class="btn ghost" href="${cta}">Publish your first event</a></div>
-      <div class="steps"><span>1 · Sign up</span><span>2 · Photo + sport</span><span>3 · Connect socials</span><span>4 · Set your tiers</span><span>5 · First event</span></div>
+      <div class="steps"><span>1 · Sign up</span><span>2 · Photo + sport</span><span>3 · Connect socials</span><span>4 · Create your page</span><span>5 · First event</span></div>
       <p class="mut" style="font-size:12px">Under 5 minutes to your first event page. You keep your audience — export anytime.</p>
     </div>
     <div class="beat"><h2>Result in → content out, in 60 seconds</h2><p class="mut" style="font-size:13.5px;margin:0">A win, a time, a scoreline — one line in. Out comes a recap, a matchday/result graphic in your colours, and a subscriber‑first drop. No design skills, no content treadmill.</p></div>
-    <div class="beat"><h2>Your fans, your revenue — tiers that run themselves</h2><p class="mut" style="font-size:13.5px;margin:0">Subscribers get results first, early ticket access, and richer recaps — all generated from what you already do. You set the price and confirm. That's it.</p></div>
+    <div class="beat"><h2>Your events, your crowd — measured</h2><p class="mut" style="font-size:13.5px;margin:0">Run matches, fights and sessions, sell tickets, scan people in, and see exactly who you brought — all from what you already do. Free to run; a flat, fair fee only on paid tickets.</p></div>
     <div class="beat"><h2>One page for everything you host</h2><p class="mut" style="font-size:13.5px;margin:0">Fight nights, open sparring, matchdays — with RSVP, tickets and attendee lists. Your scene, on your radar.</p></div>
     <div class="row"><a class="btn" href="${cta}">Create your page →</a></div>
     <p class="mut" style="font-size:12px;margin-top:12px">Athlete pages are for people 18+. Youth teams live under their club, without player names.</p>
@@ -1029,7 +1021,7 @@ export function profileTabs(d: { fanId: string; active: 'events' | 'profile' | '
 }
 
 // --- settings (Instagram-style grouped list) -------------------------------
-export function renderSettings(d: { fanId: string; fanName: string; handle?: string | null; email?: string; phone?: string | null; ownsPages?: boolean; editPageHref?: string; insightsHref?: string; createHref?: string; notice?: string; error?: string }): string {
+export function renderSettings(d: { fanId: string; fanName: string; handle?: string | null; email?: string; phone?: string | null; ownsPages?: boolean; editPageHref?: string; insightsHref?: string; createHref?: string; notice?: string; error?: string; plan?: string; plusLive?: boolean; platformFeePct?: number }): string {
   const chev = '<span style="color:var(--mut)">›</span>';
   const row = (label: string, href: string, sub = '') => `<a class="setrow" href="${esc(href)}"><span>${esc(label)}${sub ? `<span class="setsub">${esc(sub)}</span>` : ''}</span>${chev}</a>`;
   const group = (title: string, rows: string) => `<div class="setgroup"><div class="seth">${esc(title)}</div>${rows}</div>`;
@@ -1106,6 +1098,20 @@ export function renderSettings(d: { fanId: string; fanName: string; handle?: str
         <p class="fh" style="margin-top:10px">This permanently removes your account, your follows, and your claims. It can’t be undone.${d.ownsPages ? ' <b style="color:var(--bone)">You still manage one or more pages — remove or transfer them first.</b>' : ''}</p>
         ${d.ownsPages ? '' : `<form method="post" action="/account/delete"><label style="${fieldLabel}">Type DELETE to confirm<input style="${inp}" name="confirm" placeholder="DELETE" autocomplete="off"></label><div class="row" style="margin-top:12px"><button class="btn" style="background:#e5484d;border-color:#e5484d;color:#fff" type="submit">Delete my account</button></div></form>`}
       </details>
+    </div>
+
+    <div class="setgroup"><div class="seth">Billing</div>
+      ${d.plan === 'plus'
+        ? `<form class="setcard" method="post" action="/plus/cancel">
+             <h4>Horda Plus · <span style="color:var(--acc)">Active</span></h4>
+             <p class="fh">0% platform fee on your paid tickets, plus the Plus tools. Cancel any time — you keep Plus until the period ends, then drop back to Free (${d.platformFeePct ?? 5}% fee).</p>
+             <button class="btn ghost" type="submit">Cancel Horda Plus</button>
+           </form>`
+        : `<div class="setcard">
+             <h4>Horda Free</h4>
+             <p class="fh">You pay a ${d.platformFeePct ?? 5}% platform fee on paid tickets. ${d.plusLive ? 'Upgrade to Horda Plus for 0% fee and scale tools.' : 'Horda Plus (0% fee) is coming soon.'}</p>
+             <a class="btn${d.plusLive ? '' : ' ghost'}" href="/about/pricing">${d.plusLive ? 'Upgrade to Horda Plus' : 'See pricing'}</a>
+           </div>`}
     </div>
 
     ${group('Support', row('About Horda', '/about')
@@ -1314,10 +1320,10 @@ export function renderMemberWelcome(d: { name: string; tierName: string; memberN
 }
 
 // /following — everything you follow, with a search to find more + unfollow.
-export function renderFollowing(d: { fanId: string; createHref?: string; follows: { type: string; id: string; name: string }[]; sports?: { key: string; name: string }[]; q?: string; results?: { kind: string; id: string; name: string; region: string | null }[] }): string {
+export function renderFollowing(d: { fanId: string; createHref?: string; follows: { type: string; id: string; name: string }[]; sports?: { key: string; name: string }[]; regions?: string[]; q?: string; results?: { kind: string; id: string; name: string; region: string | null }[] }): string {
   const inp = 'background:var(--s);border:1px solid var(--b);border-radius:12px;color:var(--bone);padding:11px 13px;font:inherit;width:100%';
-  const href = (type: string, id: string) => type === 'sport' ? `/?sport=${encodeURIComponent(id)}` : type === 'athlete' ? `/athlete/${id}` : `/${type}/${id}`;
-  const kindTag = (k: string) => k === 'athlete' ? 'Athlete' : k === 'club' ? 'Club' : k === 'team' ? 'Team' : k === 'association' ? 'Federation' : k === 'sport' ? 'Sport' : k;
+  const href = (type: string, id: string) => type === 'sport' ? `/?sport=${encodeURIComponent(id)}` : type === 'region' ? `/?region=${encodeURIComponent(id)}` : type === 'athlete' ? `/athlete/${id}` : `/${type}/${id}`;
+  const kindTag = (k: string) => k === 'athlete' ? 'Athlete' : k === 'club' ? 'Club' : k === 'team' ? 'Team' : k === 'association' ? 'Federation' : k === 'sport' ? 'Sport' : k === 'region' ? 'City / region' : k;
   const followRow = (f: { type: string; id: string; name: string }) =>
     `<div class="frow"><a class="fmeta" href="${href(f.type, f.id)}"><span class="fav">${avatarSvg(f.name)}</span><span><span class="fnm">${esc(f.name)}</span><span class="fk">${esc(kindTag(f.type))}</span></span></a>
       <form method="post" action="/unfollow"><input type="hidden" name="target_type" value="${esc(f.type)}"><input type="hidden" name="target_id" value="${esc(f.id)}"><button class="btn ghost sm" type="submit">Unfollow</button></form></div>`;
@@ -1336,19 +1342,21 @@ export function renderFollowing(d: { fanId: string; createHref?: string; follows
       .fgh{font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--mut);font-weight:800;margin:16px 0 2px}
     </style>
     <h1>Following</h1>
-    <p class="mut">Everything you back — athletes, clubs, federations and whole sports. Their events fill your home feed.</p>
-    <form class="fsearch" method="get" action="/following"><input name="q" value="${esc(d.q ?? '')}" placeholder="Search athletes, clubs, federations, sports…" style="${inp}" autocomplete="off"><button class="btn" type="submit">Search</button></form>
-    ${d.q ? `<h2 class="mut" style="font-size:12px;letter-spacing:1.5px;text-transform:uppercase;margin:18px 0 6px">Results for “${esc(d.q)}”</h2>${(d.results && d.results.length) ? d.results.map(resultRow).join('') : '<p class="mut" style="margin-top:8px">No match — try another name.</p>'}` : ''}
+    <p class="mut">Everything you back — athletes, clubs, federations, whole sports and cities. Their events fill your home feed.</p>
+    <form class="fsearch" method="get" action="/following"><input name="q" value="${esc(d.q ?? '')}" placeholder="Search athletes, clubs, sports, cities…" style="${inp}" autocomplete="off"><button class="btn" type="submit">Search</button></form>
+    ${d.q ? `<h2 class="mut" style="font-size:12px;letter-spacing:1.5px;text-transform:uppercase;margin:18px 0 6px">Results for “${esc(d.q)}”</h2>${(d.results && d.results.length) ? d.results.map(resultRow).join('') : '<p class="mut" style="margin-top:8px">No match — try another name or city.</p>'}` : ''}
     ${(() => {
       const sportFollows = (d.sports ?? []).map(s => ({ type: 'sport', id: s.key, name: s.name }));
+      const regionFollows = (d.regions ?? []).map(r => ({ type: 'region', id: r, name: r }));
       const groups: [string, { type: string; id: string; name: string }[]][] = [
+        ['Cities & regions', regionFollows],
         ['Sports', sportFollows],
         ['Athletes', d.follows.filter(f => f.type === 'athlete')],
         ['Clubs & teams', d.follows.filter(f => f.type === 'club' || f.type === 'team')],
         ['Federations', d.follows.filter(f => f.type === 'association')],
       ];
-      const total = d.follows.length + sportFollows.length;
-      if (!total) return '<h2 class="mut" style="font-size:12px;letter-spacing:1.5px;text-transform:uppercase;margin:22px 0 6px">You follow · 0</h2><p class="mut" style="margin-top:8px">You’re not following anyone or any sport yet. Search above, or <a href="/" style="border-bottom:1px solid var(--b)">explore events</a>.</p>';
+      const total = d.follows.length + sportFollows.length + regionFollows.length;
+      if (!total) return '<h2 class="mut" style="font-size:12px;letter-spacing:1.5px;text-transform:uppercase;margin:22px 0 6px">You follow · 0</h2><p class="mut" style="margin-top:8px">You’re not following anyone, any sport or any city yet. Search above, or <a href="/" style="border-bottom:1px solid var(--b)">explore events</a>.</p>';
       return `<h2 class="mut" style="font-size:12px;letter-spacing:1.5px;text-transform:uppercase;margin:22px 0 6px">You follow · ${total}</h2>` +
         groups.filter(([, list]) => list.length).map(([label, list]) =>
           `<div class="fgh">${esc(label)} · ${list.length}</div>${list.map(followRow).join('')}`).join('');
@@ -1661,7 +1669,7 @@ export function renderClaimQueue(d: { claims: { id: string; accountEmail: string
 }
 
 // --- fan home (closeness to who you follow) ------------------------------
-export function renderFanHome(d: { fanId: string; fanName: string; home: FanHome; follows: { type: string; id: string; name: string }[]; activation?: string; createHref?: string; doors?: { eventId: string; title: string; date: string | null; hostKind: string | null; hostId: string | null; remaining: number | null; tier: string; mine: boolean }[]; morningAfter?: { title: string; date: string; recordTotal: number } | null; pages?: { kind: string; id: string; name: string; events: { id: string; title: string; date?: string }[] }[];
+export function renderFanHome(d: { fanId: string; fanName: string; handle?: string | null; home: FanHome; follows: { type: string; id: string; name: string }[]; activation?: string; createHref?: string; doors?: { eventId: string; title: string; date: string | null; hostKind: string | null; hostId: string | null; remaining: number | null; tier: string; mine: boolean }[]; morningAfter?: { title: string; date: string; recordTotal: number } | null; pages?: { kind: string; id: string; name: string; events: { id: string; title: string; date?: string }[] }[];
   /** Events you hold a spot at — see the three-band note below. */
   attending?: { eventId: string; title: string; date: string | null; status: string; passToken: string | null; partySize: number; formatLabel: string | null }[];
   /** Events you co-organise (someone else owns them; you promote + see stats). */
@@ -1696,7 +1704,7 @@ export function renderFanHome(d: { fanId: string; fanName: string; home: FanHome
           : `<p class="mut" style="font-size:12.5px;margin:6px 0 0">No events yet.</p>`;
         return `<div class="card"><div class="row" style="justify-content:space-between;margin:0"><a class="hl" href="${ehref(pg.kind, pg.id)}">${esc(pg.name)} <span class="tag mutd">${esc(pg.kind)}</span></a><span class="row" style="gap:6px;margin:0"><a class="tag mutd" href="/embed/${pg.kind}/${pg.id}/code" title="Show your events on your own website">Embed</a><a class="tag" href="/host/${pg.kind}/${pg.id}/new">＋ Event</a></span></div>${nextUp}${evs}</div>`;
       }).join('')}<div class="row"><a class="tag mutd" href="/create">＋ Create another page</a></div>`
-    : `<div class="card" style="border-color:var(--bone)"><strong>Competing? Become a Creathor.</strong><p class="mut" style="font-size:12.5px;margin:6px 0 10px">It's just an upgrade on this account — your fan feed stays exactly as it is. Get an athlete page, run events, and earn from tiers that run themselves.</p><div class="row"><a class="btn sm" href="/pros">Get your athlete page →</a><a class="tag mutd" href="/create">Claim a club</a></div></div>`;
+    : `<div class="card" style="border-color:var(--bone)"><strong>Competing? Become a Creathor.</strong><p class="mut" style="font-size:12.5px;margin:6px 0 10px">It's just an upgrade on this account — your fan feed stays exactly as it is. Get an athlete page, run events, and see who you bring to the door.</p><div class="row"><a class="btn sm" href="/pros">Get your athlete page →</a><a class="tag mutd" href="/create">Claim a club</a></div></div>`;
   const unread = home.notifications.filter(n => !n.read).length;
 
   const following = d.follows.length
@@ -1761,8 +1769,19 @@ export function renderFanHome(d: { fanId: string; fanName: string; home: FanHome
       .mpchip{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--b);border-radius:999px;padding:6px 12px;font-size:13px;font-weight:600;color:var(--bone)}
       .mpchip:hover{border-color:var(--bone)}
       .mpchip .mpk{font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--mut)}
+      /* "Your Horda" identity header — profile-first: your name + @handle, the
+         one place that says "this space is yours". @handle → manage in Settings. */
+      .yhhead{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:6px 0 14px}
+      .yhhead .yhk{font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--acc);font-weight:800}
+      .yhhead .yhname{font-size:26px;font-weight:900;letter-spacing:-.02em;margin:2px 0 0}
+      .yhhandle{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--b);border-radius:999px;padding:7px 14px;font-size:13.5px;font-weight:700;color:var(--bone);white-space:nowrap}
+      .yhhandle:hover{border-color:var(--bone)}.yhhandle.add{color:var(--acc);border-color:rgba(225,90,64,.5)}
     </style>
     ${profileTabs({ fanId: d.fanId, active: 'events', profileHref: (() => { const a = (d.pages ?? []).find(p => p.kind === 'athlete'); return a ? `/athlete/${a.id}/customize` : undefined; })() })}
+    <div class="yhhead">
+      <div><div class="yhk">Your Horda</div><h1 class="yhname">Hi, ${esc((d.fanName || 'you').split(' ')[0])}</h1></div>
+      ${d.handle ? `<a class="yhhandle" href="/settings" title="Manage your @handle">@${esc(d.handle)}</a>` : `<a class="yhhandle add" href="/settings">＋ Pick a @handle</a>`}
+    </div>
     ${(d.pages && d.pages.length)
       ? `<div class="mypages"><span class="mplab">Your pages</span>${d.pages.map(pg => `<a class="mpchip" href="${ehref(pg.kind, pg.id)}">${esc(pg.name)}<span class="mpk">${esc(pg.kind)}</span></a>`).join('')}</div>`
       : ''}

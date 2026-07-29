@@ -42,11 +42,16 @@ import { THEME_BOOT, THEME_VARS, THM_CSS } from './theme.ts';
 import { ravenMarkCurrent } from './brand.ts';
 import { OPERATOR, LEGAL_UPDATED } from './legal.ts';
 
-/** Our cut. One constant so the AGB can never drift from what Stripe charges. */
-export const TAKE_RATE_PCT = 10;
+import { PLATFORM_FEE_PCT } from './pricing.ts';
+
+/** Our cut on the Free plan — re-exported from the single pricing source
+ *  (pricing.ts) so the AGB clause can never drift from what's actually charged.
+ *  Change the number in pricing.ts (or the HORDA_PLATFORM_FEE_PCT env var), and
+ *  the AGB, the pricing page and the live Stripe fee all move together. */
+export const TAKE_RATE_PCT = PLATFORM_FEE_PCT;
 
 function shell(title: string, body: string): string {
-  return `<!DOCTYPE html><html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><link rel="icon" href="/favicon.svg"><title>${esc(title)} — Horda</title>${THEME_BOOT}
+  return `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><link rel="icon" href="/favicon.svg"><title>${esc(title)} — Horda</title>${THEME_BOOT}
 <link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
   ${THEME_VARS}
@@ -73,7 +78,7 @@ function shell(title: string, body: string): string {
 </style></head><body>
   <div class="lgtop"><a href="/">${ravenMarkCurrent(24)} Horda</a></div>
   <div class="lgwrap">${body}
-    <div class="lgfoot"><a href="/agb">AGB</a><a href="/widerruf">Widerruf</a><a href="/impressum">Impressum</a><a href="/datenschutz">Datenschutz</a><a href="/">Zurück zu Horda</a></div>
+    <div class="lgfoot"><a href="/agb">Terms</a><a href="/widerruf">Withdrawal</a><a href="/impressum">Legal notice</a><a href="/datenschutz">Privacy</a><a href="/">Back to Horda</a></div>
   </div>
 </body></html>`;
 }
@@ -81,94 +86,94 @@ function shell(title: string, body: string): string {
 // --- /agb -------------------------------------------------------------------
 export function renderTerms(): string {
   const body = `
-    <h1>Allgemeine Geschäftsbedingungen</h1>
-    <p class="upd">Stand: ${LEGAL_UPDATED} · Anbieter: ${esc(OPERATOR.name)}, ${esc(OPERATOR.street)}, ${esc(OPERATOR.city)}</p>
+    <h1>Terms of Service</h1>
+    <p class="upd">Last updated: ${LEGAL_UPDATED} · Provider: ${esc(OPERATOR.name)}, ${esc(OPERATOR.street)}, ${esc(OPERATOR.city)}</p>
 
-    <h2>1. Geltungsbereich</h2>
-    <p>Diese Bedingungen gelten für die Nutzung der Plattform Horda (joinhorda.com), betrieben von ${esc(OPERATOR.name)} („Horda", „wir"). Sie gelten gegenüber Verbraucherinnen und Verbrauchern (§ 13 BGB) sowie Unternehmerinnen und Unternehmern (§ 14 BGB).</p>
+    <h2>1. Scope</h2>
+    <p>These terms govern the use of the Horda platform (joinhorda.com), operated by ${esc(OPERATOR.name)} ("Horda", "we"). They apply both to consumers (§ 13 BGB) and to businesses (§ 14 BGB).</p>
 
-    <h2>2. Was Horda ist — und was nicht</h2>
+    <h2>2. What Horda is — and is not</h2>
     <div class="key">
-      <p><b>Horda ist eine Vermittlungsplattform, nicht der Veranstalter.</b> Über Horda können Veranstalterinnen und Veranstalter (Athlet:innen, Vereine, Verbände, Privatpersonen) eigene Veranstaltungen anlegen und Plätze bzw. Tickets vergeben.</p>
-      <p><b>Der Vertrag über die Teilnahme an einer Veranstaltung kommt ausschließlich zwischen Ihnen und der jeweiligen Veranstalterin bzw. dem jeweiligen Veranstalter zustande.</b> Horda wird nicht Vertragspartei dieses Vertrages. Wir stellen die Software bereit und ziehen bei kostenpflichtigen Tickets den Preis im Namen und für Rechnung der Veranstalter über unseren Zahlungsdienstleister ein.</p>
+      <p><b>Horda is an intermediary platform, not the event organiser.</b> Through Horda, organisers (athletes, clubs, associations, private individuals) can create their own events and issue spots or tickets.</p>
+      <p><b>The contract for taking part in an event is concluded exclusively between you and the respective organiser.</b> Horda is not a party to that contract. We provide the software and, for paid tickets, collect the price in the name of and on behalf of the organiser via our payment service provider.</p>
     </div>
-    <p>Für die Durchführung, den Inhalt, die Absage, die Verlegung und die Sicherheit einer Veranstaltung ist allein die Veranstalterin bzw. der Veranstalter verantwortlich. Ansprüche wegen Ausfall oder Änderung einer Veranstaltung richten sich gegen diese Person, nicht gegen Horda.</p>
+    <p>The organiser alone is responsible for staging, content, cancellation, postponement and safety of an event. Claims arising from the cancellation or change of an event are directed against that person, not against Horda.</p>
 
-    <h2>3. Konto</h2>
-    <p>Für die Nutzung ist ein Konto erforderlich. Die Anmeldung erfolgt passwortlos per E-Mail-Link oder Einmalcode. Sie sind dafür verantwortlich, Ihren Zugang und Ihr E-Mail-Postfach zu schützen. Angaben müssen zutreffend sein.</p>
-    <p>Für Personen unter 16 Jahren ist die Nutzung nur mit Einwilligung der Erziehungsberechtigten zulässig (Art. 8 DSGVO). Für den Verkauf kostenpflichtiger Tickets und den Empfang von Auszahlungen ist ein Mindestalter von 18 Jahren erforderlich; dies folgt aus den Bedingungen unseres Zahlungsdienstleisters.</p>
+    <h2>3. Account</h2>
+    <p>An account is required in order to use the service. Sign-in is passwordless, by email link or one-time code. You are responsible for protecting your access and your email inbox. The information you provide must be accurate.</p>
+    <p>For persons under 16 years of age, use is permitted only with the consent of a parent or guardian (Art. 8 DSGVO). For selling paid tickets and receiving payouts, a minimum age of 18 years is required; this follows from the terms of our payment service provider.</p>
 
-    <h2>4. Plätze und Tickets</h2>
-    <p>Veranstalter legen je Teilnahmeart („in Person", „Stream") fest, ob die Teilnahme kostenlos oder kostenpflichtig ist, wie viele Plätze zur Verfügung stehen und wie viele Plätze eine Person beanspruchen darf. Ein Platz gilt erst dann als vergeben, wenn er Ihnen in Horda bestätigt wurde.</p>
-    <p><b>Tickets sind personengebunden und nicht übertragbar.</b> Der Zutritt erfolgt über einen QR-Code, der beim Einlass geprüft wird. Ein Weiterverkauf über Horda findet nicht statt (siehe Ziffer 9).</p>
-    <p>Ist eine Teilnahmeart ausgebucht, kann eine Warteliste angeboten werden. Ein Platz auf der Warteliste begründet keinen Anspruch auf Teilnahme.</p>
+    <h2>4. Spots and tickets</h2>
+    <p>For each attendance type ("in person", "stream"), organisers set whether attendance is free or paid, how many spots are available and how many spots one person may claim. A spot is only deemed allocated once it has been confirmed to you in Horda.</p>
+    <p><b>Tickets are identity-bound and non-transferable.</b> Entry is by a QR code that is checked on admission. There is no resale via Horda (see section 9).</p>
+    <p>If an attendance type is fully booked, a waitlist may be offered. A place on the waitlist does not give rise to a right to attend.</p>
 
-    <h2>5. Preise, Zahlung und unsere Vergütung</h2>
-    <p>Alle Preise verstehen sich als Endpreise in Euro und schließen die gesetzliche Umsatzsteuer ein, soweit die Veranstalterin bzw. der Veranstalter umsatzsteuerpflichtig ist. Die Zahlungsabwicklung erfolgt über <b>Stripe</b>. Zahlungsdaten werden nicht von Horda erhoben oder gespeichert.</p>
-    <p>Von jedem verkauften kostenpflichtigen Ticket behält Horda eine Vergütung von <b>${TAKE_RATE_PCT}%</b> des Ticketpreises ein; der verbleibende Betrag wird an die Veranstalterin bzw. den Veranstalter ausgezahlt. Für kostenlose Veranstaltungen fällt keine Vergütung an.</p>
+    <h2>5. Prices, payment and our fee</h2>
+    <p>All prices are final prices in euros and include statutory VAT insofar as the organiser is liable for VAT. Payment is processed via <b>Stripe</b>. Payment data is not collected or stored by Horda.</p>
+    <p>From every paid ticket sold, Horda retains a fee of <b>${TAKE_RATE_PCT}%</b> of the ticket price; the remaining amount is paid out to the organiser. No fee is charged for free events.</p>
 
-    <h2>6. Absage, Verlegung, Erstattung</h2>
-    <p>Wird eine Veranstaltung abgesagt oder wesentlich verlegt, richtet sich Ihr Anspruch auf Erstattung gegen die Veranstalterin bzw. den Veranstalter. Horda unterstützt die Rückabwicklung technisch über den Zahlungsdienstleister, schuldet die Erstattung jedoch nicht selbst.</p>
-    <p>Zu Ihrem Widerrufsrecht — und zu dessen gesetzlichem Ausschluss bei terminierten Freizeitveranstaltungen — siehe die <a href="/widerruf">Widerrufsbelehrung</a>.</p>
+    <h2>6. Cancellation, postponement, refunds</h2>
+    <p>If an event is cancelled or substantially postponed, your claim to a refund is directed against the organiser. Horda supports the reversal technically via the payment service provider but does not itself owe the refund.</p>
+    <p>Regarding your right of withdrawal — and its statutory exclusion for scheduled leisure events — see the <a href="/widerruf">withdrawal information</a>.</p>
 
-    <h2>7. Ihre Inhalte</h2>
-    <p>Für die von Ihnen eingestellten Inhalte (Profile, Veranstaltungen, Bilder, Beiträge) bleiben Sie verantwortlich. Sie sichern zu, dass Sie über die erforderlichen Rechte verfügen und keine Rechte Dritter verletzen. Sie räumen uns das einfache, räumlich und zeitlich unbeschränkte Recht ein, diese Inhalte im Rahmen des Betriebs von Horda zu speichern, anzuzeigen und zum Zweck der Darstellung technisch zu bearbeiten (z. B. Bildgrößen). Dieses Recht endet mit der Löschung des Inhalts, soweit die Anzeige nicht bereits Dritten gegenüber erfolgt ist.</p>
-    <p>Wir machen uns fremde Inhalte nicht zu eigen. Bei Kenntnis von Rechtsverletzungen entfernen wir die betreffenden Inhalte.</p>
+    <h2>7. Your content</h2>
+    <p>You remain responsible for the content you post (profiles, events, images, posts). You warrant that you hold the necessary rights and do not infringe the rights of third parties. You grant us the simple, geographically and temporally unlimited right to store, display and technically process this content for the purpose of presentation (e.g. image sizes) in the course of operating Horda. This right ends when the content is deleted, insofar as it has not already been displayed to third parties.</p>
+    <p>We do not adopt third-party content as our own. Where we become aware of infringements, we remove the content concerned.</p>
 
-    <h2>8. Nennung von Dritten in Veranstaltungen</h2>
-    <p>Beim Anlegen einer Veranstaltung können Sie eine gegnerische Seite oder teilnehmende Athlet:innen benennen, die noch kein Horda-Konto haben. Diese Nennung begründet keine Teilnahmezusage der genannten Person. Genannte Parteien gelten als „eingeladen" und können die Nennung übernehmen oder entfernen lassen.</p>
+    <h2>8. Naming third parties in events</h2>
+    <p>When creating an event, you may name an opposing side or participating athletes who do not yet have a Horda account. Such naming does not constitute a commitment to attend by the named person. Named parties are treated as "invited" and can take over or have the naming removed.</p>
 
-    <h2>9. Kein Weiterverkauf</h2>
-    <p>Horda bietet <b>keinen Weiterverkauf von Tickets an</b>. Es gibt auf Horda keinen Zweitmarkt, und wir vermitteln keine Tickets zwischen Fans gegen Entgelt. Das ist eine bewusste Entscheidung und keine vorübergehende Einschränkung: Ein Ticket, das gehandelt werden kann, zieht Menschen an, die das Ticket wollen — nicht die Veranstaltung.</p>
-    <p>Tickets sind personengebunden. Der gewerbliche Weiterverkauf außerhalb von Horda ist untersagt und kann zur Entwertung des Tickets führen. Können Sie einen Platz nicht wahrnehmen, wenden Sie sich bitte an die Veranstalterin oder den Veranstalter; die Rückabwicklung richtet sich nach deren Bedingungen (Ziffer 6).</p>
+    <h2>9. No resale</h2>
+    <p>Horda offers <b>no resale of tickets</b>. There is no secondary market on Horda, and we do not broker tickets between fans for payment. This is a deliberate decision, not a temporary limitation: a ticket that can be traded attracts people who want the ticket — not the event.</p>
+    <p>Tickets are identity-bound. Commercial resale outside Horda is prohibited and may lead to invalidation of the ticket. If you cannot take up a spot, please contact the organiser; the reversal is governed by their terms (section 6).</p>
 
-    <h2>10. Verfügbarkeit</h2>
-    <p>Horda befindet sich in aktiver Entwicklung. Wir schulden keine bestimmte Verfügbarkeit und können Funktionen ändern oder einstellen. Wesentliche Änderungen kündigen wir im öffentlichen <a href="/changelog">Changelog</a> an.</p>
+    <h2>10. Availability</h2>
+    <p>Horda is under active development. We do not owe any particular availability and may change or discontinue features. We announce material changes in the public <a href="/changelog">changelog</a>.</p>
 
-    <h2>11. Haftung</h2>
-    <p>Wir haften unbeschränkt bei Vorsatz und grober Fahrlässigkeit, bei der Verletzung von Leben, Körper oder Gesundheit sowie nach dem Produkthaftungsgesetz. Bei einfacher Fahrlässigkeit haften wir nur bei der Verletzung einer wesentlichen Vertragspflicht (Kardinalpflicht) und der Höhe nach begrenzt auf den vertragstypischen, vorhersehbaren Schaden. Im Übrigen ist die Haftung ausgeschlossen.</p>
-    <p>Für Schäden im Zusammenhang mit der Durchführung einer Veranstaltung haftet die Veranstalterin bzw. der Veranstalter.</p>
+    <h2>11. Liability</h2>
+    <p>We are liable without limitation for intent and gross negligence, for injury to life, body or health, and under the Produkthaftungsgesetz (Product Liability Act). For simple negligence we are liable only for breach of a material contractual obligation (Kardinalpflicht) and limited in amount to the foreseeable damage typical for the contract. Otherwise, liability is excluded.</p>
+    <p>For damage in connection with the staging of an event, the organiser is liable.</p>
 
-    <h2>12. Kündigung und Sperrung</h2>
-    <p>Sie können Ihr Konto jederzeit löschen. Wir können Konten bei erheblichen oder wiederholten Verstößen gegen diese Bedingungen sperren. Bereits bestätigte Tickets bleiben davon unberührt, soweit dem keine Gründe der Sicherheit entgegenstehen.</p>
+    <h2>12. Termination and suspension</h2>
+    <p>You can delete your account at any time. We may suspend accounts for serious or repeated breaches of these terms. Tickets already confirmed remain unaffected, unless reasons of safety prevent this.</p>
 
-    <h2>13. Streitbeilegung</h2>
-    <p>Ich bin nicht bereit und nicht verpflichtet, an Streitbeilegungsverfahren vor einer Verbraucherschlichtungsstelle teilzunehmen.</p>
+    <h2>13. Dispute resolution</h2>
+    <p>I am neither willing nor obliged to take part in dispute-resolution proceedings before a consumer arbitration board (Verbraucherschlichtungsstelle).</p>
 
-    <h2>14. Schlussbestimmungen</h2>
-    <p>Es gilt deutsches Recht. Gegenüber Verbrauchern gilt diese Rechtswahl nur, soweit dadurch der Schutz zwingender Vorschriften des Staates des gewöhnlichen Aufenthalts nicht entzogen wird. Sollte eine Bestimmung unwirksam sein, bleibt die Wirksamkeit der übrigen Bestimmungen unberührt.</p>`;
-  return shell('AGB', body);
+    <h2>14. Final provisions</h2>
+    <p>German law applies. In relation to consumers, this choice of law applies only insofar as it does not deprive the consumer of the protection of mandatory provisions of the state of their habitual residence. Should any provision be invalid, the validity of the remaining provisions remains unaffected.</p>`;
+  return shell('Terms of Service', body);
 }
 
 // --- /widerruf --------------------------------------------------------------
 export function renderWithdrawal(): string {
   const body = `
-    <h1>Widerrufsbelehrung</h1>
-    <p class="upd">Stand: ${LEGAL_UPDATED}</p>
+    <h1>Withdrawal information</h1>
+    <p class="upd">Last updated: ${LEGAL_UPDATED}</p>
 
     <div class="key">
-      <p><b>Für Tickets zu Veranstaltungen mit festem Termin besteht kein Widerrufsrecht.</b></p>
-      <p>Das gesetzliche Widerrufsrecht ist bei Verträgen über Dienstleistungen im Zusammenhang mit Freizeitbetätigungen ausgeschlossen, wenn der Vertrag für die Erbringung einen spezifischen Termin oder Zeitraum vorsieht (<b>§ 312g Abs. 2 Nr. 9 BGB</b>). Das trifft auf Veranstaltungstickets zu, die über Horda vergeben werden — jede Veranstaltung hat einen festen Termin.</p>
+      <p><b>There is no right of withdrawal for tickets to events with a fixed date.</b></p>
+      <p>The statutory right of withdrawal is excluded for contracts for services connected with leisure activities where the contract provides a specific date or period for performance (<b>§ 312g Abs. 2 Nr. 9 BGB</b>). This applies to event tickets issued via Horda — every event has a fixed date.</p>
     </div>
-    <p>Das bedeutet: Ein gekauftes Ticket kann nicht innerhalb von 14 Tagen ohne Grund zurückgegeben werden. Ihre Ansprüche bei <b>Absage oder wesentlicher Verlegung</b> der Veranstaltung bleiben davon unberührt und richten sich gegen die Veranstalterin bzw. den Veranstalter (siehe <a href="/agb">AGB Ziffer 6</a>).</p>
+    <p>This means: a purchased ticket cannot be returned within 14 days without reason. Your claims in the event of <b>cancellation or substantial postponement</b> of the event remain unaffected and are directed against the organiser (see <a href="/agb">Terms, section 6</a>).</p>
 
-    <h2>Kostenlose Plätze</h2>
-    <p>Kostenlose Plätze können Sie jederzeit selbst wieder freigeben — direkt auf der Veranstaltungsseite. Ein Widerruf ist dafür nicht erforderlich, weil kein entgeltlicher Vertrag geschlossen wurde.</p>
+    <h2>Free spots</h2>
+    <p>You can release free spots yourself at any time — directly on the event page. No withdrawal is required for this, because no paid contract was concluded.</p>
 
-    <h2>Ihr Horda-Konto</h2>
-    <p>Das Konto selbst ist kostenlos. Sie können es jederzeit löschen; ein Widerrufsrecht besteht mangels entgeltlicher Leistung nicht.</p>
+    <h2>Your Horda account</h2>
+    <p>The account itself is free. You can delete it at any time; there is no right of withdrawal, as there is no paid service.</p>
 
-    <h2>Wenn doch ein Widerrufsrecht besteht</h2>
-    <p>Sollte im Einzelfall ausnahmsweise ein Widerrufsrecht bestehen, gilt: Sie können den Vertrag binnen 14 Tagen ohne Angabe von Gründen widerrufen. Die Frist beginnt mit Vertragsschluss. Zur Ausübung genügt eine eindeutige Erklärung in Textform an:</p>
-    <div class="box"><p>${esc(OPERATOR.name)}<br>${esc(OPERATOR.street)}<br>${esc(OPERATOR.city)}<br>E-Mail: <a href="mailto:${esc(OPERATOR.email)}">${esc(OPERATOR.email)}</a></p></div>
-    <p>Zur Fristwahrung genügt die rechtzeitige Absendung. Im Falle eines wirksamen Widerrufs erstatten wir bzw. die Veranstalterin oder der Veranstalter alle erhaltenen Zahlungen unverzüglich, spätestens binnen 14 Tagen, über dasselbe Zahlungsmittel.</p>
+    <h2>If a right of withdrawal does apply</h2>
+    <p>Should a right of withdrawal exceptionally apply in an individual case: you may withdraw from the contract within 14 days without giving reasons. The period begins on conclusion of the contract. To exercise it, an unambiguous statement in text form to the following address is sufficient:</p>
+    <div class="box"><p>${esc(OPERATOR.name)}<br>${esc(OPERATOR.street)}<br>${esc(OPERATOR.city)}<br>Email: <a href="mailto:${esc(OPERATOR.email)}">${esc(OPERATOR.email)}</a></p></div>
+    <p>To meet the deadline, it is sufficient that you send your notice before the period expires. In the event of an effective withdrawal, we or the organiser will refund all payments received without delay, and at the latest within 14 days, using the same means of payment.</p>
 
-    <h2>Muster-Widerrufsformular</h2>
+    <h2>Model withdrawal form</h2>
     <div class="box">
-      <p>An ${esc(OPERATOR.name)}, ${esc(OPERATOR.street)}, ${esc(OPERATOR.city)}, ${esc(OPERATOR.email)}:</p>
-      <p>Hiermit widerrufe(n) ich/wir (*) den von mir/uns (*) abgeschlossenen Vertrag über den Kauf der folgenden Ware / die Erbringung der folgenden Dienstleistung (*):</p>
-      <p>— Bestellt am (*) / erhalten am (*):<br>— Name des/der Verbraucher(s):<br>— Anschrift des/der Verbraucher(s):<br>— Datum:<br>— Unterschrift (nur bei Mitteilung auf Papier):</p>
-      <p>(*) Unzutreffendes streichen.</p>
+      <p>To ${esc(OPERATOR.name)}, ${esc(OPERATOR.street)}, ${esc(OPERATOR.city)}, ${esc(OPERATOR.email)}:</p>
+      <p>I/we (*) hereby withdraw from the contract concluded by me/us (*) for the purchase of the following goods / the provision of the following service (*):</p>
+      <p>— Ordered on (*) / received on (*):<br>— Name of consumer(s):<br>— Address of consumer(s):<br>— Date:<br>— Signature (only if this form is notified on paper):</p>
+      <p>(*) Delete as appropriate.</p>
     </div>`;
-  return shell('Widerrufsbelehrung', body);
+  return shell('Withdrawal information', body);
 }

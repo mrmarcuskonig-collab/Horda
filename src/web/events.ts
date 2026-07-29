@@ -9,6 +9,7 @@ import { mapsChooser } from './maps.ts';
 import { socialIcon } from './icons.ts';
 import { sportSelect } from './pages.ts';
 import { type EventDetail, type EventParty, type SubEvent, priceLabel } from '../db/events_repo.ts';
+import { TAKE_RATE_PCT } from './terms.ts';
 
 // The words that ride alongside the card. Kept short and factual — the picture is
 // doing the persuading, and a receiver reading a sales pitch from their mate
@@ -368,14 +369,14 @@ export function renderEventPage(d: EventDetail, ctx: {
 }
 
 // Organizer payouts (Stripe Connect). The gate for paid ticketing: connect a
-// Stripe account (KYC via Stripe) before you can collect money. 10% platform fee.
+// Stripe account (KYC via Stripe) before you can collect money. 5% platform fee (Free plan).
 export function renderPayouts(d: { hostKind: string; hostId: string; hostName: string; connected: boolean; payoutsEnabled: boolean; started: boolean; live: boolean }): string {
   const connectAction = `/host/${d.hostKind}/${d.hostId}/connect`;
   const status = d.connected
-    ? `<div class="card" style="border-color:var(--bone)"><strong>✓ Payouts connected.</strong> <span class="mut">You can sell paid tickets. Horda keeps a flat <b style="color:var(--bone)">10%</b>; the rest is paid out to your connected account.</span></div>`
+    ? `<div class="card" style="border-color:var(--bone)"><strong>✓ Payouts connected.</strong> <span class="mut">You can sell paid tickets. Horda keeps a flat <b style="color:var(--bone)">${TAKE_RATE_PCT}%</b>; the rest is paid out to your connected account.</span></div>`
     : d.started
       ? `<div class="card"><strong>Almost there.</strong> <span class="mut">Your Stripe onboarding isn't finished — Stripe still needs a few details before you can accept payments.</span><form method="post" action="${connectAction}" style="margin-top:8px"><button type="submit">Finish setup →</button></form></div>`
-      : `<div class="card"><strong>Connect payouts to sell paid tickets.</strong> <span class="mut">Free events need nothing. To charge for tickets, connect a Stripe account — Stripe handles identity verification; payouts land in your bank. Horda takes a flat 10%.</span><form method="post" action="${connectAction}" style="margin-top:8px"><button type="submit">Connect payouts →</button></form></div>`;
+      : `<div class="card"><strong>Connect payouts to sell paid tickets.</strong> <span class="mut">Free events need nothing. To charge for tickets, connect a Stripe account — Stripe handles identity verification; payouts land in your bank. Horda takes a flat ${TAKE_RATE_PCT}%.</span><form method="post" action="${connectAction}" style="margin-top:8px"><button type="submit">Connect payouts →</button></form></div>`;
   return layout('Payouts · ' + d.hostName, `
     <h1>Payments &amp; payouts</h1>
     <p class="mut">For ${esc(d.hostName)}. ${d.live ? '' : 'Demo mode — set STRIPE_SECRET_KEY for real Stripe Connect. '}Web-first checkout; card details never touch Horda.</p>
@@ -396,6 +397,76 @@ export function renderCheckout(d: EventDetail, fanId: string, live = false): str
     ? 'Secure payment by Stripe — you’ll be taken to Stripe’s checkout, then straight back with your ticket. Your card details never touch Horda.'
     : 'Demo checkout — payments are stubbed (set STRIPE_SECRET_KEY to charge for real). The ticket + guest-list flow is already live.'}</p>`;
   return layout('Checkout · ' + d.title, body, { back: `/e/${d.id}` });
+}
+
+// owner: EDIT a published event. Only safe fields — never the date. Changing the
+// date is cancel-and-recreate, because it re-triggers everyone's decision to come.
+export function renderEditEvent(d: EventDetail, viewerFanId: string | null, opt: { canCustomUrl?: boolean; origin?: string; error?: string } = {}): string {
+  const fld = 'display:block;margin:12px 0;font-size:13px;color:var(--mut)';
+  const inp = 'display:block;width:100%;margin-top:6px;background:var(--s);border:1px solid var(--b);border-radius:10px;color:var(--bone);padding:11px;font:inherit';
+  const host = (opt.origin || 'joinhorda.com').replace(/^https?:\/\//, '');
+  // Custom event URL — a Horda Plus feature. Free organisers see an upsell; the
+  // whole block is gated by `canCustomUrl` (hasEntitlement('custom_url')).
+  const customUrl = opt.canCustomUrl
+    ? `<label style="${fld}">Custom URL <span class="mut">· Horda Plus</span>
+        <div style="display:flex;align-items:center;gap:2px;margin-top:6px"><span class="mut" style="font-size:13px;white-space:nowrap">${esc(host)}/e/</span><input style="${inp};margin-top:0" name="slug" value="${esc(d.slug ?? '')}" placeholder="derby-2026" maxlength="40" pattern="[A-Za-z0-9-]*"></div>
+        <span class="mut" style="font-size:11.5px">Letters, numbers and hyphens. Leave blank to use the default link.</span></label>`
+    : `<div style="${fld};border:1px solid var(--b);border-radius:12px;padding:12px 14px;background:var(--s)"><b style="color:var(--bone)">Custom URL</b> — give this event a memorable link like <span class="mut">${esc(host)}/e/derby</span>. <a href="/about/pricing" style="color:var(--acc)">Horda Plus →</a></div>`;
+  const isOnline = d.locationKind === 'online';
+  const streamUrl = (d.streams && (d.streams as any).primary) || (typeof d.location === 'string' && /^https?:/i.test(d.location) ? d.location : '');
+  const draft = `Hi everyone — sorry, but we've had to call off ${d.title}. ${d.priceCents ? 'If you bought a spot, you\'ll be refunded. ' : ''}Thanks for backing it — we'll be back with the next one.`;
+  const body = `
+    <a class="backx" href="/manage/${esc(d.id)}" aria-label="Back to manage" style="position:static;margin-bottom:6px">‹</a>
+    <h1>Edit event</h1>
+    <p class="mut">You can change the details below. <b style="color:var(--bone)">The date is locked</b> — people planned around it, so to move it you cancel this event and create a new one (that way everyone gets to decide again).</p>
+    ${opt.error ? `<div style="border:1px solid #e5484d;color:#e5707a;border-radius:10px;padding:10px 12px;font-size:13.5px;margin:10px 0">${esc(opt.error)}</div>` : ''}
+
+    <form method="post" action="/e/${esc(d.id)}/edit" onsubmit="return hzPrep(this)">
+      <label style="${fld}">Event name<input style="${inp}" name="title" value="${esc(d.title)}" maxlength="200" required></label>
+      ${customUrl}
+
+      <label style="${fld}">Date &amp; time <span class="mut">(locked)</span>
+        <input style="${inp};opacity:.6" value="${esc([d.date, d.time].filter(Boolean).join(' · ') || 'TBA')}" disabled></label>
+
+      ${isOnline
+        ? `<label style="${fld}">Watch / stream link<input style="${inp}" name="stream_url" value="${esc(streamUrl)}" placeholder="https://youtube.com/… · twitch.tv/…"></label>`
+        : `<div id="ev_addr_wrap"><label style="${fld}" id="ev_addr_lbl">Address<input style="${inp}" name="location" id="ev_loc" autocomplete="off" value="${esc(d.location ?? '')}" placeholder="Start typing a venue or address…"></label><div class="acbox" id="ev_loc_ac" hidden></div></div>`}
+
+      <label style="${fld}">About this event<textarea style="${inp};min-height:90px" name="description">${esc(d.description ?? '')}</textarea></label>
+
+      <label style="${fld}">Cover image
+        <span class="cvdrop" id="ev_cover_drop" style="display:block;position:relative;border:1px dashed var(--b);border-radius:12px;overflow:hidden;margin-top:6px;min-height:120px">
+          <input type="file" accept="image/*" data-target="cover" id="ev_cover_in" hidden>
+          <img id="ev_cover_prev" alt="" ${d.coverUrl ? `src="${esc(d.coverUrl)}"` : 'hidden'} style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover">
+          <span class="cvhint" id="ev_cover_hint" style="display:flex;align-items:center;justify-content:center;min-height:120px;color:var(--mut);font-size:13px"${d.coverUrl ? ' hidden' : ''}>Tap to replace the cover</span>
+        </span>
+        <button type="button" class="cvclear" id="ev_cover_clear" ${d.coverUrl ? '' : 'hidden'} style="margin-top:8px;background:transparent;border:1px solid var(--b);border-radius:var(--btnr);color:var(--mut);padding:6px 12px;font:inherit;font-size:12.5px;cursor:pointer">Remove image</button>
+      </label>
+      <input type="hidden" name="cover">
+      <div class="row"><button type="submit">Save changes</button></div>
+    </form>
+
+    <div style="border-top:1px solid var(--b);margin-top:26px;padding-top:16px">
+      <h2 style="font-size:15px;color:#e5707a">Cancel this event</h2>
+      <p class="mut" style="font-size:13px;max-width:56ch">This can't be undone. Everyone holding a spot and everyone who liked it gets notified with the message below — edit it to say what you need.</p>
+      <form method="post" action="/e/${esc(d.id)}/cancel" onsubmit="return confirm('Cancel this event and notify everyone? This cannot be undone.')">
+        <textarea name="message" style="${inp};min-height:90px">${esc(draft)}</textarea>
+        <div class="row" style="margin-top:10px"><button type="submit" style="background:#e5484d;border-color:#e5484d;color:#fff">Cancel event &amp; notify everyone</button></div>
+      </form>
+    </div>
+    <script>(function(){
+      var cin=document.getElementById('ev_cover_in'),cimg=document.getElementById('ev_cover_prev'),chint=document.getElementById('ev_cover_hint'),cclear=document.getElementById('ev_cover_clear'),chid=document.getElementsByName('cover')[0],drop=document.getElementById('ev_cover_drop');
+      if(drop)drop.addEventListener('click',function(){cin.click();});
+      if(cin)cin.addEventListener('change',function(){var f=cin.files&&cin.files[0];if(f){var fr=new FileReader();fr.onload=function(){cimg.src=fr.result;cimg.hidden=false;if(chint)chint.hidden=true;if(cclear)cclear.hidden=false;};fr.readAsDataURL(f);}});
+      if(cclear)cclear.addEventListener('click',function(){if(chid)chid.value='';cin.value='';cimg.hidden=true;if(chint)chint.hidden=false;cclear.hidden=true;});
+      // Address autocomplete — same /api/geo the create form uses.
+      var loc=document.getElementById('ev_loc'),lac=document.getElementById('ev_loc_ac'),lt;
+      function closeAc(){if(lac){lac.hidden=true;lac.innerHTML='';}}
+      if(loc)loc.addEventListener('input',function(){clearTimeout(lt);var q=loc.value.trim();if(q.length<3){closeAc();return;}lt=setTimeout(function(){fetch('/api/geo?q='+encodeURIComponent(q)).then(function(r){return r.ok?r.json():{results:[]}}).then(function(j){var rs=(j.results||[]).slice(0,6);if(!rs.length){closeAc();return;}lac.innerHTML=rs.map(function(p){return '<div class="ac" data-v="'+String(p.label||'').replace(/"/g,'&quot;')+'">'+String(p.label||'').replace(/[<>&]/g,'')+'</div>'}).join('');lac.hidden=false;[].forEach.call(lac.querySelectorAll('.ac'),function(el){el.onmousedown=function(ev){ev.preventDefault();loc.value=el.getAttribute('data-v');closeAc();};});}).catch(closeAc);},220);});
+      if(loc)loc.addEventListener('blur',function(){setTimeout(closeAc,120);});
+    })();</script>${UPLOAD_SCRIPT}
+  `;
+  return layout('Edit · ' + d.title, body, { back: `/manage/${d.id}`, nav: { active: 'you', guest: false, fanId: viewerFanId } });
 }
 
 // owner: schedule an event. `parent` set when adding a sub-event (bout / race).
@@ -658,31 +729,19 @@ export function renderCreateEvent(hostKind: string, hostId: string, hostName: st
               media deal with a viewer ceiling. Capacity is per DOOR, so a
               sold-out hall never closes the stream and a full stream never
               closes the hall. */''}
-          <label class="wf" id="st_cap_wrap">Seats <span class="mut">(blank = unlimited)</span>
+          <label class="wf" id="st_cap_wrap">Spots <span class="mut">(blank = unlimited)</span>
             <input type="number" name="fmt_stream1_cap" min="1" placeholder="Unlimited">
             <small>For a webinar or a room with a licence limit. Counted separately from the venue.</small></label>
         </div>
       </div>
     </div>
 
-    ${/* Capacity: unlimited is the default and the common case. Asking for a
-        number up front implies a limit exists and invents a decision. You opt
-        IN to a limit, then set it, then choose whether overflow waits. */''}
+    ${/* Capacity lives PER DOOR now (the "Spots" field on each way-in), and a
+        door auto-waitlists when it fills. So there's no separate global limit to
+        set — asking again here was the duplicate the organiser flagged. */''}
     <div style="${fld}">
-      ${/* The hidden 0 makes the field ALWAYS present. Without it an unchecked
-           box submits nothing, and "the user unticked this" becomes
-           indistinguishable from "this caller predates the field" — so the
-           server could not tell whether to honour a posted capacity. */''}
-      <input type="hidden" name="capacity_limited" value="0">
-      <label class="tgl"><input type="checkbox" id="ev_cap_on" name="capacity_limited" value="1">
-        <span><b>Limit how many people can come</b><i>Off = unlimited.</i></span></label>
-      <div id="ev_cap_wrap" hidden style="padding-left:26px">
-        <label style="${fld}">Maximum<input style="${inp}" type="number" name="capacity" min="1" placeholder="120"></label>
-        <label class="tgl"><input type="checkbox" name="waitlist_enabled" value="1" checked>
-          <span><b>Add a waitlist once it's full</b><i>Extra claims queue up instead of being turned away — and you see real demand.</i></span></label>
-      </div>
       <label class="tgl"><input type="checkbox" name="approval_required" value="1">
-        <span><b>Genehmigung erforderlich — you approve each request</b><i>People request a spot; nobody's in until you say yes.</i></span></label>
+        <span><b>Approval required — you approve each request</b><i>People request a spot; nobody's in until you say yes.</i></span></label>
     </div>
 
     ${/* Everything below is optional. Collapsed so the first screen is the
@@ -702,8 +761,6 @@ export function renderCreateEvent(hostKind: string, hostId: string, hostName: st
       <label style="${fld}">How many times<input style="${inp}" type="number" name="recurrence_count" min="1" max="52" placeholder="10"></label>
       <label style="${fld}">Or paste a season — one per line: <span class="mut">Title | 2026-08-01 19:00 | Venue</span>
         <textarea style="${inp};min-height:80px" name="season_schedule" placeholder="Round 1 · SC Berlin vs FC Köln | 2026-08-01 19:00 | Olympiastadion"></textarea></label>
-      <label style="${fld}">Second stream — link<input style="${inp}" name="fmt_stream2_url" placeholder="https://…"></label>
-      <label style="${fld}">Second stream — label<input style="${inp}" name="fmt_stream2_label" placeholder="Media partner"></label>
     </details>
 
     <input type="hidden" name="fmt_inperson" value="1">
@@ -781,10 +838,13 @@ export function renderCreateEvent(hostKind: string, hostId: string, hostName: st
       if(w==='online'){ ipOn.checked=false; stOn.checked=true; }
       else if(w==='in_person'){ stOn.checked=false; ipOn.checked=true; }
       else { ipOn.checked=true; }   // hybrid: in-person on, stream is theirs to add
-      // The address field means different things in different places.
+      // We only ask for an ADDRESS when there's a venue. For online-only events
+      // the watch link is captured under "Watch online", so the address field is
+      // hidden entirely — no more asking a stream for its street address.
+      var addrWrap=document.getElementById('ev_addr_wrap');
       var loc=document.getElementById('ev_loc');
-      if(w==='online'){ addrLbl.firstChild.textContent='Stream or call link'; loc.placeholder='https://youtube.com/… · zoom.us/…'; loc.setAttribute('data-noac','1'); }
-      else { addrLbl.firstChild.textContent = w==='hybrid' ? 'Venue address' : 'Address'; loc.placeholder='Start typing a venue or address…'; loc.removeAttribute('data-noac'); }
+      if(w==='online'){ addrWrap.hidden=true; loc.value=''; loc.setAttribute('data-noac','1'); }
+      else { addrWrap.hidden=false; addrLbl.firstChild.textContent = w==='hybrid' ? 'Venue address' : 'Address'; loc.placeholder='Start typing a venue or address…'; loc.removeAttribute('data-noac'); }
       applyCost();
     }
     // --- 2. price fields only where a price can exist ----------------------
@@ -816,10 +876,6 @@ export function renderCreateEvent(hostKind: string, hostId: string, hostName: st
     }
     ipOn.addEventListener('change', guardWays);
     stOn.addEventListener('change', guardWays);
-
-    // --- 3. capacity: unlimited → opt in to a limit → then a waitlist ------
-    var capOn=document.getElementById('ev_cap_on'), capWrap=document.getElementById('ev_cap_wrap');
-    capOn.addEventListener('change', function(){ capWrap.hidden=!capOn.checked; });
 
     // --- 4. visibility hint ------------------------------------------------
     var vis=document.getElementById('ev_vis'), hint=document.getElementById('ev_vis_hint');
@@ -873,7 +929,6 @@ export function renderCreateEvent(hostKind: string, hostId: string, hostName: st
     // Re-apply the conditional UI AFTER restoring, so a restored "paid" still
     // shows its price field.
     applyWhere();
-    capWrap.hidden = !capOn.checked;
     vis.dispatchEvent(new Event('change'));
 
     // --- 5b. cover image preview ------------------------------------------
@@ -894,6 +949,11 @@ export function renderCreateEvent(hostKind: string, hostId: string, hostName: st
       // UPLOAD_SCRIPT writes the hidden field asynchronously (FileReader), so
       // poll briefly after a pick rather than guessing when it lands.
       cin.addEventListener('change', function(){
+        // Show the preview IMMEDIATELY from the picked file — don't wait on the
+        // async upload script (its poll could miss and the image only appeared
+        // after publish). The hidden field still gets written for submit below.
+        var f = cin.files && cin.files[0];
+        if(f){ var fr=new FileReader(); fr.onload=function(){ cimg.src=fr.result; cimg.hidden=false; chint.hidden=true; cclear.hidden=false; }; fr.readAsDataURL(f); }
         var tries=0, iv=setInterval(function(){
           if((chid && chid.value) || ++tries>40){ clearInterval(iv); paintCover(); snapshot(); }
         }, 50);
@@ -940,7 +1000,7 @@ export function renderManage(d: EventDetail, guests: { response: string; status:
   // Paid event → surface payout status: connect payouts (KYC) before selling.
   const payoutBanner = (d.admission === 'paid' && payout)
     ? (payout.connected
-        ? `<div class="card" style="border-color:var(--bone)"><strong>✓ Payouts connected.</strong> <span class="mut">Selling tickets · Horda keeps 10%.</span> <a class="rb sm" href="/manage-payouts/${payout.hostKind}/${payout.hostId}">Manage payouts</a></div>`
+        ? `<div class="card" style="border-color:var(--bone)"><strong>✓ Payouts connected.</strong> <span class="mut">Selling tickets · Horda keeps ${TAKE_RATE_PCT}%.</span> <a class="rb sm" href="/manage-payouts/${payout.hostKind}/${payout.hostId}">Manage payouts</a></div>`
         : `<div class="card"><strong>Connect payouts to sell tickets.</strong> <span class="mut">This is a paid event — connect a Stripe account (Stripe handles KYC) before you can collect money.</span><form method="post" action="/host/${payout.hostKind}/${payout.hostId}/connect" style="margin-top:8px"><button class="rb p" type="submit">Connect payouts →</button></form></div>`)
     : '';
   // The share panel — every participant's promo link with its live counts, the
@@ -1016,7 +1076,7 @@ function renderManageInner(d: EventDetail, guests: { response: string; status: s
   ${group(g => g.response === 'interested', 'Interested')}
   ${group(g => g.response === 'not_going', "Can't go")}
   ${guests.length ? '' : '<p class="mut">No responses yet.</p>'}
-  <div class="row"><a href="/e/${d.id}"><button class="ghost">View public page</button></a></div>`;
+  <div class="row"><a href="/e/${d.id}/edit"><button>Edit event</button></a><a href="/e/${d.id}"><button class="ghost">View public page</button></a></div>`;
   // Owner-only page — always logged in. Show the real rail, not the guest one.
   return layout('Manage · ' + d.title, body, { back: `/e/${d.id}`, nav: { active: 'create', guest: false, fanId: viewerFanId ?? null } });
 }

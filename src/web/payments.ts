@@ -17,7 +17,7 @@ export interface CheckoutReq {
   cancelUrl: string;
   metadata: Record<string, string>;
   // Connect destination charge: route funds to the organizer's connected account,
-  // keeping `applicationFeeCents` (Horda's 10%) on the platform.
+  // keeping `applicationFeeCents` (Horda's Free-plan 5%) on the platform.
   applicationFeeCents?: number;
   destinationAccount?: string;   // acct_… of the connected organizer
 }
@@ -27,6 +27,9 @@ export interface Payments {
   readonly enabled: boolean;
   createCheckout(o: CheckoutReq): Promise<{ url: string }>;
   retrieve(sessionId: string): Promise<CheckoutResult | null>;
+  // Cancel a recurring subscription (Horda Plus). Returns true if the request
+  // was accepted; the actual downgrade happens on the customer.subscription.deleted webhook.
+  cancelSubscription(subscriptionId: string): Promise<boolean>;
   // Stripe Connect (Express) — the organizer's KYC + payout account.
   createConnectAccount(o: { email?: string; country?: string }): Promise<{ accountId: string }>;
   accountLink(o: { accountId: string; refreshUrl: string; returnUrl: string }): Promise<{ url: string }>;
@@ -108,12 +111,20 @@ export class StripePayments implements Payments {
     const subscriptionId = typeof s.subscription === 'string' ? s.subscription : (s.subscription?.id ?? null);
     return { paid, metadata: (s.metadata ?? {}) as Record<string, string>, subscriptionId };
   }
+
+  async cancelSubscription(subscriptionId: string): Promise<boolean> {
+    // DELETE /v1/subscriptions/{id} cancels immediately and fires
+    // customer.subscription.deleted, which downgrades the account to Free.
+    await this.api('subscriptions/' + encodeURIComponent(subscriptionId), 'DELETE');
+    return true;
+  }
 }
 
 export class StubPayments implements Payments {
   readonly enabled = false;
   async createCheckout(): Promise<{ url: string }> { throw new Error('payments not configured'); }
   async retrieve(): Promise<null> { return null; }
+  async cancelSubscription(): Promise<boolean> { return true; }
   // Dev/stub Connect: mint a fake connected account that's immediately enabled, so
   // the onboarding + gating flow is exercisable end-to-end without a Stripe key.
   async createConnectAccount(): Promise<{ accountId: string }> { return { accountId: 'acct_dev_' + Math.random().toString(36).slice(2, 10) }; }

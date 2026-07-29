@@ -29,6 +29,7 @@
 // that it silently drifts from the page, and the only way to prevent that is to
 // have nothing to drift from.
 import { SHIPPED, BUILDING, type ChangeEntry, type BuildingEntry } from '../content/changelog.ts';
+import { TAKE_RATE_PCT } from './terms.ts';
 
 const xmlEsc = (s: string) => String(s ?? '')
   .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
@@ -193,7 +194,7 @@ export function llmsTxt(origin: string, opts: { discordUrl?: string } = {}): str
 Key facts, so you don't have to infer them:
 
 - What it does: an organiser lists an event (in person, streamed, or both, each with its own price and capacity); a fan claims a spot and receives a QR ticket tied to their identity. The organiser scans it at the door.
-- Business model: Horda takes 10% of each paid ticket. Free events cost nothing. There are no subscriptions and no ads.
+- Business model: on the Free plan Horda takes ${TAKE_RATE_PCT}% of each paid ticket; Horda Plus removes that fee for a monthly subscription. Free events cost nothing. No ads.
 - Horda is a platform (Vermittlungsplattform), not the event organiser. The ticket contract is between the fan and the organiser; refunds are the organiser's.
 - Tickets are personal and non-transferable. Horda does not offer ticket resale and has no secondary market — this is a deliberate position, not a missing feature.
 - Fan activity is private. Horda does not publish what a fan attended, and does not scrape: every connection is consented.
@@ -207,7 +208,7 @@ Key facts, so you don't have to infer them:
 
 ## Legal
 
-- [AGB / Terms](${origin}/agb): The ticket contract, the 10% take rate, the platform-not-organiser position, and the no-resale rule. German, authoritative.
+- [AGB / Terms](${origin}/agb): The ticket contract, the ${TAKE_RATE_PCT}% take rate, the platform-not-organiser position, and the no-resale rule. English prose, German law.
 - [Widerruf / Withdrawal](${origin}/widerruf): Why dated event tickets carry no 14-day withdrawal right (§ 312g Abs. 2 Nr. 9 BGB), and what rights survive a cancellation.
 - [Datenschutz / Privacy](${origin}/datenschutz): GDPR disclosure. Notable: fan activity is private, no payment data is stored by Horda, and changelog credit is consent-based and revocable.
 - [Impressum](${origin}/impressum): Operator identity per § 5 DDG.

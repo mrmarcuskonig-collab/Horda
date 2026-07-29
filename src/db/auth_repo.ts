@@ -242,3 +242,44 @@ export async function ownedEntities(db: Database, accountId: string | null): Pro
   }
   return out;
 }
+
+// Reverse of `owns`: which account owns this entity? Keeps the same athlete
+// fallback (self-created athletes are owned via athlete.account_id, not only via
+// an ownership row). Used to resolve an event's host → its owning account so the
+// platform fee can follow that account's plan.
+export async function ownerAccountFor(db: Database, kind: string | null, id: string | null): Promise<string | null> {
+  if (!kind || !id) return null;
+  const viaOwnership = (await db.query<{ account_id: string }>(
+    `SELECT account_id FROM ownership WHERE owner_kind=$1 AND owner_id=$2 LIMIT 1`, [kind, id])).rows[0]?.account_id;
+  if (viaOwnership) return viaOwnership;
+  if (kind === 'athlete') {
+    return (await db.query<{ account_id: string }>(`SELECT account_id FROM athlete WHERE id=$1`, [id])).rows[0]?.account_id ?? null;
+  }
+  return null;
+}
+
+// --- account plan (Horda Plus) --------------------------------------------
+export async function getAccountPlan(db: Database, accountId: string | null): Promise<string> {
+  if (!accountId) return 'free';
+  return (await db.query<{ plan: string }>(`SELECT plan FROM account WHERE id=$1`, [accountId])).rows[0]?.plan ?? 'free';
+}
+// The plan an event's organiser is on — host entity → owning account → plan.
+// Defaults to 'free' for host-less events or unresolved owners (never 0% by accident).
+export async function planForHost(db: Database, kind: string | null, id: string | null): Promise<string> {
+  const acct = await ownerAccountFor(db, kind, id);
+  return getAccountPlan(db, acct);
+}
+// Put an account on a plan and record the subscription that did it (Plus activation).
+export async function setAccountPlan(db: Database, accountId: string, plan: string, subscriptionId: string | null): Promise<void> {
+  await db.query(`UPDATE account SET plan=$2, stripe_subscription_id=COALESCE($3, stripe_subscription_id) WHERE id=$1`, [accountId, plan, subscriptionId]);
+}
+// Downgrade whoever holds this subscription back to Free (cancellation webhook).
+export async function clearPlanBySubscription(db: Database, subscriptionId: string): Promise<boolean> {
+  const r = await db.query(`UPDATE account SET plan='free', stripe_subscription_id=NULL WHERE stripe_subscription_id=$1 AND plan<>'free'`, [subscriptionId]);
+  return (r as any).rowCount ? (r as any).rowCount > 0 : true;
+}
+// The subscription id backing an account's current plan (for the cancel button).
+export async function subscriptionForAccount(db: Database, accountId: string | null): Promise<string | null> {
+  if (!accountId) return null;
+  return (await db.query<{ s: string | null }>(`SELECT stripe_subscription_id s FROM account WHERE id=$1`, [accountId])).rows[0]?.s ?? null;
+}

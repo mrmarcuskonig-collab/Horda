@@ -108,6 +108,7 @@ export async function getDiscover(db: Database, filter: { sport?: string; region
          -- discovery, search or the map — direct link only. Enforced here, in
          -- the query, not by hoping no UI links to them.
          AND e.visibility <> 'unlisted'
+         AND e.cancelled_at IS NULL
          AND (e.starts_at IS NULL OR now() < COALESCE(e.ends_at, e.starts_at + interval '3 hours'))
      ) q
      WHERE ($1::text IS NULL OR q.evsport = $1)

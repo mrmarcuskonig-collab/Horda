@@ -235,6 +235,28 @@ export async function followedSports(db: Database, fanId: string): Promise<strin
   return (await db.query<{ sport_key: string }>(`SELECT sport_key FROM sport_follow WHERE fan_id=$1 ORDER BY created_at`, [fanId])).rows.map(r => r.sport_key);
 }
 
+// --- followable regions / cities (0048) — a fan follows a place; its events feed in.
+export async function followRegion(db: Database, fanId: string, region: string): Promise<void> {
+  const r = region.trim().slice(0, 80);
+  if (r) await db.query(`INSERT INTO region_follow (fan_id, region) VALUES ($1,$2) ON CONFLICT DO NOTHING`, [fanId, r]);
+}
+export async function unfollowRegion(db: Database, fanId: string, region: string): Promise<void> {
+  await db.query(`DELETE FROM region_follow WHERE fan_id=$1 AND lower(region)=lower($2)`, [fanId, region.trim()]);
+}
+export async function followedRegions(db: Database, fanId: string): Promise<string[]> {
+  return (await db.query<{ region: string }>(`SELECT region FROM region_follow WHERE fan_id=$1 ORDER BY created_at`, [fanId])).rows.map(r => r.region);
+}
+// Distinct cities/regions present in the data, for the Following search.
+export async function searchRegions(db: Database, q: string, limit = 6): Promise<string[]> {
+  const like = '%' + q.toLowerCase() + '%';
+  const rows = (await db.query<{ region: string }>(
+    `SELECT DISTINCT region FROM (
+       SELECT region FROM club WHERE region IS NOT NULL
+       UNION SELECT region FROM athlete WHERE region IS NOT NULL
+     ) x WHERE lower(region) LIKE $1 ORDER BY region LIMIT $2`, [like, limit])).rows;
+  return rows.map(r => r.region);
+}
+
 // --- account/profile edits: name + username (handle), with a friendly uniqueness
 // check on top of the DB's UNIQUE constraint.
 export async function updateFanName(db: Database, fanId: string, name: string): Promise<void> {

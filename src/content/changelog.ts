@@ -116,7 +116,7 @@ export const SHIPPED: ChangeEntry[] = [
   {
     date: '2026-07-14',
     title: 'Ticket money goes straight to organisers',
-    body: 'Organisers connect a payout account and ticket money lands with them directly, minus our flat 10%. We never hold your money in between.',
+    body: 'Organisers connect a payout account and ticket money lands with them directly, minus our small platform fee. We never hold your money in between.',
     tag: 'new',
   },
   {

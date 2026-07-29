@@ -18,6 +18,7 @@ export interface EventDetail {
    *  local time would show up an hour late. */
   timezone: string | null;
   archetype: string; parentEventId: string | null;
+  cancelledAt: string | null; cancelMessage: string | null; slug: string | null;
   counts: Record<RsvpResponse, number> & { pending: number };
 }
 export const priceLabel = (d: { priceCents: number | null; currency: string }) =>
@@ -157,7 +158,11 @@ export async function featureEvent(db: Database, kind: string, id: string, event
   await db.query(`INSERT INTO event_feature (feat_kind,feat_id,event_id) VALUES ($1,$2,$3) ON CONFLICT DO NOTHING`, [kind, id, eventId]);
 }
 
-export async function getEventDetail(db: Database, eventId: string): Promise<EventDetail | null> {
+export async function getEventDetail(db: Database, eventIdOrSlug: string): Promise<EventDetail | null> {
+  // Accept a custom slug (Horda Plus URLs) as well as the uuid — resolve to the
+  // uuid first so a non-uuid param never hits the uuid-typed `id` column.
+  const eventId = await resolveEventId(db, eventIdOrSlug);
+  if (!eventId) return null;
   // AT TIME ZONE renders the instant in the VENUE's zone, not the server's.
   // A bare to_char() on a timestamptz uses the SESSION zone, which is why an
   // event typed as 20:00 in Berlin displayed as whatever o'clock the server
@@ -167,7 +172,7 @@ export async function getEventDetail(db: Database, eventId: string): Promise<Eve
             to_char(starts_at AT TIME ZONE COALESCE(timezone,'UTC'), 'Dy DD Mon YYYY') date,
             to_char(starts_at AT TIME ZONE COALESCE(timezone,'UTC'), 'HH24:MI') time,
             location, admission, price_cents, currency, streams, ticket_url, host_kind, host_id, capacity,
-            location_kind, recurrence, access_mode, archetype, parent_event_id
+            location_kind, recurrence, access_mode, archetype, parent_event_id, cancelled_at, cancel_message, slug
      FROM event WHERE id=$1`, [eventId])).rows[0];
   if (!e) return null;
   const counts: any = { going: 0, not_going: 0, stream: 0, interested: 0, pending: 0 };
@@ -196,8 +201,68 @@ export async function getEventDetail(db: Database, eventId: string): Promise<Eve
     streams: e.streams ?? {}, ticketUrl: e.ticket_url,
     hostKind: e.host_kind, hostId: e.host_id, hostName: host, capacity: e.capacity,
     locationKind: e.location_kind ?? 'in_person', recurrence: e.recurrence ?? 'none', accessMode: e.access_mode ?? 'ticket',
-    archetype: e.archetype ?? 'single', parentEventId: e.parent_event_id ?? null, counts,
+    archetype: e.archetype ?? 'single', parentEventId: e.parent_event_id ?? null,
+    cancelledAt: e.cancelled_at ?? null, cancelMessage: e.cancel_message ?? null, slug: e.slug ?? null, counts,
   };
+}
+
+// --- edit / cancel an event -------------------------------------------------
+// Only SAFE fields are editable — never the date/time (people planned around it;
+// moving it silently is worse than cancelling). The organiser edits the address,
+// title, description, cover and stream links; to change the date they cancel and
+// recreate, which is honest and re-triggers everyone's decision to attend.
+// --- custom event URL (Horda Plus) ----------------------------------------
+// Slug rules: 3–40 chars, lowercase letters/numbers/hyphens, not a bare uuid.
+export function slugify(raw: string): string {
+  return (raw || '').toLowerCase().normalize('NFKD').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40);
+}
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+// Resolve an /e/:x param that may be a uuid OR a custom slug → the event uuid.
+export async function resolveEventId(db: Database, idOrSlug: string): Promise<string | null> {
+  if (!idOrSlug) return null;
+  if (UUID_RE.test(idOrSlug)) return idOrSlug;
+  const r = (await db.query<{ id: string }>(`SELECT id FROM event WHERE lower(slug)=lower($1) LIMIT 1`, [idOrSlug])).rows[0];
+  return r?.id ?? null;
+}
+
+// Set (or clear, with '') an event's custom slug. Returns an error string on a
+// bad/taken slug so the caller can surface it. Caller enforces the Plus gate.
+export async function setEventSlug(db: Database, eventId: string, raw: string): Promise<{ ok: boolean; slug: string | null; error?: string }> {
+  const s = slugify(raw);
+  if (raw.trim() === '') { await db.query(`UPDATE event SET slug=NULL WHERE id=$1`, [eventId]); return { ok: true, slug: null }; }
+  if (s.length < 3) return { ok: false, slug: null, error: 'Use at least 3 letters or numbers.' };
+  const taken = (await db.query(`SELECT 1 FROM event WHERE lower(slug)=$1 AND id<>$2`, [s, eventId])).rows.length > 0;
+  if (taken) return { ok: false, slug: null, error: `“${s}” is already taken.` };
+  await db.query(`UPDATE event SET slug=$2 WHERE id=$1`, [eventId, s]);
+  return { ok: true, slug: s };
+}
+
+export async function updateEventFields(db: Database, eventId: string, f: {
+  title?: string; description?: string | null; coverUrl?: string | null; location?: string | null; streams?: Streams;
+}): Promise<void> {
+  const sets: string[] = []; const vals: any[] = [eventId]; let i = 2;
+  const put = (col: string, v: any) => { sets.push(`${col}=$${i++}`); vals.push(v); };
+  if (f.title !== undefined) put('name', (f.title || 'Untitled event').slice(0, 200));
+  if (f.description !== undefined) put('description', f.description);
+  if (f.coverUrl !== undefined) put('cover_url', f.coverUrl);
+  if (f.location !== undefined) put('location', f.location);
+  if (f.streams !== undefined) put('streams', JSON.stringify(f.streams));
+  if (!sets.length) return;
+  await db.query(`UPDATE event SET ${sets.join(', ')} WHERE id=$1`, vals);
+}
+export async function cancelEvent(db: Database, eventId: string, message: string): Promise<void> {
+  await db.query(`UPDATE event SET cancelled_at=now(), cancel_message=$2 WHERE id=$1 AND cancelled_at IS NULL`, [eventId, (message || '').slice(0, 1000)]);
+}
+// Everyone we owe a heads-up on cancel: people holding a spot (claim), RSVP'd
+// (attendance), and — because they raised their hand for it — fans who liked it.
+export async function eventAudienceFans(db: Database, eventId: string): Promise<string[]> {
+  const rows = (await db.query<{ fan_id: string }>(
+    `SELECT fan_id FROM (
+       SELECT fan_id FROM claim WHERE event_id=$1 AND voided_at IS NULL
+       UNION SELECT fan_id FROM attendance WHERE event_id=$1
+     ) x`, [eventId])).rows;
+  return rows.map(r => r.fan_id);
 }
 
 // events shown on a profile = the ones it hosts + the ones it has featured (cross-posted).
@@ -208,7 +273,7 @@ export async function listProfileEvents(db: Database, kind: string, id: string):
   const liveExpr = `(starts_at IS NOT NULL AND starts_at <= now() AND now() < COALESCE(ends_at, starts_at + interval '3 hours'))`;
   const pastExpr = `(starts_at IS NOT NULL AND now() >= COALESCE(ends_at, starts_at + interval '3 hours'))`;
   const hosted = (await db.query<any>(
-    `SELECT id, name title, to_char(starts_at AT TIME ZONE COALESCE(timezone,'UTC'),'DD Mon') date, starts_at, ${liveExpr} live, ${pastExpr} past FROM event WHERE host_kind=$1 AND host_id=$2`, [kind, id])).rows
+    `SELECT id, name title, to_char(starts_at AT TIME ZONE COALESCE(timezone,'UTC'),'DD Mon') date, starts_at, ${liveExpr} live, ${pastExpr} past FROM event WHERE host_kind=$1 AND host_id=$2 AND cancelled_at IS NULL`, [kind, id])).rows
     .map(r => ({ id: r.id, title: r.title, date: r.date ?? undefined, startsAt: r.starts_at ?? null, live: !!r.live, past: !!r.past }));
   const featured = (await db.query<any>(
     `SELECT e.id, e.name title, to_char(e.starts_at AT TIME ZONE COALESCE(e.timezone,'UTC'),'DD Mon') date, e.starts_at, e.host_kind, e.host_id, ${liveExpr} live, ${pastExpr} past

@@ -252,8 +252,8 @@ export function formatPicker(d: {
     const price = f.requiresTicket && f.priceCents ? money(f.priceCents) : 'Free';
     const paid = f.requiresTicket && !!f.priceCents;
     const label = isFull ? 'Join the waitlist'
-      : f.kind === 'stream' ? (f.requiresTicket ? `Get access · ${price}` : `Stream on ${esc(f.label)}`)
-      : (paid ? `Get ticket · ${price}` : "I'll be there");
+      : f.kind === 'stream' ? (f.requiresTicket ? `Get access · ${price}` : `Claim your spot — watch on ${esc(f.label)}`)
+      : (paid ? `Get ticket · ${price}` : 'Claim your spot');
     const left = (remaining == null || !showCount) ? '' : isFull ? 'Full' : `${remaining} left`;
     // Never offer more spots than are actually left, or the stepper promises
     // something the server will refuse.
@@ -361,7 +361,7 @@ export function claimCta(d: { eventId: string; remaining: number | null; full: b
   const isLink = d.accessMode === 'link';
   const paid = !!d.priceLabel && d.priceLabel !== 'Free';
   // Verb matches how they get in: link = "Get access", ticket = claim/get ticket.
-  const verb = d.full ? 'Join the waitlist' : isLink ? (paid ? `Get access · ${d.priceLabel}` : 'Get access') : (paid ? `Get ticket · ${d.priceLabel}` : 'Claim your spot');
+  const verb = d.full ? 'Join the waitlist' : isLink ? (paid ? `Get access · ${d.priceLabel}` : 'Claim your spot') : (paid ? `Get ticket · ${d.priceLabel}` : 'Claim your spot');
   // Already in → no spots-left anywhere below. Same rule as formatPicker: the
   // countdown is for people deciding, not for people who've decided.
   if (d.mine) {
@@ -386,7 +386,7 @@ export function claimCta(d: { eventId: string; remaining: number | null; full: b
 
   const doorBlock = (w: NonNullable<typeof d.ways>[number]) => {
     const price = w.requiresTicket && w.priceCents ? eur(w.priceCents) : 'Free';
-    const label = w.full ? 'Join the waitlist' : w.kind === 'stream' ? (w.requiresTicket ? `Get access · ${price}` : 'Claim your spot to watch') : (w.requiresTicket ? `Get ticket · ${price}` : 'Claim your spot');
+    const label = w.full ? 'Join the waitlist' : w.kind === 'stream' ? (w.requiresTicket ? `Get access · ${price}` : 'Claim your spot — watch') : (w.requiresTicket ? `Get ticket · ${price}` : 'Claim your spot');
     const left = w.remaining == null ? (w.kind === 'stream' ? 'Unlimited' : '') : w.full ? 'Full' : `${w.remaining} left`;
     return `<form method="post" action="${claimAction}" class="door">
       <input type="hidden" name="format_id" value="${esc(w.id)}">

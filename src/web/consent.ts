@@ -28,6 +28,8 @@ export const CONSENT_POLICY_VERSION = 'rights-v1/2026-07-20';
 
 type ScopeCopy = { key: string; title: string; body: string };
 
+// English-only, matching the rest of the product. (Kept as a per-lang shape so a
+// second language can be reintroduced later without touching callers.)
 const COPY: Record<Lang, { heading: string; intro: string; optional: string; withdraw: string; scopes: ScopeCopy[] }> = {
   en: {
     heading: 'A couple of optional permissions',
@@ -41,20 +43,6 @@ const COPY: Record<Lang, { heading: string; intro: string; optional: string; wit
       { key: 'data_processing',
         title: 'Let Horda process my competitive record to improve my experience',
         body: 'Use of your results and entries to power your profile, matchmaking and reminders, beyond what running the service strictly requires.' },
-    ],
-  },
-  de: {
-    heading: 'Ein paar optionale Einwilligungen',
-    intro: 'Diese sind optional und unabhängig von der Anmeldung. Du kannst dich registrieren, anmelden und teilnehmen, ohne etwas anzukreuzen – und deine Wahl jederzeit in den Einstellungen ändern.',
-    optional: 'Optional – wenn du nichts ankreuzt, ändert sich an deinem Konto nichts.',
-    withdraw: 'Du kannst jede Einwilligung jederzeit widerrufen. Der Widerruf stoppt auch die künftige Nutzung von allem, was darauf beruht.',
-    scopes: [
-      { key: 'likeness_event_media',
-        title: 'Mein Bild darf in Medien von Events erscheinen, an denen ich teilnehme',
-        body: 'Fotos und Clips der Events, zu denen du dich anmeldest, dürfen dich zeigen – wie ein Spielbericht oder ein Zielfoto. Nur die Events, an denen du wirklich teilgenommen hast.' },
-      { key: 'data_processing',
-        title: 'Horda darf meine Wettkampfdaten verarbeiten, um mein Erlebnis zu verbessern',
-        body: 'Nutzung deiner Ergebnisse und Anmeldungen für Profil, Matchmaking und Erinnerungen – über das hinaus, was der Betrieb des Dienstes zwingend erfordert.' },
     ],
   },
 };
