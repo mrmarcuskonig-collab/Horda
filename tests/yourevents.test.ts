@@ -10,7 +10,7 @@ const ok = (n: string, c: boolean) => { console.log(`  ${c ? 'PASS' : 'FAIL'}  $
 console.log('\n[your-events] profile page structure + co-running band');
 
 const html = renderFanHome({
-  fanId: 'fan-1', fanName: 'Marcus',
+  fanId: 'fan-1', fanName: 'Marcus König', handle: 'marcusk',
   home: { notifications: [{ kind: 'result', headline: 'Should NOT show here', href: null, createdAt: '', read: false }] } as any,
   follows: [{ type: 'athlete', id: 'a1', name: 'Rico' }],
   pages: [{ kind: 'athlete', id: 'a1', name: 'Rico', events: [{ id: 'e-run', title: 'RUN_EVENT', date: 'Sat' }] }],
@@ -18,6 +18,8 @@ const html = renderFanHome({
   coRunning: [{ eventId: 'e-co', title: 'CORUN_EVENT', date: 'Fri', hostName: 'FC Rival' }],
 });
 
+ok('profile-first header: "Your Horda" + first name + @handle → settings', html.includes('Your Horda') && html.includes('Hi, Marcus') && html.includes('@marcusk') && html.includes('class="yhhandle"'));
+ok('no @handle → prompt to pick one', renderFanHome({ fanId: 'f', fanName: 'Sam', handle: null, home: { notifications: [] } as any, follows: [] }).includes('Pick a @handle'));
 ok('titled "Your events" (top selector, active)', html.includes('>Your events</a>'));
 ok('selector has Settings and Log out', html.includes('href="/settings"') && html.includes('href="/logout"'));
 ok('band: You\'re running', html.includes("You're running"));

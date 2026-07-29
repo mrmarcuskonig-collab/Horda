@@ -71,14 +71,14 @@ ok('claim search finds the club + offers Claim', cs.includes('FC Beispiel') && c
 console.log('\n[onboarding · /about marketing site (4 pages + nav)]');
 const about = await (await fetch(base + '/about')).text();
 ok('/about main: nav links to the three pages', about.includes('href="/about/creators"') && about.includes('href="/about/features"') && about.includes('href="/about/pricing"'));
-ok('/about main: four audience cards (organisers/athletes/clubs/fans) each with an outcome + CTA', about.includes('class="audcard"') && about.includes('Event organisers') && about.includes('Athletes') && about.includes('Clubs &amp; federations') && about.includes('Fans') && about.includes('How it works, in one match') && about.includes('ticket buyers'));
+ok('/about main: four audience beats (organisers/athletes/clubs/fans) + poster wall + sign-off', about.includes('class="beat"') && about.includes('>Organisers<') && about.includes('>Athletes<') && about.includes('>Clubs &amp; federations<') && about.includes('>Fans<') && about.includes('class="wall"') && about.includes('See you at the gate'));
 ok('/about main is a standalone marketing site — no app rail/bottom bar', !about.includes('class="bnav"') && !about.includes('class="drail"'));
 const cr = await (await fetch(base + '/about/creators')).text();
 ok('/about/creators: organisers + athletes + clubs + fans + CTAs', cr.includes('id="organisers"') && cr.includes('id="athletes"') && cr.includes('id="clubs"') && cr.includes('id="fans"') && cr.includes('/onboarding/athlete') && cr.includes('/onboarding/claim'));
 const ft = await (await fetch(base + '/about/features')).text();
-ok('/about/features: outcome-led + fight-night walkthrough', ft.includes('Sell tickets. Scan them in') && ft.includes('A fight night, end to end') && ft.includes('promo link'));
+ok('/about/features: outcome-led + fight-night walkthrough', ft.includes('Sell tickets. Scan') && ft.includes('See who drove them') && ft.includes('A fight night, end to end') && ft.includes('promo link'));
 const pr = await (await fetch(base + '/about/pricing')).text();
-ok('/about/pricing: ticketing-led (free events, flat 10%, attribution free)', pr.includes('flat 10%') && pr.includes('Free events') && pr.includes('Attribution') && !pr.includes('Clubhouse'));
+ok('/about/pricing: Luma-style two-tier (Free 5% + Horda Plus 0% fee), config-driven', pr.includes('Horda Free') && pr.includes('Horda Plus') && pr.includes('5% platform fee') && pr.includes('0% platform fee') && !pr.includes('Clubhouse'));
 ok('nav active state highlights the current page', cr.includes('class="navitem on"'));
 ok('old /athletes + /clubs redirect into /about/creators', (await fetch(base + '/athletes', { redirect: 'manual' })).headers.get('location') === '/about/creators' && (await fetch(base + '/clubs', { redirect: 'manual' })).headers.get('location') === '/about/creators');
 

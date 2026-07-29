@@ -102,7 +102,7 @@ const page = await (await fetch(base + '/e/' + fanEv.id + '?guest=1')).text();
 ok('the fan is asked to choose how to be there', page.includes('Choose how you want to be there'));
 ok('both doors render, each posting its own format', (page.match(/name="format_id"/g) || []).length === 2);
 ok('the in-person door shows its price', page.includes('Get ticket · €25'));
-ok('the stream door shows separately, free', page.includes('Stream on YouTube'));
+ok('the stream door shows separately, free', page.includes('Claim your spot — watch on YouTube'));
 ok('each door shows ITS OWN remaining count', page.includes('200 left'));
 // Quantity is a STEPPER, not a dropdown: almost everyone takes one ticket, so
 // the default state needs no interaction at all and "+" adds a person. It posts

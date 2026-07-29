@@ -59,18 +59,18 @@ ok('no resale teaser anywhere on the event page', !/resale/i.test(evPage.replace
 
 // The flag is what makes the AGB true, so assert the contract still says so.
 const agb = await (await fetch(`${base}/agb`)).text();
-ok('AGB states Horda offers no resale', agb.includes('keinen Weiterverkauf von Tickets an') && agb.includes('personengebunden'));
-// "derzeit nicht angeboten" (currently not offered) framed this as temporary. It
-// isn't — it's a position, and the contract should say what we mean.
-ok('AGB frames it as a decision, not a temporary gap', agb.includes('bewusste Entscheidung') && agb.includes('keine vorübergehende Einschränkung'));
-ok('AGB states plainly there is no secondary market', agb.includes('kein Zweitmarkt') || agb.includes('keinen Zweitmarkt'));
+ok('AGB states Horda offers no resale', agb.includes('no resale of tickets') && agb.includes('identity-bound'));
+// "currently not offered" framed this as temporary. It isn't — it's a position,
+// and the contract should say what we mean.
+ok('AGB frames it as a decision, not a temporary gap', agb.includes('deliberate decision') && agb.includes('not a temporary limitation'));
+ok('AGB states plainly there is no secondary market', agb.includes('no secondary market on Horda'));
 // If you can't go, the answer is the organiser — not a marketplace. The contract
 // has to give the fan somewhere to actually go.
-ok('AGB points a stuck fan at the organiser', agb.includes('wenden Sie sich bitte an die Veranstalterin'));
-// Cross-references in a contract must resolve. § 4 pointed at "Ziffer 8"
-// (Nennung von Dritten) when resale is Ziffer 9 — an off-by-one in a term.
-ok('the resale cross-reference points at the resale clause', agb.includes('findet nicht statt (siehe Ziffer 9)'));
-ok('Ziffer 9 is in fact the resale clause', /<h2>9\. Kein Weiterverkauf<\/h2>/.test(agb));
+ok('AGB points a stuck fan at the organiser', agb.includes('please contact the organiser'));
+// Cross-references in a contract must resolve. Resale is section 9; the pointer
+// in the tickets clause must aim there, not off-by-one.
+ok('the resale cross-reference points at the resale clause', agb.includes('no resale via Horda (see section 9)'));
+ok('section 9 is in fact the resale clause', /<h2>9\. No resale<\/h2>/.test(agb));
 
 // --- 2. THE LOGIC IS RIGHT ANYWAY ----------------------------------------
 const fanA = (await db.query<{ id: string }>(`INSERT INTO fan (display_name) VALUES ('Seller A') RETURNING id`)).rows[0].id;

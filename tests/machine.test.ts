@@ -147,7 +147,7 @@ ok('llms.txt: points at the machine changelog, not just the HTML one', llms.incl
 
 // The point of llms.txt is that a model gets the facts WITHOUT crawling. If it
 // has to infer the business model or the legal posture, it will infer wrong.
-ok('llms.txt states the business model outright', /10%/.test(llms));
+ok('llms.txt states the business model outright', /\b5%/.test(llms) && /Plus/.test(llms));
 ok('llms.txt states the platform-not-organiser position', /not the event organiser/i.test(llms));
 ok('llms.txt states the no-resale position', /does not offer ticket resale/i.test(llms));
 ok('llms.txt states that fan activity is private', /activity is private/i.test(llms));

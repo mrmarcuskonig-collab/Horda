@@ -106,6 +106,10 @@ ok('apple url is the documented endpoint', appleMapsUrl('Poststadion, Berlin').s
 ok('the query is encoded (commas/spaces would break the URL)', googleMapsUrl('A, B').includes('A%2C%20B'));
 const ch = mapsChooser({ query: 'Poststadion, Berlin' });
 ok('chooser offers BOTH maps', ch.includes('Google Maps') && ch.includes('Apple Maps'));
+// The click-through must actually open: URLs ride on data-url and are wired in the
+// script — NOT an inline onclick (whose embedded double-quoted URL broke the button).
+ok('each option carries a real data-url (google + apple)', /data-maps="google" data-url="https:\/\/www\.google\.com\/maps/.test(ch) && /data-maps="apple" data-url="https:\/\/maps\.apple\.com/.test(ch));
+ok('no broken inline onclick on the map buttons', !ch.includes('onclick="(function(btn'));
 ok('chooser works without JS (noscript links)', ch.includes('<noscript>'));
 ok('event page asks which maps instead of hard-linking Google', evPage.includes('data-maps="apple"') && evPage.includes('data-maps="google"'));
 ok('the choice is remembered so it only asks once', evPage.includes("localStorage.setItem(K, which)") || evPage.includes('hz_maps'));

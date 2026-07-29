@@ -20,6 +20,15 @@ ok('Following describes sports too', fol.includes('sports') || fol.includes('Spo
 await post('/unfollow', { target_type: 'sport', target_id: 'esports' });
 ok('a sport can be unfollowed', !(await get('/following')).includes('>Esports<'));
 
+// --- followable cities / regions (search Berlin → follow the city) ---
+const rsearch = await get('/following?q=Berlin');
+ok('searching a city surfaces it as a followable City / region', rsearch.includes('Berlin') && rsearch.includes('City / region'));
+await post('/follow', { target_type: 'region', target_id: 'Berlin' });
+const rfol = await get('/following');
+ok('a followed city shows under a "Cities & regions" group', /Cities &amp; regions · \d/.test(rfol) && rfol.includes('Berlin'));
+await post('/unfollow', { target_type: 'region', target_id: 'Berlin' });
+ok('a city can be unfollowed', !(await get('/following')).includes('Cities &amp; regions'));
+
 // --- item 1: e-sports + digital sports categories ---
 const disc = await get('/?guest=1');
 ok('discover surfaces Esports + Digital sports chips', disc.includes('Esports') && disc.includes('Digital sports'));

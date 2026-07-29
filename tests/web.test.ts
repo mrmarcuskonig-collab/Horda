@@ -256,8 +256,8 @@ ok('form says "Event name", not "Title"', cform.includes('Event name') && !cform
 ok('public/private is the first choice, at the top', cform.includes('ev_vis') && cform.includes('only people with the link'));
 ok('sport sits at the top, defaulted to the host\'s own', cform.includes('name="sport"'));
 ok('optional detail is collapsed so the first screen is the decision', cform.includes('<details class="more"'));
-ok('capacity is opt-in with a waitlist toggle', cform.includes('ev_cap_on') && cform.includes('waitlist_enabled'));
-ok('approval is offered in German too (Genehmigung erforderlich)', cform.includes('Genehmigung'));
+ok('capacity is per-door (Spots), not a duplicate global limit', cform.includes('Spots') && !cform.includes('Limit how many people can come') && !cform.includes('ev_cap_on'));
+ok('approval is asked in English (no German), once', cform.includes('Approval required') && !cform.includes('Genehmigung'));
 ok('the 5 always-visible stream URL fields are gone', !cform.includes('name="youtube"') && !cform.includes('name="twitch"'));
 // The language toggle is a full navigation; without this the form was wiped.
 ok('form state survives a language switch (sessionStorage snapshot/restore)', cform.includes('sessionStorage') && cform.includes('hz_evform_'));
@@ -401,7 +401,7 @@ const mfRes = await fetch(base + '/events', { method: 'POST', headers: { 'conten
 const mfLoc = mfRes.headers.get('location') || '';
 const mfId = (mfLoc.match(/\/e\/([^/?]+)/) || [])[1] || '';
 const mfPage = await get(`/e/${mfId}?guest=1`);
-ok('picker mirrors the "Next up" design (card + notyet + opts buttons)', mfPage.includes('>Attend</h2>') && mfPage.includes('class="notyet"') && mfPage.includes('class="opts"') && mfPage.includes('Stream on TikTok Live') && mfPage.includes('Stream on Sportdeutschland.TV') && !mfPage.includes('class="fmtwrap"'));
+ok('picker mirrors the "Next up" design (card + notyet + opts buttons)', mfPage.includes('>Attend</h2>') && mfPage.includes('class="notyet"') && mfPage.includes('class="opts"') && mfPage.includes('Claim your spot — watch on TikTok Live') && mfPage.includes('Claim your spot — watch on Sportdeutschland.TV') && !mfPage.includes('class="fmtwrap"'));
 ok('in-person shows Get-ticket price; channel links hidden until claim', mfPage.includes('Get ticket · €25') && !mfPage.includes('Channel ↗') && !mfPage.includes('Watch on'));
 ok('name + email entered once; one submit button per format + Can’t attend', (mfPage.match(/name="name"/g) || []).length === 1 && (mfPage.match(/name="format_id"/g) || []).length === 3 && mfPage.includes('Can’t attend'));
 const mfManage = await get(`/manage/${mfId}`);
@@ -461,7 +461,16 @@ ok('ticket-mode pass shows a scannable QR (client-side QR) + door instruction', 
 const checkinPage = await get(`/e/${tkId}/check-in`);
 ok('organizer check-in has a camera QR scanner + manual fallback', checkinPage.includes('jsQR') && checkinPage.includes('hzScan') && checkinPage.includes('Scan a QR ticket') && checkinPage.includes('name="token"'));
 const lkId = await mkEvent({ host_kind: 'athlete', host_id: rico, title: 'Stream Test', starts_at: '2027-06-02T19:00', location_kind: 'online', location: 'https://youtube.com/live/x', admission: 'open', access_mode: 'link' });
-ok('link-mode event: guest CTA says "Get access" (no ticket/QR)', (await get(`/e/${lkId}?guest=1`)).includes('Get access'));
+const lkPage = await get(`/e/${lkId}?guest=1`);
+ok('link-mode event: guest CTA is a claim (Claim your spot / Get access), not a QR "Get ticket"', (lkPage.includes('Claim your spot') || lkPage.includes('Get access')) && !lkPage.includes('Get ticket'));
+// in-person / online / both must display as what they actually are — derived from
+// the doors opened, so an in-person+online event never reads "online only".
+const dispIp = await get(`/e/${await mkEvent({ host_kind: 'club', host_id: club, title: 'Disp IP', starts_at: '2027-07-01T19:00', location_kind: 'in_person', location: 'Poststadion, Berlin', fmt_inperson: '1', ip_cost: 'free' })}?guest=1`);
+const dispOn = await get(`/e/${await mkEvent({ host_kind: 'club', host_id: club, title: 'Disp On', starts_at: '2027-07-02T19:00', location_kind: 'online', fmt_stream: '1', st_cost: 'free', fmt_stream1_url: 'https://youtube.com/live' })}?guest=1`);
+const dispHy = await get(`/e/${await mkEvent({ host_kind: 'club', host_id: club, title: 'Disp Hy', starts_at: '2027-07-03T19:00', location_kind: 'hybrid', location: 'Arena, Berlin', fmt_inperson: '1', ip_cost: 'free', fmt_stream: '1', st_cost: 'free', fmt_stream1_url: 'https://youtube.com/live' })}?guest=1`);
+ok('in-person event shows the venue (not "Online event")', dispIp.includes('Poststadion') && !dispIp.includes('Online event'));
+ok('online event shows "Online event"', dispOn.includes('Online event'));
+ok('in-person + online event shows "In person + streamed" (not online only)', dispHy.includes('In person + streamed'));
 const lkPass = await claimToPass(lkId);
 ok('link-mode pass reveals the link, no QR', lkPass.includes('Open the event link') && !lkPass.includes('id="hzqr"'));
 
@@ -553,7 +562,7 @@ await fetch(base + `/host/club/${club}/connect`, { method: 'POST', headers: { 'c
 const payAcct = (await app.db.query<{ charges_enabled: boolean }>(`SELECT charges_enabled FROM payout_account WHERE host_kind='club' AND host_id=$1`, [club])).rows[0];
 ok('connecting payouts records an enabled account for the host', !!payAcct && payAcct.charges_enabled === true);
 const paidManage2 = await get(`/manage/${cupId}`);
-ok('after connecting, manage shows payouts connected + 10% fee', paidManage2.includes('Payouts connected') && paidManage2.includes('10%'));
+ok('after connecting, manage shows payouts connected + platform fee', paidManage2.includes('Payouts connected') && paidManage2.includes('5%'));
 const payoutsPage = await get(`/manage-payouts/club/${club}`);
 ok('payouts page explains the connected state', payoutsPage.includes('Payments') && payoutsPage.includes('Payouts connected'));
 
