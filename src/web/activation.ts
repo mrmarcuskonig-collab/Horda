@@ -28,17 +28,15 @@ export async function fanChecklist(db: Database, fanId: string): Promise<Checkli
 
 export async function athleteChecklist(db: Database, athleteId: string): Promise<Checklist> {
   const a = (await db.query<{ avatar_url: string | null; banner_url: string | null }>(`SELECT avatar_url, banner_url FROM athlete WHERE id=$1`, [athleteId])).rows[0] ?? { avatar_url: null, banner_url: null };
-  const conns = await n(db, `SELECT count(*)::int n FROM entity_link WHERE child_kind='athlete' AND child_id=$1 AND status='active'`, [athleteId]);
   const events = (await listProfileEvents(db, 'athlete', athleteId)).length;
   const here = `/athlete/${athleteId}`;
   const edit = `${here}/customize`;
-  // Keep first-run light: no tiers, no drops, and social connect is "coming soon"
-  // (we're testing the core loop first). Setup = a real page, the clubs/leagues
-  // you belong to, and your first claimable event.
+  // Keep first-run light: no tiers, no drops, and no "connect to clubs" step —
+  // every entity just follows everyone for now, so setup is a real page and your
+  // first claimable event. (Real club↔athlete relationships come later.)
   const steps: Step[] = [
     { label: 'Your page is live', done: true, href: here },
     { label: 'Add a profile photo & banner', done: !!a.avatar_url && !!a.banner_url, href: edit },
-    { label: 'Connect to your clubs & leagues', done: conns > 0, href: `${here}/connections` },
     { label: 'Schedule your first event', done: events > 0, href: `/host/athlete/${athleteId}/new` },
   ];
   return { title: 'Finish setting up your page', steps, complete: steps.every(s => s.done), storageKey: `hz_act_ath_${athleteId}` };
@@ -47,14 +45,12 @@ export async function athleteChecklist(db: Database, athleteId: string): Promise
 export async function entityChecklist(db: Database, kind: string, id: string): Promise<Checklist> {
   const b = await getBranding(db, kind, id);
   const events = (await listProfileEvents(db, kind, id)).length;
-  const conns = await n(db, `SELECT count(*)::int n FROM entity_link WHERE child_kind=$1 AND child_id=$2 AND status='active'`, [kind, id]);
   const here = `/${kind}/${id}`;
-  // Doctrine: no posts/drops. Clubs can connect up to a league/association;
-  // teams/associations don't have that step.
+  // Doctrine: no posts/drops, and no "connect to a league" step for now — every
+  // entity follows everyone; real org relationships come later.
   const steps: Step[] = [
     { label: 'Page claimed & verified', done: true, href: here },
     { label: 'Set up your look — badge & banner', done: !!b.avatarUrl || !!b.bannerUrl, href: here },
-    ...(kind === 'club' ? [{ label: 'Connect to your league or association', done: conns > 0, href: `${here}/connections` }] : []),
     { label: 'Add your first event', done: events > 0, href: `/host/${kind}/${id}/new` },
   ];
   return { title: 'Finish setting up your page', steps, complete: steps.every(s => s.done), storageKey: `hz_act_${kind}_${id}` };

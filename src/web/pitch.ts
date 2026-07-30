@@ -172,8 +172,8 @@ function aboutShell(active: AboutPage, guest: boolean, title: string, body: stri
   a{color:inherit;text-decoration:none}
   /* Standalone marketing site — NO app chrome (no left rail, no bottom tab bar,
      no peek sheet). The about pages carry the brand, not the product UI. */
-  .mnav{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:14px;padding:13px 22px;border-bottom:1px solid var(--b);position:sticky;top:0;background:var(--scrim);backdrop-filter:blur(12px);z-index:30}
-  .mnav .mark{display:flex;align-items:center;gap:9px;justify-self:center;color:var(--bone)}.mnav .mark svg{display:block}
+  .mnav{display:flex;align-items:center;padding:13px 22px;border-bottom:1px solid var(--b);position:sticky;top:0;background:var(--scrim);backdrop-filter:blur(12px);z-index:30}
+  .mnav .mark{display:flex;align-items:center;gap:9px;color:var(--bone)}.mnav .mark svg{display:block}
   .mnav .mark b{font-size:19px;font-weight:800;letter-spacing:-.02em}
   .links{display:flex;gap:8px;justify-self:start}
   .navitem{position:relative;padding:8px 6px}
@@ -261,10 +261,11 @@ function aboutShell(active: AboutPage, guest: boolean, title: string, body: stri
   .cred{margin-top:9px;font-size:13px;color:var(--mut)}.cred b{color:var(--bone);font-weight:600}
   @media(max-width:600px){.cle{flex-direction:column;gap:5px}.cle .when{flex:none}}
 </style></head><body>
+  ${/* About pages carry the brand, not the product nav. Just the Horda logo, in
+        the same top-left spot as the app's landing header, clicking back into the
+        application — no marketing nav bar. */''}
   <header class="mnav">
-    <nav class="links">${NAV.map(navItem).join('')}</nav>
-    <a class="mark" href="/" aria-label="Horda — home">${ravenMarkCurrent(26)}<b>Horda</b></a>
-    <div class="right">${guest ? `<a class="btn ghost sm" href="/login">Log in</a>` : ''}<a class="btn sm" href="${createHref}">Create an event</a></div>
+    <a class="mark" href="/" aria-label="Horda — back to the app">${ravenMarkCurrent(26)}<b>Horda</b></a>
   </header>
   <div class="wrap">${body}</div>
   <div class="foot"><div class="fl"><a href="/about/creators">Who it’s for</a><a href="/about/features">Features</a><a href="/about/pricing">Pricing</a><a href="/about">Overview</a><a href="/changelog">Changelog</a>${discordFootLink()}<a href="/agb">Terms</a><a href="/impressum">Legal notice</a><a href="/datenschutz">Privacy</a></div>The events home for sports and competitive culture. joinhorda.com</div>

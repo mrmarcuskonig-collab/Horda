@@ -16,6 +16,12 @@ export async function getBranding(db: Database, type: string, id: string): Promi
   return r ? { tagline: r.tagline, avatarUrl: r.avatar_url, bannerUrl: r.banner_url, links: r.links ?? {} } : { tagline: null, avatarUrl: null, bannerUrl: null, links: {} };
 }
 
+// Rename a club/team/association. The display name lives on the entity's own
+// table (unlike branding, which is in entity_branding), so it's a plain update.
+export async function updateEntityName(db: Database, type: 'club' | 'team' | 'association', id: string, name: string): Promise<void> {
+  const n = (name || '').trim().slice(0, 80);
+  if (n) await db.query(`UPDATE ${type} SET name=$2 WHERE id=$1`, [id, n]);
+}
 export async function getClub(db: Database, id: string) { return (await db.query<any>(`SELECT id,name FROM club WHERE id=$1`, [id])).rows[0]; }
 export async function getTeamsOfClub(db: Database, clubId: string) {
   return (await db.query<any>(`SELECT t.id, t.name, t.division, t.gender, s.name sport FROM team t JOIN sport s ON s.id=t.sport_id WHERE t.club_id=$1 ORDER BY t.name`, [clubId])).rows;

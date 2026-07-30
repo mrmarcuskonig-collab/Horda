@@ -59,12 +59,17 @@ export function renderPass(d: {
     : p.status === 'waitlisted' ? `<span class="passtag">Waitlisted</span>`
       : p.status === 'approved' ? `<span class="passtag">Awaiting approval</span>`
         : isTicket ? `<span class="passtag">Ticket · show this QR at the door</span>` : `<span class="passtag">You're in</span>`;
-  // Client-side QR of the raw token — the organizer's scanner reads it → check-in.
+  // The QR encodes a CHECK-IN URL, not a bare token — so the organiser can scan it
+  // with their phone's NATIVE camera (which opens the link) and never depends on an
+  // in-app QR decoder. Opening it as the event owner checks the fan in; opening it
+  // as anyone else just shows the pass. The in-app scanner reads the same QR too.
+  const origin = d.verifyUrl.replace(/\/pass\/.*$/, '');
+  const checkinUrl = `${origin}/e/${p.eventId}/scan/${p.token}`;
   const qrBlock = `<div class="qrwrap"><div id="hzqr"></div></div>
-    <p class="mut" style="font-size:12.5px;margin:10px 0 2px">Show this QR at the door — the organizer scans it to check you in.</p>
+    <p class="mut" style="font-size:12.5px;margin:10px 0 2px">Show this QR at the door — the organizer scans it (any camera app works) to check you in.</p>
     <details style="margin-top:6px"><summary class="mut" style="font-size:12px;cursor:pointer">Can't scan? Show the code</summary><div class="code" style="margin-top:8px">${esc(p.token.replace(/(.{4})/g, '$1 ').trim())}</div></details>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-    <script>(function(){function d(){if(!window.QRCode){return setTimeout(d,120)}var el=document.getElementById('hzqr');if(el&&!el.hasChildNodes()){new QRCode(el,{text:${JSON.stringify(p.token)},width:208,height:208,colorDark:'#0B0B0C',colorLight:'#ffffff',correctLevel:window.QRCode.CorrectLevel.M})}}d()})();</script>`;
+    <script>(function(){function d(){if(!window.QRCode){return setTimeout(d,120)}var el=document.getElementById('hzqr');if(el&&!el.hasChildNodes()){new QRCode(el,{text:${JSON.stringify(checkinUrl)},width:208,height:208,colorDark:'#0B0B0C',colorLight:'#ffffff',correctLevel:window.QRCode.CorrectLevel.M})}}d()})();</script>`;
   const linkBlock = accessLink
     ? `<a class="rb p" style="display:block;margin:0 0 8px;padding:13px" href="${esc(accessLink)}" target="_blank" rel="noopener">${isStream ? `Watch on ${esc(p.formatLabel || 'the stream')} ↗` : 'Open the event link ↗'}</a><p class="mut" style="font-size:12px">Saved to your pass — we'll send it again before it starts.</p>`
     : `<div class="mut" style="font-size:13.5px">${p.location ? `Where: <b style="color:var(--bone)">${esc(p.location)}</b>` : 'The organizer will share the details here.'}</div>`;
@@ -123,7 +128,7 @@ export function renderCheckin(d: { eventId: string; title: string; claimed: numb
     ${banner}
     <div class="scanbox">
       <button type="button" id="scanbtn" class="scanbtn" onclick="hzScan()">📷 Scan a QR ticket</button>
-      <div id="scanmsg" class="mut" style="font-size:12.5px;margin-top:8px">Point your camera at the fan's ticket QR — it checks them in automatically.</div>
+      <div id="scanmsg" class="mut" style="font-size:12.5px;margin-top:8px">Point your camera at the fan's ticket QR — it checks them in automatically. Tip: you can also just scan it with your phone's normal camera app — it opens straight to check-in.</div>
       <video id="cam" playsinline muted></video>
       <canvas id="cv" style="display:none"></canvas>
     </div>
@@ -132,12 +137,14 @@ export function renderCheckin(d: { eventId: string; title: string; claimed: numb
       <div class="row" style="margin-top:10px"><button type="submit">Check in</button></div>
     </form>
     <p class="mut" style="font-size:12px">Phone-only, no hardware. If a fan can't show a QR, type their code. Offline queueing lands with the Wallet pass.</p>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jsQR/1.4.0/jsQR.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
     <script>(function(){
       var stream=null, running=false, detector=null;
       function el(id){return document.getElementById(id);}
-      // Accept the raw token whether the QR encodes just the code or a full URL.
-      function extract(s){s=(s||'').trim();var u=s.match(/[?&]token=([0-9a-fA-F]{12,})/)||s.match(/\\/pass\\/([0-9a-fA-F]{12,})/);if(u)return u[1];var m=s.match(/[0-9a-fA-F]{12,}/);return m?m[0]:s;}
+      // Pull the token from whatever the QR encodes — the /scan/<token> or /pass/<token>
+      // check-in URL, a ?token= link, or a bare code. The /scan/ and /pass/ matches come
+      // FIRST so we don't accidentally grab a hex run from the event UUID in the path.
+      function extract(s){s=(s||'').trim();var u=s.match(/\\/scan\\/([0-9a-fA-F]{12,})/)||s.match(/\\/pass\\/([0-9a-fA-F]{12,})/)||s.match(/[?&]token=([0-9a-fA-F]{12,})/);if(u)return u[1];var m=s.match(/[0-9a-fA-F]{12,}/);return m?m[0]:s;}
       function found(raw){
         if(!running)return; running=false;
         el('tokfield').value=extract(raw);
@@ -154,7 +161,11 @@ export function renderCheckin(d: { eventId: string; title: string; claimed: numb
         btn.style.display='none';v.style.display='block';msg.textContent='Starting camera…';
         navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'},width:{ideal:1280},height:{ideal:720}},audio:false}).then(function(s){
           stream=s;v.srcObject=s;v.setAttribute('playsinline','');v.muted=true;running=true;
-          var start=function(){msg.textContent='Point the camera at the ticket QR — fill the frame.';loop();};
+          var start=function(){msg.textContent='Point the camera at the ticket QR — fill the frame.';loop();
+            // If neither a native detector nor jsQR is available after a moment (e.g.
+            // the CDN is blocked on this network), the in-app scan can't read — point
+            // the organiser at the two paths that always work.
+            setTimeout(function(){if(running&&!detector&&!window.jsQR){msg.textContent='Scan with your phone\\'s camera app instead (it opens straight to check-in), or type the code below.';}},1800);};
           v.onloadedmetadata=function(){var p=v.play();if(p&&p.catch)p.catch(function(){});start();};
           // Some browsers fire play readiness without loadedmetadata — belt & braces.
           if(v.readyState>=1){var p=v.play();if(p&&p.catch)p.catch(function(){});start();}
@@ -289,11 +300,14 @@ export function formatPicker(d: {
        <div class="opts" style="margin-top:10px"><a class="btn" href="/pass/${esc(d.mine.token)}">View your pass →</a></div>`
     : `<form method="post" action="${claimAction}">${guestFields}
          <div class="notyet">${d.formats.length > 1 ? 'Choose how you want to be there:' : "You're not attending yet."}</div>
+         ${d.formats.some(f => f.requiresTicket && !!f.priceCents) ? `<details class="promocode"><summary>Have a promo code?</summary><input name="promo_code" placeholder="Enter code" autocomplete="off" maxlength="24" class="promoin"></details>` : ''}
          <div class="doors opts">${d.formats.map(doorFor).join('')}</div>
        </form>
        <div class="opts" style="margin-top:10px">${cantAttend}</div>`;
   return `<section class="card"><h2>Attend</h2>${inner}${summary}
     <style>.notyet{color:var(--mut);margin-bottom:10px}.opts{display:flex;gap:8px;flex-wrap:wrap}.opts form{display:inline}.going{font-weight:800}
+      .promocode{margin:0 0 12px}.promocode>summary{cursor:pointer;color:var(--mut);font-size:13px;list-style:none}.promocode>summary::-webkit-details-marker{display:none}
+      .promoin{display:block;margin-top:8px;background:var(--s);border:1px solid var(--b);border-radius:10px;color:var(--bone);padding:9px 12px;font:inherit;text-transform:uppercase;letter-spacing:1px;max-width:220px}
       .doors{display:grid;gap:10px}
       .door{border:1px solid var(--b);border-radius:14px;padding:13px 14px;background:var(--s)}
       .door .dhead{display:flex;justify-content:space-between;align-items:baseline;gap:10px}

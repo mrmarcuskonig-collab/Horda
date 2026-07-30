@@ -317,7 +317,7 @@ export function shareMenu(o: { url: string; title?: string; text?: string; cls?:
   const ig = ico('<path d="M12 2.2c3.2 0 3.6 0 4.9.1 1.2.1 1.8.2 2.2.4.6.2 1 .5 1.4.9.4.4.7.8.9 1.4.2.4.4 1 .4 2.2.1 1.3.1 1.7.1 4.9s0 3.6-.1 4.9c-.1 1.2-.2 1.8-.4 2.2-.2.6-.5 1-.9 1.4-.4.4-.8.7-1.4.9-.4.2-1 .4-2.2.4-1.3.1-1.7.1-4.9.1s-3.6 0-4.9-.1c-1.2-.1-1.8-.2-2.2-.4-.6-.2-1-.5-1.4-.9-.4-.4-.7-.8-.9-1.4-.2-.4-.4-1-.4-2.2-.1-1.3-.1-1.7-.1-4.9s0-3.6.1-4.9c.1-1.2.2-1.8.4-2.2.2-.6.5-1 .9-1.4.4-.4.8-.7 1.4-.9.4-.2 1-.4 2.2-.4 1.3-.1 1.7-.1 4.9-.1zm0 3.3a6.5 6.5 0 1 0 0 13 6.5 6.5 0 0 0 0-13zm0 10.7a4.2 4.2 0 1 1 0-8.4 4.2 4.2 0 0 1 0 8.4zm6.8-11a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0z"/>');
   const link = `<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M10 13.5a3.5 3.5 0 0 0 5 0l3-3a3.5 3.5 0 1 0-5-5l-1.5 1.5"/><path d="M14 10.5a3.5 3.5 0 0 0-5 0l-3 3a3.5 3.5 0 1 0 5 5L12.5 17"/></svg>`;
   // Resolve relative → absolute at click time so one snippet works on any page.
-  const abs = `(function(r){return r.charAt(0)==='/'?location.origin+r:r})('${u}')`;
+  const abs = `(function(r){return !r?location.href:(r.charAt(0)==='/'?location.origin+r:r)})('${u}')`;
   const js = `(function(k,b){var U=${abs},T=${JSON.stringify(txt)};
     if(k==='wa'){open('https://wa.me/?text='+encodeURIComponent(T+' '+U),'_blank','noopener')}
     else if(k==='x'){open('https://twitter.com/intent/tweet?url='+encodeURIComponent(U)+'&text='+encodeURIComponent(T),'_blank','noopener')}
@@ -331,6 +331,22 @@ export function shareMenu(o: { url: string; title?: string; text?: string; cls?:
     <button type="button" class="shbtn" onclick="${js}('ig',this)">${ig} Instagram</button>
     <button type="button" class="shbtn" onclick="${js}('copy',this)">${link} Copy link</button>
   </div>`;
+}
+
+// A single "Share" button that opens a popover of NAMED targets (WhatsApp / X /
+// Instagram / copy). Self-contained: carries its own styles so it works on any
+// page (profile, entity shell) without depending on global CSS being present.
+export function shareProfileMenu(o: { url?: string; title?: string; text?: string; cls?: string } = {}): string {
+  const ico = `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="18" cy="5" r="2.6"/><circle cx="6" cy="12" r="2.6"/><circle cx="18" cy="19" r="2.6"/><path d="m8.3 10.7 7.4-4.4M8.3 13.3l7.4 4.4"/></svg>`;
+  return `<details class="shpop ${o.cls || ''}"><summary class="btn ghost join" aria-label="Share">${ico}<span>Share</span></summary>
+    <div class="shpop-body">${shareMenu({ url: o.url || '', title: o.title, text: o.text })}</div>
+    <style>${SHMENU_CSS}
+      .shpop{position:relative;display:inline-block;list-style:none}
+      .shpop>summary{list-style:none;display:inline-flex;align-items:center;gap:7px;cursor:pointer}
+      .shpop>summary::-webkit-details-marker{display:none}
+      .shpop-body{position:absolute;z-index:40;top:calc(100% + 8px);left:0;background:var(--ink);border:1px solid var(--b);border-radius:14px;padding:10px;box-shadow:0 12px 40px rgba(0,0,0,.5);min-width:210px}
+      .shpop .shmenu{flex-direction:column}
+      .shpop .shmenu .shbtn{justify-content:flex-start;width:100%}</style></details>`;
 }
 
 export const SHMENU_CSS = `
@@ -371,7 +387,11 @@ export function verifiedBadge(): string {
  * broken by construction — the next caller to pass null would reintroduce it.
  */
 function profileHref(o: { guest: boolean; fanId: string | null }): string {
-  return (o.guest || !o.fanId) ? '/signup' : `/fan/${o.fanId}`;
+  // Profile lands on your PUBLIC profile as a visitor sees it (Instagram-style),
+  // not the "Your events" dashboard. `/me` resolves per-request to your owned
+  // page (or the dashboard if you have none) — so the nav never needs to know
+  // your entity id, and can't emit a broken /fan/ link.
+  return (o.guest || !o.fanId) ? '/signup' : '/me';
 }
 
 // Instagram-style persistent bottom tab bar. Familiar icons, clear active state.

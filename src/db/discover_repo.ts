@@ -109,6 +109,9 @@ export async function getDiscover(db: Database, filter: { sport?: string; region
          -- the query, not by hoping no UI links to them.
          AND e.visibility <> 'unlisted'
          AND e.cancelled_at IS NULL
+         -- Sub-events (a race within a running event, a bout on a fight card) are
+         -- reached only from their main event page — never surfaced in discovery.
+         AND e.parent_event_id IS NULL
          AND (e.starts_at IS NULL OR now() < COALESCE(e.ends_at, e.starts_at + interval '3 hours'))
      ) q
      WHERE ($1::text IS NULL OR q.evsport = $1)

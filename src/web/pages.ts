@@ -3,7 +3,7 @@ import { layout, esc, linkify } from './layout.ts';
 import { socialIcon, kindIcon } from './icons.ts';
 import { editPanel, UPLOAD_SCRIPT } from './shell.ts';
 import { ravenMark, ravenMarkCurrent } from './brand.ts';
-import { THEME_BOOT, THEME_VARS, THM_CSS, themeToggle, bottomNav, verifiedBadge, actionBar, langToggle, backButton, deskRail, shareButton, followControl, SHARE_SCRIPT } from './theme.ts';
+import { THEME_BOOT, THEME_VARS, THM_CSS, themeToggle, bottomNav, verifiedBadge, actionBar, langToggle, backButton, deskRail, shareButton, shareProfileMenu, followControl, SHARE_SCRIPT } from './theme.ts';
 import { t, type Lang } from './i18n.ts';
 import { sportLabelL } from './localize.ts';
 import { bannerSvg, defaultThemeForSport, svgDataUri } from './theme_engine.ts';
@@ -132,17 +132,37 @@ export function renderDiscover(d: {
   // featured — the lead content: big, photo-forward PUBLIC EVENT cards (Horda is
   // an identity-capture + events + ticketing product; events lead everywhere).
   const admLabel = (a: string) => a === 'paid' ? 'Ticketed' : a === 'apply' ? 'Apply' : 'Free';
-  const featured = d.data.upcoming.length ? `<h2>${esc(tr('events_head'))}</h2><div class="feat">${d.data.upcoming.map(e => {
-    const big = e.coverUrl ? `<img class="fimg" src="${esc(e.coverUrl)}" alt="">` : `<img class="fimg" src="${esc(svgDataUri(bannerSvg({ name: e.title, sport: null }, defaultThemeForSport(null), { backdrop: true })))}" alt="">`;
+  type UpEv = (typeof d.data.upcoming)[number];
+  const fcard = (e: UpEv) => {
+    // No uploaded cover → the DYNAMIC event banner (host's picture, versus split).
+    const big = e.coverUrl ? `<img class="fimg" src="${esc(e.coverUrl)}" alt="">` : `<img class="fimg" src="/e/${e.id}/banner.svg" alt="" loading="lazy">`;
     // An event YOU hold a pass/ticket for is marked in orange (the accent) — top
-    // chip + accent border — so your own tickets stand out in the public list.
+    // chip + accent border — so your own tickets stand out.
     const chip = e.claimed ? `<span class="claimedpill" style="top:11px;left:11px">✓ You're in</span>`
       : e.live ? `<span class="livepill" style="top:11px;left:11px"><span class="live-dot"></span>${esc(tr('live_now'))}</span>`
       : `<div class="fid"><span class="fnm">${esc(admLabel(e.admission))}</span></div>`;
     const meta = `${esc(e.host)} · ${e.live ? '<b style="color:var(--acc)">happening now</b>' : esc(e.date ?? 'soon')}`;
     return `<a class="fcard${e.live ? ' islive' : ''}${e.claimed ? ' claimed' : ''}" href="/e/${e.id}">${big}<div class="fscrim"></div>${chip}` +
       `<div class="fcap"><div class="ftitle">${esc(e.title)}</div><div class="fmeta">${meta}</div><div class="fstats">${estats(e)}</div></div></a>`;
-  }).join('')}</div>` : '';
+  };
+  const band = (title: string, note: string, list: UpEv[]) => list.length
+    ? `<h2>${esc(title)}${note ? ` <span class="h2note">${esc(note)}</span>` : ''}</h2><div class="feat">${list.map(fcard).join('')}</div>` : '';
+  // Guests see one simple "Events" list. Logged-in fans get three stacked bands,
+  // top → bottom: events to JOIN (starting soonest), then more for you, then the
+  // events you've already claimed ("You're going") — so your own tickets aren't
+  // mixed into the discovery list. No past events reach here (the query drops them).
+  let featured: string;
+  if (!d.data.upcoming.length) featured = '';
+  else if (d.guest) featured = `<h2>${esc(tr('events_head'))}</h2><div class="feat">${d.data.upcoming.map(fcard).join('')}</div>`;
+  else {
+    const joinable = d.data.upcoming.filter(e => !e.claimed);
+    const going = d.data.upcoming.filter(e => e.claimed);
+    const soon = joinable.slice(0, 6);
+    const more = joinable.slice(6);
+    featured = band('Events you can join', 'starting soon — grab your spot', soon)
+      + band('More events for you', '', more)
+      + band("You're going", "spots & tickets you've claimed", going);
+  }
 
   const card = (href: string, title: string, sub: string, badge: string, verified = false) =>
     `<a class="dcard" href="${href}"><div class="dav">${avatarSvg(title)}</div><div class="dmeta"><div class="dt-title">${esc(title)}${verified ? verifiedBadge() : ''}</div><div class="dt-sub">${esc(sub)}</div></div><span class="dbadge">${esc(badge)}</span></a>`;
@@ -459,7 +479,7 @@ export function renderAthletePage(d: {
   const profhead = `<section class="profhead">
       <div class="avatar">${av}</div>
       <div class="pid"><h1>${esc(p.name)}</h1><div class="hsub">${p.handle ? '@' + esc(p.handle) : ''}${nickname ? ` · “${esc(nickname)}”` : ''}${d.sportsLabel ? ` · ${esc(d.sportsLabel)}` : ''}${d.superfan ? ' · <span class="sfan">✦ Superfan</span>' : ''}</div></div>
-      <div class="phactions" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">${d.canEdit ? '' : followControl({ guest: d.guest, following: !!d.isFollowing, targetType: 'athlete', targetId: p.athleteId, fanId: d.fanId, cls: 'btn join' })}${shareButton({ title: p.name, cls: 'btn ghost join' })}</div>
+      <div class="phactions" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">${d.canEdit ? '' : followControl({ guest: d.guest, following: !!d.isFollowing, targetType: 'athlete', targetId: p.athleteId, fanId: d.fanId, cls: 'btn join' })}${shareProfileMenu({ title: p.name, url: `/athlete/${p.athleteId}` })}</div>
     </section>
     ${socials ? `<div class="icons">${socials}</div>` : ''}
     ${p.tagline ? `<p class="tagline">${esc(p.tagline)}</p>` : ''}`;
@@ -634,7 +654,7 @@ export function renderAthletePage(d: {
   const sectionMap: Record<string, string> = { nextup: attendBlock, events: eventsBlock, connected: connectionsBlock };
   const sectionsHtml = enabled.map(s => `<div id="sec-${s.key}" class="secanchor">${sectionMap[s.key] ?? ''}</div>`).join('\n');
   // Create lives in the nav (the "+"); the page keeps only page-management actions.
-  const customizeBtn = d.canEdit ? `<div class="row" style="margin:6px 0 0"><a class="btn ghost sm" href="/athlete/${p.athleteId}/customize">Edit page</a><a class="btn ghost sm" href="/athlete/${p.athleteId}?as=fan">View as fan</a><a class="btn ghost sm" href="/athlete/${p.athleteId}/insights">Insights</a></div>` : '';
+  const customizeBtn = d.canEdit ? `<div class="row" style="margin:6px 0 0"><a class="btn sm" href="/athlete/${p.athleteId}/customize">Edit this page</a><a class="btn ghost sm" href="/athlete/${p.athleteId}/insights">Insights</a><a class="btn ghost sm" href="/settings">Account settings</a></div>` : '';
   // Build Order #3: collective-goal progress bars — visible to ALL fans (the recruitment driver).
   const goalsBlock = d.goalsHtml ? `<section class="card"><style>.gbar{height:12px;border-radius:999px;background:var(--s);border:1px solid var(--b);overflow:hidden;margin:8px 0}.gbar span{display:block;height:100%;background:var(--bone)}.gbar.hit span{background:#3fb950}.goalcard{border:1px solid var(--b);border-radius:14px;padding:14px;margin:10px 0;background:var(--s)}.h2h{display:flex;align-items:center;gap:10px;margin:6px 0}.h2h .side{flex:1;text-align:center}.h2h .n{font-size:24px;font-weight:800}</style><div class="ch"><h2>Goals</h2></div>${d.goalsHtml}</section>` : '';
 
@@ -829,7 +849,33 @@ export function renderSportPicker(selected: string[]): string {
 }
 
 // --- customize page: reorder + show/hide sections (per sport) + suggest a feature
-export function renderCustomize(d: { athleteId: string; fanId: string | null; sport: string | null; sports?: string[]; sections: { key: string; on: boolean }[]; links?: Record<string, string>; tiers?: { level: string; name: string; priceCents: number; priceAnnualCents: number | null; currency: string; perks: string[] }[]; saved?: boolean; bannerUrl?: string | null; banner?: { pos: { x: number; y: number; zoom: number } | null; videoUrl: string | null }; media?: { id: string; kind: string; url: string; caption: string | null }[]; sponsors?: { id: string; name: string; url: string | null; logoUrl: string | null }[]; shop?: { id: string; kind: string; title: string; subtitle: string | null; url: string | null; priceCents: number | null }[]; themeStudioHtml?: string }): string {
+// Which profile am I editing? A labelled strip shown at the top of every editor —
+// personal account settings, each athlete page, each club/federation page — with
+// the current one highlighted. Makes it unmistakable which surface you're on and
+// lets you jump straight to another one you manage.
+export function profileSwitcher(d: { personalActive: boolean; pages?: { kind: string; id: string; name: string; active: boolean }[] }): string {
+  const kindLabel = (k: string) => k === 'athlete' ? 'Athlete page' : k === 'club' ? 'Club page' : k === 'team' ? 'Team page' : k === 'association' ? 'Federation page' : 'Page';
+  const editHref = (p: { kind: string; id: string }) => `/${p.kind}/${p.id}/customize`;
+  const chip = (kicker: string, name: string, href: string, active: boolean) =>
+    `<a class="pswx${active ? ' on' : ''}" href="${href}"${active ? ' aria-current="page"' : ''}><span class="pswk">${esc(kicker)}</span><span class="pswn">${esc(name)}</span></a>`;
+  const pages = (d.pages ?? []).map(p => chip(kindLabel(p.kind), p.name, editHref(p), p.active)).join('');
+  return `<div class="psw">
+    <div class="pswlbl">You're editing</div>
+    <div class="pswrow">${chip('Personal account', 'Your fan profile', '/settings', d.personalActive)}${pages}</div>
+    <style>
+      .psw{margin:2px 0 14px}
+      .pswlbl{font-size:11px;letter-spacing:1.5px;text-transform:uppercase;color:var(--mut);font-weight:800;margin-bottom:8px}
+      .pswrow{display:flex;gap:8px;overflow-x:auto;padding-bottom:2px}
+      .pswx{flex:0 0 auto;display:block;border:1px solid var(--b);border-radius:12px;padding:9px 13px;background:var(--s);min-width:120px}
+      .pswx .pswk{display:block;font-size:10.5px;letter-spacing:.4px;text-transform:uppercase;color:var(--mut);font-weight:700}
+      .pswx .pswn{display:block;font-size:14px;font-weight:700;color:var(--bone);margin-top:2px}
+      .pswx.on{border-color:var(--acc);background:color-mix(in srgb, var(--acc) 14%, var(--s))}
+      .pswx.on .pswk{color:var(--acc)}
+    </style>
+  </div>`;
+}
+
+export function renderCustomize(d: { athleteId: string; fanId: string | null; sport: string | null; name?: string; handle?: string | null; tagline?: string | null; managed?: { kind: string; id: string; name: string }[]; error?: string; sports?: string[]; sections: { key: string; on: boolean }[]; links?: Record<string, string>; tiers?: { level: string; name: string; priceCents: number; priceAnnualCents: number | null; currency: string; perks: string[] }[]; saved?: boolean; bannerUrl?: string | null; banner?: { pos: { x: number; y: number; zoom: number } | null; videoUrl: string | null }; media?: { id: string; kind: string; url: string; caption: string | null }[]; sponsors?: { id: string; name: string; url: string | null; logoUrl: string | null }[]; shop?: { id: string; kind: string; title: string; subtitle: string | null; url: string | null; priceCents: number | null }[]; themeStudioHtml?: string }): string {
   const ta = 'display:block;width:100%;margin-top:8px;background:var(--s);border:1px solid var(--b);border-radius:12px;color:var(--bone);padding:12px;font:inherit;min-height:90px';
   const inp = 'display:block;width:100%;margin-top:6px;background:var(--s);border:1px solid var(--b);border-radius:10px;color:var(--bone);padding:10px;font:inherit';
   const L = d.links ?? {};
@@ -872,11 +918,20 @@ export function renderCustomize(d: { athleteId: string; fanId: string | null; sp
       .secrow.drag{opacity:.45}
     </style>
     ${profileTabs({ fanId: d.fanId ?? d.athleteId, active: 'profile', profileHref: `/athlete/${esc(d.athleteId)}/customize` })}
-    <h1>Profile</h1>
-    <p class="mut" style="margin:-4px 0 6px">Your public page — photo, background, sections and links. This is what fans see.</p>
+    ${profileSwitcher({ personalActive: false, pages: (d.managed ?? [{ kind: 'athlete', id: d.athleteId, name: d.name ?? 'Your athlete page' }]).map(p => ({ ...p, active: p.kind === 'athlete' && p.id === d.athleteId })) })}
+    <h1>Edit your athlete page</h1>
+    <p class="mut" style="margin:-4px 0 6px">This is your public athlete page — name, @handle, about, photos, background, sections and links. It's separate from your personal account.</p>
+    ${d.error ? `<div class="card" style="border-color:#ff6b6b;margin:8px 0"><strong style="color:#ff6b6b">${esc(d.error)}</strong></div>` : ''}
 
     <div class="card" style="margin-top:6px">
-      <h2 style="font-size:13px;letter-spacing:1px;text-transform:uppercase;margin-bottom:6px">Profile details</h2>
+      <h2 style="font-size:13px;letter-spacing:1px;text-transform:uppercase;margin-bottom:6px">Name, @handle & about</h2>
+      <form method="post" action="/athlete/${esc(d.athleteId)}/identity" style="margin-bottom:14px;border-bottom:1px solid var(--b);padding-bottom:12px">
+        <label class="mut" style="display:block;font-size:13px">Name<input style="${inp}" name="name" value="${esc(d.name ?? '')}" placeholder="Rico Ravens" required></label>
+        <label class="mut" style="display:block;margin:8px 0 0;font-size:13px">@handle<div style="display:flex;align-items:center;gap:4px;margin-top:6px"><span class="mut" style="font-size:16px">@</span><input style="${inp};margin-top:0" name="handle" value="${esc((d.handle ?? '').replace(/^@/, ''))}" placeholder="ricoravens" pattern="[A-Za-z0-9_]{2,30}"></div></label>
+        <label class="mut" style="display:block;margin:8px 0 0;font-size:13px">About<textarea style="${ta}" name="tagline" maxlength="280" placeholder="A line or two about you — what you compete in, what fans should know.">${esc(d.tagline ?? '')}</textarea></label>
+        <div class="row" style="margin-top:10px"><button type="submit">Save name, handle & about</button></div>
+      </form>
+      <h2 style="font-size:13px;letter-spacing:1px;text-transform:uppercase;margin-bottom:6px">Photos</h2>
       <form method="post" action="/athlete/${esc(d.athleteId)}/branding" onsubmit="return hzPrep(this)" style="margin-bottom:14px;border-bottom:1px solid var(--b);padding-bottom:12px">
         <label class="mut" style="display:block;font-size:13px">Profile photo<input type="file" accept="image/*" data-target="avatar" style="margin-top:6px;color:inherit"></label>
         <label class="mut" style="display:block;margin:8px 0 0;font-size:13px">Banner photo<input type="file" accept="image/*" data-target="banner" style="margin-top:6px;color:inherit"></label>
@@ -972,6 +1027,46 @@ export function renderCustomize(d: { athleteId: string; fanId: string | null; sp
   `, { back: `/athlete/${d.athleteId}`, nav: { active: 'you', guest: false, fanId: d.fanId } });
 }
 
+// --- club / team / federation page editor — same depth as the athlete + personal
+// editors: name, about, photos and links, with the profile switcher on top so it's
+// clear which page you're editing.
+export function renderEntityEdit(d: { kind: 'club' | 'team' | 'association'; id: string; fanId: string | null; name: string; tagline?: string | null; avatarUrl?: string | null; bannerUrl?: string | null; links?: Record<string, string>; managed?: { kind: string; id: string; name: string }[]; error?: string }): string {
+  const inp = 'display:block;width:100%;margin-top:6px;background:var(--s);border:1px solid var(--b);border-radius:10px;color:var(--bone);padding:10px;font:inherit';
+  const ta = 'display:block;width:100%;margin-top:8px;background:var(--s);border:1px solid var(--b);border-radius:12px;color:var(--bone);padding:12px;font:inherit;min-height:90px';
+  const L = d.links ?? {};
+  const kindLabel = d.kind === 'club' ? 'club' : d.kind === 'team' ? 'team' : 'federation';
+  const linkField = (key: string, label: string, ph: string) => `<label class="mut" style="display:block;margin:10px 0 0;font-size:13px">${esc(label)}<input style="${inp}" name="${key}" value="${esc(L[key] ?? '')}" placeholder="${ph}"></label>`;
+  const managed = (d.managed ?? [{ kind: d.kind, id: d.id, name: d.name }]).map(p => ({ ...p, active: p.kind === d.kind && p.id === d.id }));
+  return layout(`Edit your ${kindLabel} page`, `
+    ${profileSwitcher({ personalActive: false, pages: managed })}
+    <h1>Edit your ${kindLabel} page</h1>
+    <p class="mut" style="margin:-4px 0 6px">This is your public ${kindLabel} page — name, about, photos and links. It's separate from your personal account.</p>
+    ${d.error ? `<div class="card" style="border-color:#ff6b6b;margin:8px 0"><strong style="color:#ff6b6b">${esc(d.error)}</strong></div>` : ''}
+    <div class="card" style="margin-top:6px">
+      <h2 style="font-size:13px;letter-spacing:1px;text-transform:uppercase;margin-bottom:6px">Name, about &amp; links</h2>
+      <form method="post" action="/${d.kind}/${esc(d.id)}/identity">
+        <label class="mut" style="display:block;font-size:13px">Name<input style="${inp}" name="name" value="${esc(d.name)}" required></label>
+        <label class="mut" style="display:block;margin:8px 0 0;font-size:13px">About<textarea style="${ta}" name="tagline" maxlength="280" placeholder="What this ${kindLabel} is — who you are, what you compete in.">${esc(d.tagline ?? '')}</textarea></label>
+        <div style="margin-top:10px;font-size:12px;letter-spacing:1px;text-transform:uppercase;color:var(--mut);font-weight:700">Connect socials</div>
+        ${linkField('instagram', 'Instagram', 'https://instagram.com/…')}
+        ${linkField('x', 'X / Twitter', 'https://x.com/…')}
+        ${linkField('tiktok', 'TikTok', 'https://tiktok.com/@…')}
+        ${linkField('youtube', 'YouTube', 'https://youtube.com/@…')}
+        ${linkField('website', 'Website', 'https://…')}
+        <div class="row" style="margin-top:12px"><button type="submit">Save name, about &amp; links</button></div>
+      </form>
+      <h2 style="font-size:13px;letter-spacing:1px;text-transform:uppercase;margin:16px 0 6px">Photos</h2>
+      <form method="post" action="/${d.kind}/${esc(d.id)}/photos" onsubmit="return hzPrep(this)">
+        <label class="mut" style="display:block;font-size:13px">Badge / logo<input type="file" accept="image/*" data-target="avatar" style="margin-top:6px;color:inherit"></label>
+        <label class="mut" style="display:block;margin:8px 0 0;font-size:13px">Banner photo<input type="file" accept="image/*" data-target="banner" style="margin-top:6px;color:inherit"></label>
+        <input type="hidden" name="avatar"><input type="hidden" name="banner">
+        <div class="row" style="margin-top:10px"><button type="submit">Save photos</button></div>
+      </form>
+    </div>
+    ${UPLOAD_SCRIPT}
+  `, { back: `/${d.kind}/${esc(d.id)}`, nav: { active: 'you', guest: false, fanId: d.fanId } });
+}
+
 // --- /pros — the athlete acquisition door (§1b, §10). Sells the back office. --
 export function renderPros(d: { guest: boolean; fanId: string | null }): string {
   const cta = d.guest ? '/signup?next=/onboarding/athlete&intent=pro' : '/onboarding/athlete';
@@ -996,7 +1091,7 @@ export function renderPros(d: { guest: boolean; fanId: string | null }): string 
     <div class="beat"><h2>Your events, your crowd — measured</h2><p class="mut" style="font-size:13.5px;margin:0">Run matches, fights and sessions, sell tickets, scan people in, and see exactly who you brought — all from what you already do. Free to run; a flat, fair fee only on paid tickets.</p></div>
     <div class="beat"><h2>One page for everything you host</h2><p class="mut" style="font-size:13.5px;margin:0">Fight nights, open sparring, matchdays — with RSVP, tickets and attendee lists. Your scene, on your radar.</p></div>
     <div class="row"><a class="btn" href="${cta}">Create your page →</a></div>
-    <p class="mut" style="font-size:12px;margin-top:12px">Athlete pages are for people 18+. Youth teams live under their club, without player names.</p>
+    <p class="mut" style="font-size:12px;margin-top:12px">Anyone can run events and build a page. Youth teams can live under their club, without player names.</p>
   `, { back: '/', nav: { active: 'home', guest: d.guest, fanId: d.fanId } });
 }
 
@@ -1021,7 +1116,7 @@ export function profileTabs(d: { fanId: string; active: 'events' | 'profile' | '
 }
 
 // --- settings (Instagram-style grouped list) -------------------------------
-export function renderSettings(d: { fanId: string; fanName: string; handle?: string | null; email?: string; phone?: string | null; ownsPages?: boolean; editPageHref?: string; insightsHref?: string; createHref?: string; notice?: string; error?: string; plan?: string; plusLive?: boolean; platformFeePct?: number }): string {
+export function renderSettings(d: { fanId: string; fanName: string; handle?: string | null; email?: string; phone?: string | null; ownsPages?: boolean; editPageHref?: string; insightsHref?: string; createHref?: string; notice?: string; error?: string; plan?: string; plusLive?: boolean; platformFeePct?: number; managed?: { kind: string; id: string; name: string }[] }): string {
   const chev = '<span style="color:var(--mut)">›</span>';
   const row = (label: string, href: string, sub = '') => `<a class="setrow" href="${esc(href)}"><span>${esc(label)}${sub ? `<span class="setsub">${esc(sub)}</span>` : ''}</span>${chev}</a>`;
   const group = (title: string, rows: string) => `<div class="setgroup"><div class="seth">${esc(title)}</div>${rows}</div>`;
@@ -1045,7 +1140,9 @@ export function renderSettings(d: { fanId: string; fanName: string; handle?: str
       .unhint.ok{color:#7ee2a0;font-weight:600}.unhint.bad{color:#e5707a;font-weight:600}
     </style>
     ${profileTabs({ fanId: d.fanId, active: 'settings', profileHref: d.editPageHref })}
-    <h1>Settings</h1>
+    ${profileSwitcher({ personalActive: true, pages: (d.managed ?? []).map(p => ({ ...p, active: false })) })}
+    <h1>Personal account</h1>
+    <p class="mut" style="margin:-4px 0 6px">Your own account as a fan — name, @username, contact and plan. Your athlete and club pages are edited separately (switch above).</p>
     ${d.notice ? `<div class="flash ok">${esc(d.notice)}</div>` : ''}
     ${d.error ? `<div class="flash err">${esc(d.error)}</div>` : ''}
 
@@ -1273,11 +1370,9 @@ export function renderCompose(d: { athleteId: string; fanId: string | null; hasP
   const inp = 'display:block;width:100%;margin-top:6px;background:var(--s);border:1px solid var(--b);border-radius:10px;color:var(--bone);padding:11px;font:inherit';
   const ta = 'display:block;width:100%;margin-top:8px;background:var(--s);border:1px solid var(--b);border-radius:12px;color:var(--bone);padding:13px;font:inherit;min-height:120px;line-height:1.55';
   return layout('Create', `
-    <h1>Create</h1>
-    <p class="mut">On Horda you create <strong>events people claim</strong> — not content. Everything here is capped, counted, and terminates in a claim.</p>
-    <div class="card"><h2 style="font-size:13px;letter-spacing:1px;text-transform:uppercase;margin-bottom:6px">Main Event</h2><p class="mut" style="font-size:13.5px">The marquee tier — fight night, race day, match day. Capacity, ticket types, waitlists, entry control.</p><a class="btn" href="/host/athlete/${esc(d.athleteId)}/new?tier=main">Create a Main Event →</a></div>
-    <div class="card"><h2 style="font-size:13px;letter-spacing:1px;text-transform:uppercase;margin-bottom:6px">Gathering</h2><p class="mut" style="font-size:13.5px">The cadence engine — watch party, meetup, training session, run, capped online room. Anyone hosts.</p><a class="btn ghost" href="/host/athlete/${esc(d.athleteId)}/new?tier=gathering">Host a Gathering →</a></div>
-    <div class="card"><h2 style="font-size:13px;letter-spacing:1px;text-transform:uppercase;margin-bottom:6px">One-on-One</h2><p class="mut" style="font-size:13.5px">Booked, priced time with you — in person or video. Highest margin, geography-free online.</p><a class="btn ghost" href="/host/athlete/${esc(d.athleteId)}/new?tier=one_on_one">Open One-on-One →</a></div>
+    <h1>Create an event</h1>
+    <p class="mut">On Horda you create <strong>events people claim</strong> — a match, a race, a run, a watch party, a session. Capacity, ticket types, waitlists and entry control are all set on the event itself.</p>
+    <div class="card"><p class="mut" style="font-size:13.5px;margin-bottom:10px">Everything is one flow now — pick who can get in and how right on the event.</p><a class="btn" href="/host/athlete/${esc(d.athleteId)}/new">Create an event →</a></div>
   `, { back: `/athlete/${d.athleteId}`, nav: { active: 'you', guest: false, fanId: d.fanId, createHref: `/athlete/${d.athleteId}/compose` } });
 }
 
@@ -1320,7 +1415,7 @@ export function renderMemberWelcome(d: { name: string; tierName: string; memberN
 }
 
 // /following — everything you follow, with a search to find more + unfollow.
-export function renderFollowing(d: { fanId: string; createHref?: string; follows: { type: string; id: string; name: string }[]; sports?: { key: string; name: string }[]; regions?: string[]; q?: string; results?: { kind: string; id: string; name: string; region: string | null }[] }): string {
+export function renderFollowing(d: { fanId: string; createHref?: string; follows: { type: string; id: string; name: string }[]; sports?: { key: string; name: string }[]; regions?: string[]; q?: string; results?: { kind: string; id: string; name: string; region: string | null }[]; recommendations?: { kind: string; id: string; name: string; region: string | null }[] }): string {
   const inp = 'background:var(--s);border:1px solid var(--b);border-radius:12px;color:var(--bone);padding:11px 13px;font:inherit;width:100%';
   const href = (type: string, id: string) => type === 'sport' ? `/?sport=${encodeURIComponent(id)}` : type === 'region' ? `/?region=${encodeURIComponent(id)}` : type === 'athlete' ? `/athlete/${id}` : `/${type}/${id}`;
   const kindTag = (k: string) => k === 'athlete' ? 'Athlete' : k === 'club' ? 'Club' : k === 'team' ? 'Team' : k === 'association' ? 'Federation' : k === 'sport' ? 'Sport' : k === 'region' ? 'City / region' : k;
@@ -1360,6 +1455,15 @@ export function renderFollowing(d: { fanId: string; createHref?: string; follows
       return `<h2 class="mut" style="font-size:12px;letter-spacing:1.5px;text-transform:uppercase;margin:22px 0 6px">You follow · ${total}</h2>` +
         groups.filter(([, list]) => list.length).map(([label, list]) =>
           `<div class="fgh">${esc(label)} · ${list.length}</div>${list.map(followRow).join('')}`).join('');
+    })()}
+    ${(() => {
+      // Recommended below the follows — athletes, clubs & federations you don't
+      // follow yet, so there's always a next thing to back.
+      const recs = (d.recommendations ?? []).filter(r => !d.follows.some(f => f.type === r.kind && f.id === r.id));
+      if (!recs.length) return '';
+      return `<h2 class="mut" style="font-size:12px;letter-spacing:1.5px;text-transform:uppercase;margin:26px 0 6px">Suggested for you</h2>
+        <p class="mut" style="font-size:12.5px;margin:0 0 4px">Athletes, clubs and federations we think you’ll want in your feed.</p>
+        ${recs.map(resultRow).join('')}`;
     })()}
   `;
   return layout('Following', body, { back: '/', nav: { active: 'following', guest: false, fanId: d.fanId, createHref: d.createHref } });
@@ -1541,7 +1645,6 @@ export function renderProfilePreview(d: { kind: string; gen: { displayName: stri
       ${d.showHandle !== false ? `<label class="mut" style="display:block;margin:12px 0 0">Handle<input style="${inp}" name="handle" value="${esc(g.handle)}" required></label>` : ''}
       <label class="mut" style="display:block;margin:12px 0 0">Tagline<input style="${inp}" name="tagline" value="${esc(g.tagline)}"></label>
       <label class="mut" style="display:block;margin:12px 0 0">Bio / intro<textarea style="${inp};min-height:90px" name="bio">${esc(g.bio)}</textarea></label>
-      ${d.kind === 'athlete' ? `<label class="mut" style="display:block;margin:12px 0 0">Your birth year <span style="font-size:12px">— athlete pages are 18+</span><input style="${inp}" name="birth_year" type="number" min="1900" max="${new Date().getFullYear()}" placeholder="e.g. 1998" required></label>` : ''}
       <div class="row" style="margin-top:14px"><button type="submit">Publish my page →</button></div>
     </form>
     <form method="post" action="${esc(d.generateAction)}" style="margin-top:8px">${d.hidden ?? ''}<input type="hidden" name="description" value="${esc(d.description)}"><div class="row"><button class="ghost" type="submit">↻ Regenerate</button></div></form>
@@ -1723,11 +1826,10 @@ export function renderFanHome(d: { fanId: string; fanName: string; handle?: stri
 
   // The feed is a ranked stream of DOORS — every card terminates in a claim,
   // never content. It's finite: it ends visibly ("you're up to date").
-  const tierBadge: Record<string, string> = { main: 'Main Event', gathering: 'Gathering', one_on_one: 'One-on-One' };
   const doors = d.doors ?? [];
   const doorCard = (dr: NonNullable<typeof d.doors>[number]) => {
     const scar = dr.remaining == null ? '' : (dr.remaining <= 0 ? '<span class="tag mutd">Full · waitlist</span>' : `<span class="tag mutd">${dr.remaining} left</span>`);
-    return `<a class="doorcard" href="/e/${dr.eventId}"><div style="flex:1"><div class="hl">${esc(dr.title)}</div><div class="dt">${esc(dr.date ?? 'soon')} · ${esc(tierBadge[dr.tier] ?? 'event')}</div></div><div style="text-align:right">${dr.mine ? '<span class="tag ok">Claimed</span>' : scar}<div style="margin-top:6px" class="tag">${dr.mine ? 'View pass' : 'Claim →'}</div></div></a>`;
+    return `<a class="doorcard" href="/e/${dr.eventId}"><div style="flex:1"><div class="hl">${esc(dr.title)}</div><div class="dt">${esc(dr.date ?? 'soon')}</div></div><div style="text-align:right">${dr.mine ? '<span class="tag ok">Claimed</span>' : scar}<div style="margin-top:6px" class="tag">${dr.mine ? 'View pass' : 'Claim →'}</div></div></a>`;
   };
   // Band 3: browsing. An event you've already claimed is filtered OUT of it — it
   // has its own band above, and leaving it here is what made "organised vs

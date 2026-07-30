@@ -19,6 +19,7 @@ export interface EventDetail {
   timezone: string | null;
   archetype: string; parentEventId: string | null;
   cancelledAt: string | null; cancelMessage: string | null; slug: string | null;
+  bannerStyle: string | null;
   counts: Record<RsvpResponse, number> & { pending: number };
 }
 export const priceLabel = (d: { priceCents: number | null; currency: string }) =>
@@ -47,6 +48,7 @@ export async function createScheduledEvent(db: Database, o: {
   visibility?: string;
   waitlistEnabled?: boolean;
   approvalRequired?: boolean;
+  bannerStyle?: string | null;
 }): Promise<string> {
   const admission: Admission = o.admission ?? (o.priceCents ? 'paid' : 'open');
   const locKind = ['in_person', 'online', 'hybrid'].includes(o.locationKind ?? '') ? o.locationKind! : 'in_person';
@@ -67,13 +69,13 @@ export async function createScheduledEvent(db: Database, o: {
   const r = await db.query<{ id: string }>(
     `INSERT INTO event (name, sport_id, starts_at, location, description, cover_url, host_kind, host_id, capacity,
        admission, price_cents, currency, streams, spectator_access, ticket_url, location_kind, recurrence, recurrence_until, access_mode, archetype, parent_event_id,
-       visibility, waitlist_enabled, approval_required, timezone, source)
-     VALUES ($1,$2,$3::timestamptz,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13::jsonb,$14,$15,$16,$17,$18::timestamptz,$19,$20,$21,$22,$23,$24,$25,'native') RETURNING id`,
+       visibility, waitlist_enabled, approval_required, timezone, banner_style, source)
+     VALUES ($1,$2,$3::timestamptz,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13::jsonb,$14,$15,$16,$17,$18::timestamptz,$19,$20,$21,$22,$23,$24,$25,$26,'native') RETURNING id`,
     [o.title, sportId, o.startsAt, o.location ?? null, o.description ?? null, o.coverUrl ?? null,
      o.hostKind, o.hostId, o.capacity ?? null, admission, o.priceCents ?? null, o.currency ?? 'EUR',
      JSON.stringify(o.streams ?? {}), admission === 'paid' ? 'paid_ticket' : 'free', o.ticketUrl ?? null,
      locKind, recur, o.recurrenceUntil ?? null, access, archetype, o.parentEventId ?? null,
-     visibility, !!o.waitlistEnabled, !!o.approvalRequired, o.timezone ?? null]);
+     visibility, !!o.waitlistEnabled, !!o.approvalRequired, o.timezone ?? null, o.bannerStyle ?? null]);
   return r.rows[0].id;
 }
 
@@ -172,7 +174,7 @@ export async function getEventDetail(db: Database, eventIdOrSlug: string): Promi
             to_char(starts_at AT TIME ZONE COALESCE(timezone,'UTC'), 'Dy DD Mon YYYY') date,
             to_char(starts_at AT TIME ZONE COALESCE(timezone,'UTC'), 'HH24:MI') time,
             location, admission, price_cents, currency, streams, ticket_url, host_kind, host_id, capacity,
-            location_kind, recurrence, access_mode, archetype, parent_event_id, cancelled_at, cancel_message, slug
+            location_kind, recurrence, access_mode, archetype, parent_event_id, cancelled_at, cancel_message, slug, banner_style
      FROM event WHERE id=$1`, [eventId])).rows[0];
   if (!e) return null;
   const counts: any = { going: 0, not_going: 0, stream: 0, interested: 0, pending: 0 };
@@ -202,7 +204,7 @@ export async function getEventDetail(db: Database, eventIdOrSlug: string): Promi
     hostKind: e.host_kind, hostId: e.host_id, hostName: host, capacity: e.capacity,
     locationKind: e.location_kind ?? 'in_person', recurrence: e.recurrence ?? 'none', accessMode: e.access_mode ?? 'ticket',
     archetype: e.archetype ?? 'single', parentEventId: e.parent_event_id ?? null,
-    cancelledAt: e.cancelled_at ?? null, cancelMessage: e.cancel_message ?? null, slug: e.slug ?? null, counts,
+    cancelledAt: e.cancelled_at ?? null, cancelMessage: e.cancel_message ?? null, slug: e.slug ?? null, bannerStyle: e.banner_style ?? null, counts,
   };
 }
 
@@ -239,7 +241,7 @@ export async function setEventSlug(db: Database, eventId: string, raw: string): 
 }
 
 export async function updateEventFields(db: Database, eventId: string, f: {
-  title?: string; description?: string | null; coverUrl?: string | null; location?: string | null; streams?: Streams;
+  title?: string; description?: string | null; coverUrl?: string | null; location?: string | null; streams?: Streams; bannerStyle?: string | null;
 }): Promise<void> {
   const sets: string[] = []; const vals: any[] = [eventId]; let i = 2;
   const put = (col: string, v: any) => { sets.push(`${col}=$${i++}`); vals.push(v); };
@@ -248,6 +250,7 @@ export async function updateEventFields(db: Database, eventId: string, f: {
   if (f.coverUrl !== undefined) put('cover_url', f.coverUrl);
   if (f.location !== undefined) put('location', f.location);
   if (f.streams !== undefined) put('streams', JSON.stringify(f.streams));
+  if (f.bannerStyle !== undefined) put('banner_style', f.bannerStyle);
   if (!sets.length) return;
   await db.query(`UPDATE event SET ${sets.join(', ')} WHERE id=$1`, vals);
 }

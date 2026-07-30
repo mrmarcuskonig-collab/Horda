@@ -3,7 +3,7 @@
 import { esc } from './layout.ts';
 import { socialIcon, kindIcon } from './icons.ts';
 import { ravenMark, ravenMarkCurrent } from './brand.ts';
-import { THEME_BOOT, THEME_VARS, THM_CSS, themeToggle, bottomNav, backButton, deskRail, shareButton, followControl, SHARE_SCRIPT } from './theme.ts';
+import { THEME_BOOT, THEME_VARS, THM_CSS, themeToggle, bottomNav, backButton, deskRail, shareButton, shareProfileMenu, followControl, SHARE_SCRIPT } from './theme.ts';
 
 export interface ListItem { kind: string; label: string; href: string | null; tag?: string }
 export interface ProfileVM {
@@ -23,6 +23,7 @@ export interface ProfileVM {
   members?: { title: string; items: ListItem[] };   // sidebar marquee list (teams / roster / member clubs)
   secondary?: { title: string; items: ListItem[] };  // optional 2nd sidebar list (competitions)
   editAction?: string;                // owner edit endpoint (shows the upload panel)
+  customizeHref?: string;             // owner: full page editor (name/about/photos/links)
   canEdit?: boolean;                  // viewer owns this entity
   isFollowing?: boolean;              // viewer already follows → show Following, not Follow
   events?: { id: string; title: string; date?: string; featured?: boolean; hostName?: string; mine?: boolean }[];  // scheduled + featured (mine = viewer holds a spot)
@@ -83,7 +84,7 @@ export function renderEntityProfile(vm: ProfileVM): string {
   const followCta = followControl({ guest: vm.guest, following: !!vm.isFollowing, targetType: vm.kindLabel.toLowerCase(), targetId: vm.entityId ?? '', fanId: vm.fanId, cls: 'btn' });
   const hero = `<div class="hero">
     ${vm.bannerUrl ? `<img class="bg" src="${esc(vm.bannerUrl)}" alt="">` : `<div class="bg ph"><span class="kick">${esc(vm.nickname || vm.name)}</span></div>`}
-    <div class="heroin"><span class="kindtag">${esc(vm.kindLabel)}</span><h1>${esc(vm.name)}</h1><div style="display:flex;gap:8px;flex-wrap:wrap">${followCta}${shareButton({ title: vm.name, cls: 'btn ghost' })}</div></div>
+    <div class="heroin"><span class="kindtag">${esc(vm.kindLabel)}</span><h1>${esc(vm.name)}</h1><div style="display:flex;gap:8px;flex-wrap:wrap">${followCta}${shareProfileMenu({ title: vm.name })}</div></div>
   </div>`;
 
   // TABS — the entity's sections, as anchors into ONE page.
@@ -174,7 +175,7 @@ export function renderEntityProfile(vm: ProfileVM): string {
   ${deskRail({ guest: vm.guest, fanId: vm.fanId, active: 'explore' })}
   ${backButton(vm.backHref)}
   ${hero}${tabs}
-  <div class="grid"><main>${vm.activation ?? ''}${(vm.editAction && vm.canEdit) ? `<div class="row" style="margin:0 0 10px"><a class="btn ghost" href="${esc(vm.editAction.replace('/entity/', '/onboarding/brand/').replace('/branding', ''))}">✦ AI page setup</a></div>` + editPanel(vm.editAction) : ''}${notice}${post}${attend}${eventsCard}${merch}</main>${aside}</div>
+  <div class="grid"><main>${vm.activation ?? ''}${vm.canEdit ? `<div class="row" style="margin:0 0 10px;gap:8px;flex-wrap:wrap">${vm.customizeHref ? `<a class="btn" href="${esc(vm.customizeHref)}">Edit this page</a>` : ''}${vm.editAction ? `<a class="btn ghost" href="${esc(vm.editAction.replace('/entity/', '/onboarding/brand/').replace('/branding', ''))}">✦ AI page setup</a>` : ''}<a class="btn ghost" href="/settings">Account settings</a></div>` : ''}${notice}${post}${attend}${eventsCard}${merch}</main>${aside}</div>
   ${gatebar}
   <div class="prov">${esc(vm.kindLabel)} profile · owner-controlled identity · system of record, no fan-to-fan venue. Social &amp; affiliation links are owner-chosen and point out.</div>
   ${bottomNav({ guest: vm.guest, fanId: vm.fanId })}

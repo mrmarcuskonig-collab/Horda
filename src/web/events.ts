@@ -4,7 +4,8 @@
 import { layout, esc, ogMeta } from './layout.ts';
 import { eventJsonLd } from './schema.ts';
 import { UPLOAD_SCRIPT } from './shell.ts';
-import { shareButton } from './theme.ts';
+import { shareButton, followControl } from './theme.ts';
+import { BANNER_STYLES, BANNER_STYLE_LABEL, normalizeBannerStyle } from './banner.ts';
 import { mapsChooser } from './maps.ts';
 import { socialIcon } from './icons.ts';
 import { sportSelect } from './pages.ts';
@@ -79,8 +80,38 @@ const ADMISSION_LABEL: Record<string, string> = {
   open: 'Open · free to all', register: 'Free · registration required', apply: 'Approval required', paid: 'Ticketed',
 };
 
+// Sub-events on the main event page — the races within a running event, the bouts
+// on a fight card. Shown as a clean scannable list: the first 3, then a "Show all"
+// expander. One ticket covers all, so when the viewer already holds this event's
+// ticket every sub reads "Covered"; a sub they claimed directly reads "You're in".
+function renderSubEvents(subs: SubEvent[], opt: { covered: boolean; mineIds: Set<string>; canAdd: boolean; addHref: string }): string {
+  const n = subs.length;
+  const row = (s: SubEvent) => {
+    const mark = opt.covered ? `<span class="submk">✓ Covered</span>`
+      : opt.mineIds.has(s.id) ? `<span class="submk">✓ You're in</span>`
+      : `<span class="subgo">View →</span>`;
+    return `<a class="subrow" href="/e/${s.id}"><span class="subm"><span class="subt">${esc(s.title)}</span>${s.date ? `<span class="subd">${esc(s.date)}</span>` : ''}</span>${mark}</a>`;
+  };
+  const shown = subs.slice(0, 3).map(row).join('');
+  const rest = subs.slice(3).map(row).join('');
+  return `<div class="h3">On the card · ${n}</div>
+    ${opt.covered ? `<p class="mut" style="font-size:12px;margin:-2px 0 6px">Your ticket covers every one of these — tap any for its details.</p>` : ''}
+    <div class="subs">${shown}${rest ? `<details class="submore"><summary>Show all ${n} →</summary><div class="subs" style="margin-top:8px">${rest}</div></details>` : ''}</div>
+    ${opt.canAdd ? `<div class="rsvp" style="margin-top:8px"><a class="rb" href="${opt.addHref}">＋ Add a bout / sub-event</a><span class="mut" style="font-size:12px;align-self:center">Same day as the main event</span></div>` : ''}
+    <style>
+      .subs{display:flex;flex-direction:column;gap:8px;margin:6px 0}
+      .subrow{display:flex;align-items:center;justify-content:space-between;gap:12px;border:1px solid var(--b);border-radius:12px;padding:12px 14px;background:var(--s);transition:border-color .12s}
+      .subrow:hover{border-color:var(--bone)}
+      .subm{display:flex;flex-direction:column;min-width:0}
+      .subt{font-weight:700;font-size:14.5px}.subd{color:var(--mut);font-size:12.5px;margin-top:2px}
+      .submk{font-size:12px;font-weight:800;color:var(--acc);white-space:nowrap}.subgo{font-size:12.5px;color:var(--mut);white-space:nowrap}
+      .submore{margin-top:2px}.submore>summary{cursor:pointer;color:var(--acc);font-size:13px;font-weight:600;list-style:none;padding:4px 0}.submore>summary::-webkit-details-marker{display:none}
+    </style>`;
+}
+
 export function renderEventPage(d: EventDetail, ctx: {
   guest: boolean; fanId: string | null; myRsvp: { response: string; status: string } | null;
+  isFollowing?: boolean;     // does the viewer already follow the host? (button state)
   isHost?: boolean; isCoOrg?: boolean;
   // a co-organizer's read-only panel: their promo link + event stats (no editing)
   coOrg?: { promoToken: string | null; going: number; draw: { identities: number; ticketBuyers: number } | null } | null;
@@ -97,6 +128,9 @@ export function renderEventPage(d: EventDetail, ctx: {
   going?: number;            // tickets sold, for schema.org availability (SoldOut vs InStock)
   parties?: EventParty[];    // multi-party line-up (organizers, sides, roster)
   subs?: SubEvent[];         // sub-events (fight card / race-within-race)
+  covered?: boolean;         // viewer holds THIS event's ticket → every sub-event is covered
+  subsMine?: string[];       // sub-event ids the viewer directly claimed (mark "You're in")
+  parentClaimed?: boolean;   // (sub-event page) viewer holds the parent ticket → they're already in
   parent?: { id: string; title: string } | null;  // if this is a sub-event
   canClaim?: boolean;        // viewer owns an entity that could claim an unclaimed slot
   myPromoToken?: string | null;  // the viewer's own participant promo link (+ their draw)
@@ -225,10 +259,9 @@ export function renderEventPage(d: EventDetail, ctx: {
   const hasVenue = !!d.location && d.locationKind !== 'online';
   const mapsBtn = (cls: string, label?: string) => hasVenue ? mapsChooser({ query: d.location!, cls, label }) : '';
 
-  // host follow (matches Luma's "Folgen")
-  const followBtn = ctx.guest
-    ? `<a class="rb sm" href="/signup">Follow</a>`
-    : `<form method="post" action="/follow"><input type="hidden" name="fan_id" value="${ctx.fanId}"><input type="hidden" name="target_type" value="${d.hostKind}"><input type="hidden" name="target_id" value="${d.hostId}"><button class="rb sm" type="submit">Follow</button></form>`;
+  // host follow — reflects real state (Follow / Following → Unfollow), synced with
+  // every other follow control in the app so it never says "Follow" when you already do.
+  const followBtn = followControl({ guest: ctx.guest, following: !!ctx.isFollowing, targetType: d.hostKind ?? '', targetId: d.hostId ?? '', fanId: ctx.fanId, cls: 'rb sm' });
 
   const ICON = {
     cal: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><rect x="3.5" y="4.5" width="17" height="16" rx="2.5"/><path d="M3.5 9h17M8 2.5v4M16 2.5v4"/></svg>`,
@@ -284,7 +317,7 @@ export function renderEventPage(d: EventDetail, ctx: {
     .pversus.pmulti{font-weight:600;font-size:13.5px;color:var(--mut)}
   </style>
   <div class="poster">
-    ${d.coverUrl ? `<img src="${esc(d.coverUrl)}" alt="">` : `<div style="width:100%;height:100%;background:radial-gradient(130% 130% at 70% 8%,rgba(237,233,223,.12),transparent 55%),var(--ink)"></div>`}
+    ${d.coverUrl ? `<img src="${esc(d.coverUrl)}" alt="">` : `<img src="/e/${d.id}/banner.svg" alt="" style="width:100%;height:100%;object-fit:cover">`}
     <div class="pcap">
       <span class="pkick">${esc(ADMISSION_LABEL[d.admission])}</span>
       <div class="ptitle">${esc(d.title)}</div>
@@ -312,13 +345,12 @@ export function renderEventPage(d: EventDetail, ctx: {
 
       ${watch ? `<div class="h3">Watch live</div><div class="rsvp">${watch}</div>` : ''}
 
-      ${ctx.parent ? `<div class="lockrow" style="border-style:solid">Part of <a class="hl" href="/e/${ctx.parent.id}" style="color:var(--bone);border-bottom:1px solid var(--b)">${esc(ctx.parent.title)}</a> — one ticket covers the whole event.</div>` : ''}
+      ${ctx.parent ? `<div class="lockrow" style="border-style:solid">${ctx.parentClaimed ? `<b style="color:var(--acc)">✓ You're in</b> — covered by your ` : 'Part of '}<a class="hl" href="/e/${ctx.parent.id}" style="color:var(--bone);border-bottom:1px solid var(--b)">${esc(ctx.parent.title)}</a>${ctx.parentClaimed ? ' ticket. No need to claim again.' : ' — one ticket covers the whole event.'}</div>` : ''}
       ${renderRoster({ eventId: d.id, archetype: d.archetype, parties: ctx.parties ?? [], guest: ctx.guest, canClaim: !!ctx.canClaim, isOrganizer: !!ctx.isHost })}
       ${ctx.myPromoToken ? `<div class="card" style="border-color:var(--bone);margin-top:10px"><strong>Your promo link.</strong> <span class="mut">Every claim through it is credited to you.</span>
         <div class="rsvp" style="margin-top:8px">${shareButton({ title: d.title, cls: 'rb p', label: 'Copy my promo link', url: `/e/${d.id}?p=${ctx.myPromoToken}` })}</div>
         <div class="mut" style="font-size:12.5px;margin-top:6px">You've driven <b style="color:var(--bone)">${ctx.myPromoDraw?.identities ?? 0}</b> identities · <b style="color:var(--bone)">${ctx.myPromoDraw?.ticketBuyers ?? 0}</b> ticket buyers.</div></div>` : ''}
-      ${(ctx.subs && ctx.subs.length) ? `<div class="h3">On the card${ctx.isHost ? '' : ''} · ${ctx.subs.length}</div><div class="rsvp" style="flex-direction:column;align-items:stretch">${ctx.subs.map(s => `<a class="rb" style="text-align:left" href="/e/${s.id}">${esc(s.title)}${s.date ? ` <span class="mut">· ${esc(s.date)}</span>` : ''}</a>`).join('')}</div>` : ''}
-      ${ctx.isHost && !ctx.parent ? `<div class="rsvp"><a class="rb" href="/host/${d.hostKind}/${d.hostId}/new?parent=${d.id}">＋ Add a bout / sub-event</a><span class="mut" style="font-size:12px;align-self:center">Same day as the main event</span></div>` : ''}
+      ${(ctx.subs && ctx.subs.length) ? renderSubEvents(ctx.subs, { covered: !!ctx.covered, mineIds: new Set(ctx.subsMine ?? []), canAdd: !!ctx.isHost && !ctx.parent, addHref: `/host/${d.hostKind}/${d.hostId}/new?parent=${d.id}` }) : (ctx.isHost && !ctx.parent ? `<div class="rsvp"><a class="rb" href="/host/${d.hostKind}/${d.hostId}/new?parent=${d.id}">＋ Add a bout / sub-event</a><span class="mut" style="font-size:12px;align-self:center">Same day as the main event</span></div>` : '')}
       ${ctx.coOrg ? `<div class="card" style="border-color:var(--bone);margin-top:12px"><strong>You're co-organising this.</strong> <span class="mut">You can promote it with your own link and see how the event is doing — only the main organiser edits the event or adds bouts.</span>
         <div class="rsvp" style="margin-top:8px">${ctx.coOrg.promoToken ? shareButton({ title: d.title, cls: 'rb p', label: 'Copy my promo link', url: `/e/${d.id}?p=${ctx.coOrg.promoToken}` }) : ''}</div>
         <div class="mut" style="font-size:12.5px;margin-top:8px">Event so far: <b style="color:var(--bone)">${ctx.coOrg.going}</b> going${ctx.coOrg.draw ? ` · your link drove <b style="color:var(--bone)">${ctx.coOrg.draw.identities}</b> people · <b style="color:var(--bone)">${ctx.coOrg.draw.ticketBuyers}</b> ticket buyers` : ''}.</div></div>` : ''}
@@ -443,6 +475,16 @@ export function renderEditEvent(d: EventDetail, viewerFanId: string | null, opt:
         <button type="button" class="cvclear" id="ev_cover_clear" ${d.coverUrl ? '' : 'hidden'} style="margin-top:8px;background:transparent;border:1px solid var(--b);border-radius:var(--btnr);color:var(--mut);padding:6px 12px;font:inherit;font-size:12.5px;cursor:pointer">Remove image</button>
       </label>
       <input type="hidden" name="cover">
+
+      ${/* Banner design — the generated default (from the host's picture, split for
+          versus). A cover upload above overrides it. */''}
+      <label style="${fld}">Banner design <span class="mut">· the background picture</span></label>
+      <img id="ev_banner_prev" src="/banner/preview.svg?host_kind=${esc(d.hostKind ?? '')}&host_id=${esc(d.hostId ?? '')}&style=${esc(normalizeBannerStyle(d.bannerStyle))}&versus=${d.archetype === 'versus' ? '1' : '0'}" alt="Banner preview" style="width:100%;aspect-ratio:5/2;object-fit:cover;border-radius:12px;border:1px solid var(--b);display:block;background:var(--s)">
+      <div class="bnstyles" style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">${BANNER_STYLES.map(s => `<button type="button" class="bnst" data-style="${s}" style="background:var(--s);border:1px solid ${normalizeBannerStyle(d.bannerStyle) === s ? 'var(--acc)' : 'var(--b)'};border-radius:999px;color:${normalizeBannerStyle(d.bannerStyle) === s ? 'var(--acc)' : 'var(--bone)'};padding:7px 14px;font:inherit;font-size:13px;font-weight:${normalizeBannerStyle(d.bannerStyle) === s ? '700' : '400'};cursor:pointer">${esc(BANNER_STYLE_LABEL[s])}</button>`).join('')}</div>
+      <input type="hidden" name="banner_style" value="${esc(normalizeBannerStyle(d.bannerStyle))}">
+      <script>(function(){var inp=document.getElementsByName('banner_style')[0];if(!inp)return;var f=inp.form,prev=document.getElementById('ev_banner_prev');
+        [].forEach.call(f.querySelectorAll('.bnst'),function(b){b.addEventListener('click',function(){[].forEach.call(f.querySelectorAll('.bnst'),function(x){x.style.borderColor='var(--b)';x.style.color='var(--bone)';x.style.fontWeight='400'});b.style.borderColor='var(--acc)';b.style.color='var(--acc)';b.style.fontWeight='700';inp.value=b.getAttribute('data-style');prev.src='/banner/preview.svg?host_kind=${esc(d.hostKind ?? '')}&host_id=${esc(d.hostId ?? '')}&style='+inp.value+'&versus=${d.archetype === 'versus' ? '1' : '0'}';});});})();</script>
+
       <div class="row"><button type="submit">Save changes</button></div>
     </form>
 
@@ -471,9 +513,17 @@ export function renderEditEvent(d: EventDetail, viewerFanId: string | null, opt:
 
 // owner: schedule an event. `parent` set when adding a sub-event (bout / race).
 // `defaultSport` = the host's own sport, pre-selected (see the topsel comment).
-export function renderCreateEvent(hostKind: string, hostId: string, hostName: string, parent?: { id: string; title: string }, defaultSport?: string | null, viewerFanId?: string | null): string {
+export function renderCreateEvent(hostKind: string, hostId: string, hostName: string, parent?: { id: string; title: string; location?: string | null }, defaultSport?: string | null, viewerFanId?: string | null, opt: { canCustomUrl?: boolean; origin?: string } = {}): string {
   const fld = 'display:block;margin:12px 0;font-size:13px;color:var(--mut)';
   const inp = 'display:block;width:100%;margin-top:6px;background:var(--s);border:1px solid var(--b);border-radius:10px;color:var(--bone);padding:10px;font:inherit';
+  const host = (opt.origin || 'joinhorda.com').replace(/^https?:\/\//, '');
+  // Custom URL — a Horda Plus feature, offered at creation (sub-events inherit the
+  // parent's, so it's only on top-level events). Free organisers see an upsell.
+  const customUrl = parent ? '' : (opt.canCustomUrl
+    ? `<label style="${fld}">Custom URL <span class="mut">· Horda Plus · optional</span>
+        <div style="display:flex;align-items:center;gap:2px;margin-top:6px"><span class="mut" style="font-size:13px;white-space:nowrap">${esc(host)}/e/</span><input style="${inp};margin-top:0" name="slug" placeholder="derby-2026" maxlength="40" pattern="[A-Za-z0-9-]*"></div>
+        <span class="mut" style="font-size:11.5px">Letters, numbers and hyphens. Leave blank for the default link.</span></label>`
+    : `<div style="${fld};border:1px solid var(--b);border-radius:12px;padding:12px 14px;background:var(--s)"><b style="color:var(--bone)">Custom URL</b> — a memorable link like <span class="mut">${esc(host)}/e/derby</span>. <a href="/about/pricing" style="color:var(--acc)">Horda Plus →</a></div>`);
   const body = `
   <h1>${parent ? 'Add a sub-event' : 'Schedule an event'}</h1>
   <p class="mut">${parent ? `Under <b style="color:var(--bone)">${esc(parent.title)}</b> — a bout or race-within-the-race. It gets its own sides and promo links; attribution rolls up.` : `As ${esc(hostName)}. Choose the shape, who's on the card, and how fans get in.`}</p>
@@ -500,6 +550,7 @@ export function renderCreateEvent(hostKind: string, hostId: string, hostName: st
     <p class="mut" id="ev_vis_hint" style="font-size:12px;margin:0 0 4px">Listed on Horda, in search and on your page.</p>
 
     <label style="${fld}">Event name<input style="${inp}" name="title" required placeholder="${parent ? 'Rico vs. Tariq' : 'Open sparring night'}"></label>
+    ${customUrl}
 
     ${/* Event image. Deliberately near the top, not buried in the details fold:
         the picture is what makes a card get clicked, and if you don't ask for it
@@ -519,6 +570,27 @@ export function renderCreateEvent(hostKind: string, hostId: string, hostName: st
       <button type="button" class="cvclear" id="ev_cover_clear" hidden>Remove image</button>
     </div>
     <input type="hidden" name="cover">
+
+    ${/* Dynamic default banner — a designed treatment of the host's own picture,
+        with a few looks to pick from. It splits for a versus event. Uploading a
+        photo above overrides it. */''}
+    <div style="${fld}">Banner design <span class="mut">· the background picture</span>
+      <div class="bnpick">
+        <img id="ev_banner_prev" src="/banner/preview.svg?host_kind=${esc(hostKind)}&host_id=${esc(hostId)}&style=ember" alt="Banner preview">
+        <div class="bnstyles">${BANNER_STYLES.map((s, i) => `<button type="button" class="bnst${i === 0 ? ' on' : ''}" data-style="${s}">${esc(BANNER_STYLE_LABEL[s])}</button>`).join('')}</div>
+        <p class="mut" style="font-size:11.5px;margin:6px 0 0">Made from your page's picture — it splits in two for a versus event. Upload a photo above to use your own instead.</p>
+      </div>
+    </div>
+    <input type="hidden" name="banner_style" value="ember">
+    <style>.bnpick img{width:100%;aspect-ratio:5/2;object-fit:cover;border-radius:12px;border:1px solid var(--b);display:block;background:var(--s)}
+      .bnstyles{display:flex;gap:8px;margin-top:8px;flex-wrap:wrap}
+      .bnst{background:var(--s);border:1px solid var(--b);border-radius:999px;color:var(--bone);padding:7px 14px;font:inherit;font-size:13px;cursor:pointer}
+      .bnst.on{border-color:var(--acc);color:var(--acc);font-weight:700}</style>
+    <script>(function(){var f=document.getElementById('evform');if(!f)return;var prev=document.getElementById('ev_banner_prev'),si=f.elements['banner_style'],ar=document.getElementById('ev_arch');if(!prev||!si)return;
+      function refresh(){prev.src='/banner/preview.svg?host_kind=${esc(hostKind)}&host_id=${esc(hostId)}&style='+(si.value||'ember')+'&versus='+((ar&&ar.value==='versus')?'1':'0');}
+      [].forEach.call(f.querySelectorAll('.bnst'),function(b){b.addEventListener('click',function(){[].forEach.call(f.querySelectorAll('.bnst'),function(x){x.classList.remove('on')});b.classList.add('on');si.value=b.getAttribute('data-style');refresh();});});
+      if(ar)ar.addEventListener('change',refresh);})();</script>
+
     <label style="${fld}">Shape
       <select id="ev_arch" name="archetype" style="${inp}" onchange="var v=this.value;document.getElementById('ev_versus').style.display=v==='versus'?'block':'none';document.getElementById('ev_roster').style.display=v==='multi'?'block':'none'">
         <option value="single">Single — one host, open roster (a run club, a mass race)</option>
@@ -670,7 +742,7 @@ export function renderCreateEvent(hostKind: string, hostId: string, hostName: st
 
     <div id="ev_addr_wrap">
       <label style="${fld}" id="ev_addr_lbl">Address
-        <input style="${inp}" name="location" id="ev_loc" autocomplete="off" placeholder="Start typing a venue or address…">
+        <input style="${inp}" name="location" id="ev_loc" autocomplete="off" placeholder="Start typing a venue or address…"${parent && parent.location ? ` value="${esc(parent.location)}"` : ''}>
       </label>
       <div class="acbox" id="ev_loc_ac" hidden></div>
     </div>
@@ -729,9 +801,24 @@ export function renderCreateEvent(hostKind: string, hostId: string, hostName: st
               media deal with a viewer ceiling. Capacity is per DOOR, so a
               sold-out hall never closes the stream and a full stream never
               closes the hall. */''}
-          <label class="wf" id="st_cap_wrap">Spots <span class="mut">(blank = unlimited)</span>
+          <label class="wf" id="st_cap_wrap">Seats <span class="mut">(blank = unlimited)</span>
             <input type="number" name="fmt_stream1_cap" min="1" placeholder="Unlimited">
             <small>For a webinar or a room with a licence limit. Counted separately from the venue.</small></label>
+          ${/* Extra platforms — the same broadcast also on Twitch, TikTok, etc.
+              Each becomes another free "Watch on …" option fans can pick. Lives
+              INSIDE the watch-online block (not a stray field at the bottom). */''}
+          <details class="wf substreams">
+            <summary style="cursor:pointer;font-weight:600">＋ Also streaming elsewhere? (Twitch, TikTok…)</summary>
+            <p class="mut" style="font-size:11.5px;margin:6px 0 2px">Add extra free watch links — fans pick where they want to watch, and you still see who tuned in.</p>
+            <label class="wf">Another watch link
+              <input name="fmt_stream2_url" placeholder="https://twitch.tv/… · tiktok.com/@…/live"></label>
+            <label class="wf">What to call it <span class="mut">(optional)</span>
+              <input name="fmt_stream2_label" placeholder="Twitch"></label>
+            <label class="wf">One more watch link
+              <input name="fmt_stream3_url" placeholder="https://tiktok.com/@…/live"></label>
+            <label class="wf">What to call it <span class="mut">(optional)</span>
+              <input name="fmt_stream3_label" placeholder="TikTok Live"></label>
+          </details>
         </div>
       </div>
     </div>
@@ -742,6 +829,8 @@ export function renderCreateEvent(hostKind: string, hostId: string, hostName: st
     <div style="${fld}">
       <label class="tgl"><input type="checkbox" name="approval_required" value="1">
         <span><b>Approval required — you approve each request</b><i>People request a spot; nobody's in until you say yes.</i></span></label>
+      <label class="tgl" style="margin-top:8px"><input type="checkbox" name="waitlist_enabled" value="1" checked>
+        <span><b>Waitlist when a door fills</b><i>Once the spots or seats run out, extra people join a waitlist instead of being turned away.</i></span></label>
     </div>
 
     ${/* Everything below is optional. Collapsed so the first screen is the
@@ -946,17 +1035,16 @@ export function renderCreateEvent(hostKind: string, hostId: string, hostName: st
       else { cimg.hidden=true; chint.hidden=false; cclear.hidden=true; }
     }
     if(cin){
-      // UPLOAD_SCRIPT writes the hidden field asynchronously (FileReader), so
-      // poll briefly after a pick rather than guessing when it lands.
+      // Populate the hidden cover field from the picked file RIGHT AWAY (data URL),
+      // instead of waiting for the submit-time UPLOAD_SCRIPT. This fixes the bug
+      // where the preview flashed then vanished: the old code polled for the hidden
+      // field, timed out (it's only written on submit), then paintCover() hid the
+      // image again. Writing chid.value now means the preview shows and stays, the
+      // value survives a language-switch snapshot, and submit still works.
       cin.addEventListener('change', function(){
-        // Show the preview IMMEDIATELY from the picked file — don't wait on the
-        // async upload script (its poll could miss and the image only appeared
-        // after publish). The hidden field still gets written for submit below.
         var f = cin.files && cin.files[0];
-        if(f){ var fr=new FileReader(); fr.onload=function(){ cimg.src=fr.result; cimg.hidden=false; chint.hidden=true; cclear.hidden=false; }; fr.readAsDataURL(f); }
-        var tries=0, iv=setInterval(function(){
-          if((chid && chid.value) || ++tries>40){ clearInterval(iv); paintCover(); snapshot(); }
-        }, 50);
+        if(f){ var fr=new FileReader(); fr.onload=function(){ if(chid) chid.value=fr.result; paintCover(); snapshot(); }; fr.readAsDataURL(f); }
+        else { paintCover(); snapshot(); }
       });
       cclear.addEventListener('click', function(){ if(chid) chid.value=''; cin.value=''; paintCover(); snapshot(); });
       paintCover();   // restore a snapshotted image after a language switch
@@ -996,7 +1084,8 @@ export function renderManage(d: EventDetail, guests: { response: string; status:
   attribution: { fanId: string; name: string; token: string; clicks: number; claims: number }[] = [],
   promo?: { rows: { partyId: string; name: string; role: string; side: string | null; token: string; kind: string; status: string; clicks: number; identities: number; ticketBuyers: number; subEvent?: string }[]; total: { identities: number; ticketBuyers: number; clicks: number } },
   payout?: { hostKind: string; hostId: string; connected: boolean }, viewerFanId?: string | null,
-  attendees: Record<string, { fanId: string; name: string; handle: string | null; partySize: number; profile: { kind: string; id: string } | null }[]> = {}): string {
+  attendees: Record<string, { fanId: string; name: string; handle: string | null; partySize: number; profile: { kind: string; id: string } | null }[]> = {},
+  promoCodes: { id: string; code: string; percentOff: number; maxUses: number | null; uses: number }[] = []): string {
   // Paid event → surface payout status: connect payouts (KYC) before selling.
   const payoutBanner = (d.admission === 'paid' && payout)
     ? (payout.connected
@@ -1055,7 +1144,21 @@ export function renderManage(d: EventDetail, guests: { response: string; status:
        ${totalRev ? `<p class="mut" style="margin-top:6px">Tickets sold on Horda: <b>${money2(totalRev)}</b></p>` : ''}
        <style>.fmtgrid{display:grid;gap:10px;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));margin:10px 0}.fmtcard{border:1px solid var(--b);border-radius:12px;padding:12px;background:var(--s)}details.fmtcard{cursor:pointer}details.fmtcard>summary{list-style:none;cursor:pointer}details.fmtcard>summary::-webkit-details-marker{display:none}.fk{font-size:12.5px;font-weight:600}.fn{font-size:30px;font-weight:800;font-variant-numeric:tabular-nums;margin-top:4px}.fl{font-size:11.5px;color:var(--mut);text-transform:uppercase;letter-spacing:.5px}.fu{font-size:12px;border-bottom:1px solid var(--b);display:inline-block;margin-top:6px}.fmore{font-size:12px;color:var(--acc);margin-top:8px;font-weight:600}details.fmtcard[open] .fmore{display:none}.attlist{list-style:none;padding:0;margin:10px 0 2px;border-top:1px solid var(--b)}.attrow{display:flex;align-items:baseline;justify-content:space-between;gap:8px;padding:7px 0;border-bottom:1px solid var(--b)}.attrow .an{font-size:13.5px;font-weight:600}.attrow .an a:hover{border-bottom:1px solid var(--b)}.attrow .am{font-size:11.5px;color:var(--mut)}</style>`
     : '';
-  return renderManageInner(d, guests, payoutBanner + sharePanel + formatBreakdown + attributionBlock, viewerFanId ?? null);
+  // Promo codes — organiser-defined discounts on this event's paid tickets. Same
+  // list/add design as the share panel (.promos), only offered for paid events.
+  const discLabel = (p: number) => p >= 100 ? 'Free ticket' : `${p}% off`;
+  const promoPanel = (d.admission === 'paid')
+    ? `<h2>Promo codes</h2>
+       <p class="mut" style="font-size:12.5px">Offer a discount on tickets. Add as many codes as you like — share a code and fans type it when they claim their ticket.</p>
+       <div class="promos">${promoCodes.map(c => `<div class="promo"><div class="pl"><b>${esc(c.code)}</b> <span class="prole">${discLabel(c.percentOff)}</span><div class="pc">${c.uses} used${c.maxUses != null ? ` · ${c.maxUses} max` : ''}</div></div><form method="post" action="/e/${d.id}/promocode/${c.id}/delete"><button class="rb sm" type="submit">Remove</button></form></div>`).join('')}
+         <form method="post" action="/e/${d.id}/promocode" class="promo promo-new"><div class="pl"><b>＋ Add a promo code</b> <span class="prole">a discount on this event's tickets</span>
+           <input name="code" placeholder="e.g. DERBY20" class="tkin plabel" maxlength="24" pattern="[A-Za-z0-9-]{2,24}" required>
+           <select name="percent" class="tkin plabel"><option value="10">10% off</option><option value="20">20% off</option><option value="50">50% off</option><option value="100">Free ticket</option></select>
+         </div><button class="rb sm p" type="submit">Add</button></form>
+       </div>
+       <style>.promos{display:flex;flex-direction:column;gap:8px;margin:8px 0}.promo{display:flex;align-items:center;justify-content:space-between;gap:10px;border:1px solid var(--b);border-radius:12px;padding:10px 12px}.promo .prole{font-size:11px;color:var(--mut);text-transform:uppercase;letter-spacing:.5px;margin-left:6px}.promo .pc{font-size:12.5px;color:var(--mut);margin-top:3px}.promo-new{border-style:dashed}.promo-new .pl{display:flex;flex-direction:column;gap:6px;flex:1}.promo-new .plabel{width:100%;max-width:260px;margin-top:2px;background:var(--s);border:1px solid var(--b);border-radius:10px;color:var(--bone);padding:9px}</style>`
+    : '';
+  return renderManageInner(d, guests, payoutBanner + sharePanel + promoPanel + formatBreakdown + attributionBlock, viewerFanId ?? null);
 }
 function renderManageInner(d: EventDetail, guests: { response: string; status: string; fanId: string; name: string; handle: string | null }[], formatBreakdown: string, viewerFanId: string | null = null): string {
   const pending = guests.filter(g => g.response === 'going' && g.status === 'pending');

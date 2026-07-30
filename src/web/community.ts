@@ -21,13 +21,16 @@
 // channel URLs outright so that mistake can never ship.
 const DEFAULT_INVITE = 'https://discord.gg/VQZKZmbt';
 
-/** The real invite URL, or '' if what we have isn't a usable invite. */
+/** The Discord URL we send people to, or '' if nothing usable is configured. */
 export function discordUrl(): string {
   const raw = (process.env.DISCORD_INVITE_URL ?? DEFAULT_INVITE).trim();
   if (!raw) return '';
-  // A /channels/ deep link is not an invite; refuse it rather than render a link
-  // that silently fails for every person who isn't already a member.
-  if (/discord\.com\/channels\//i.test(raw)) return '';
+  // Prefer a real invite (discord.gg/xxxx) — it works for everyone. A channel
+  // deep link (discord.com/channels/…) only resolves for existing members, so if
+  // that's all that's set we fall back to the default invite rather than shipping
+  // a link that silently fails for newcomers. (Set DISCORD_INVITE_URL to a proper
+  // invite to point at a specific server.)
+  if (/discord\.com\/channels\//i.test(raw)) return DEFAULT_INVITE || '';
   return raw;
 }
 

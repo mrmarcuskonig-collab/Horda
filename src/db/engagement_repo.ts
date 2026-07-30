@@ -276,3 +276,24 @@ export async function updateFanHandle(db: Database, fanId: string, handle: strin
   try { await db.query(`UPDATE fan SET handle=$2 WHERE id=$1`, [fanId, h]); return { ok: true }; }
   catch { return { ok: false, error: 'That username is taken.' }; }
 }
+
+// --- athlete PAGE identity edits — the athlete page is edited with the same depth
+// as a personal account: display name, @handle (unique among athletes), and an
+// "about" tagline. Photos/sports/socials/sections live in the rest of the editor.
+export async function athleteHandleTaken(db: Database, handle: string, exceptId: string): Promise<boolean> {
+  const r = await db.query<{ n: number }>(`SELECT count(*)::int n FROM athlete WHERE lower(handle)=$1 AND id<>$2`, [handle.toLowerCase(), exceptId]);
+  return (r.rows[0]?.n ?? 0) > 0;
+}
+export async function updateAthleteIdentity(db: Database, athleteId: string, p: { name?: string; handle?: string; tagline?: string }): Promise<{ ok: boolean; error?: string }> {
+  const name = (p.name ?? '').trim();
+  if (name) await db.query(`UPDATE athlete SET display_name=$2 WHERE id=$1`, [athleteId, name.slice(0, 80)]);
+  if (p.tagline !== undefined) await db.query(`UPDATE athlete SET tagline=$2 WHERE id=$1`, [athleteId, (p.tagline || '').trim().slice(0, 280) || null]);
+  if (p.handle !== undefined && p.handle.trim()) {
+    const h = p.handle.trim().replace(/^@/, '').toLowerCase();
+    if (!/^[a-z0-9_]{2,30}$/.test(h)) return { ok: false, error: 'Handles are 2–30 letters, numbers or underscores.' };
+    if (await athleteHandleTaken(db, h, athleteId)) return { ok: false, error: 'That @handle is taken.' };
+    try { await db.query(`UPDATE athlete SET handle=$2 WHERE id=$1`, [athleteId, h]); }
+    catch { return { ok: false, error: 'That @handle is taken.' }; }
+  }
+  return { ok: true };
+}
