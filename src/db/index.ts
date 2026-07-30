@@ -149,6 +149,7 @@ export async function applySchema(db: Database, migrationsDir = 'db/migrations')
         '0052': () => colExists('event', 'slug'),
         '0053': () => relExists('public.promo_code'),
         '0054': () => colExists('event', 'banner_style'),
+        '0055': () => colExists('club', 'handle'),
       };
       for (const f of files) {
         const probe = present[f.slice(0, 4)];

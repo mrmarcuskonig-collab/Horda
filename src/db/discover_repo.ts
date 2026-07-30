@@ -227,9 +227,14 @@ export async function searchEntities(
     })));
   }
 
+  // Drop duplicate suggestions (same entity surfaced twice looks broken in the
+  // typeahead). Dedupe by kind+id.
+  const seen = new Set<string>();
+  const uniq = out.filter(e => { const k = e.kind + ':' + e.id; if (seen.has(k)) return false; seen.add(k); return true; });
+
   // Same-sport first: on a boxing event, boxers should outrank a same-named
   // footballer. Stable within a group, so prefix/verified ranking survives.
   const sport = (opts.sport || '').toLowerCase();
   const rank = (e: EntitySuggestion) => (sport && e.sport?.toLowerCase() === sport ? 0 : 1);
-  return out.map((e, i) => ({ e, i })).sort((a, b) => rank(a.e) - rank(b.e) || a.i - b.i).map(x => x.e).slice(0, limit);
+  return uniq.map((e, i) => ({ e, i })).sort((a, b) => rank(a.e) - rank(b.e) || a.i - b.i).map(x => x.e).slice(0, limit);
 }

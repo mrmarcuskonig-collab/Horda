@@ -219,11 +219,13 @@ export function deskRail(o: { guest: boolean; fanId: string | null; lang?: _Lang
   return `<aside class="drail">
     <a class="dr-logo" href="/" aria-label="Horda">${_ravenMark(26)}<b>Horda</b></a>
     <form class="dr-search" method="get" action="/">${o.sport ? `<input type="hidden" name="sport" value="${o.sport}">` : ''}<input name="region" value="${o.region ?? ''}" placeholder="${_t(lang, 'search_ph')}" autocomplete="off" aria-label="${_t(lang, 'search_ph')}"></form>
+    ${/* Exactly five, same order as the mobile bottom bar: Home · Following ·
+         Create · Notifications · You. */''}
     <nav class="dr-nav" aria-label="Primary">
       ${item('explore', '/', RAIL_ICON.explore, _t(lang, 'your_horda'))}
       ${item('following', followHref, RAIL_ICON.following, _t(lang, 'following'))}
-      ${o.guest ? '' : item('notifications', '/notifications', RAIL_ICON.bell, _t(lang, 'notifications'), unread ? `<span class="dr-badge">${unread > 9 ? '9+' : unread}</span>` : '')}
       ${item('create', '/create', RAIL_ICON.create, _t(lang, 'create_event'))}
+      ${o.guest ? '' : item('notifications', '/notifications', RAIL_ICON.bell, _t(lang, 'notifications'), unread ? `<span class="dr-badge">${unread > 9 ? '9+' : unread}</span>` : '')}
       ${/* Guests get no profile slot — the "Claim your @handle" campaign is
            deferred, and the foot already offers Log in / Sign up. Showing a
            profile item to a logged-out visitor made the signup page look
@@ -387,10 +389,10 @@ export function verifiedBadge(): string {
  * broken by construction — the next caller to pass null would reintroduce it.
  */
 function profileHref(o: { guest: boolean; fanId: string | null }): string {
-  // Profile lands on your PUBLIC profile as a visitor sees it (Instagram-style),
-  // not the "Your events" dashboard. `/me` resolves per-request to your owned
-  // page (or the dashboard if you have none) — so the nav never needs to know
-  // your entity id, and can't emit a broken /fan/ link.
+  // Profile lands on your "You" HUB (Your events · Profile · Notifications ·
+  // Settings + your pages), not your public entity page. `/me` resolves per-
+  // request to /fan/<you>, so the nav never needs your entity id and can't emit
+  // a broken /fan/ link.
   return (o.guest || !o.fanId) ? '/signup' : '/me';
 }
 
@@ -415,10 +417,14 @@ export function bottomNav(o: { active?: string; guest: boolean; fanId: string | 
   const following = o.guest ? '/signup' : '/following';
   const tab = (key: string, href: string, label: string, icon: string) =>
     `<a href="${href}" class="${o.active === key ? 'on' : ''}" aria-label="${label}" title="${label}"${o.active === key ? ' aria-current="page"' : ''}>${icon}</a>`;
+  // Exactly five destinations, in the SAME order as the desktop rail:
+  // Home · Following · Create · Notifications · You. Create is ALWAYS shown for a
+  // logged-in user (a fan with no page yet gets one auto-provisioned at /create),
+  // so the bar never flips between 4 and 5. Mobile shows icons only (no text).
   return `<nav class="bnav" aria-label="Primary"><div class="bninner">
     ${tab('home', '/', _t(lang, 'your_horda'), NAV_ICON.home)}
     ${tab('following', following, _t(lang, 'following'), NAV_ICON.heart)}
-    ${o.createHref ? tab('create', o.createHref, _t(lang, 'create_event'), NAV_ICON.plus) : ''}
+    ${tab('create', '/create', _t(lang, 'create_event'), NAV_ICON.plus)}
     ${o.guest ? '' : tab('notifications', '/notifications', _t(lang, 'notifications'), NAV_ICON.bell)}
     ${o.guest ? tab('you', '/signup', 'Sign up', NAV_ICON.person) : tab('you', you, _t(lang, 'profile'), NAV_ICON.person)}
   </div></nav>`;

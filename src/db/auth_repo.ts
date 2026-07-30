@@ -233,8 +233,16 @@ export async function owns(db: Database, accountId: string | null, kind: string,
 export async function ownedEntities(db: Database, accountId: string | null): Promise<{ kind: string; id: string; name: string }[]> {
   if (!accountId) return [];
   const rows = (await db.query<any>(`SELECT owner_kind kind, owner_id id FROM ownership WHERE account_id=$1`, [accountId])).rows;
+  // A self-created athlete page is owned via athlete.account_id and may have no
+  // ownership row — include it so a persona is never silently missing from the
+  // create switcher / nav.
+  const selfAth = (await db.query<any>(`SELECT id FROM athlete WHERE account_id=$1`, [accountId])).rows;
+  const seen = new Set<string>();
+  const keyed: { kind: string; id: string }[] = [];
+  for (const r of rows) { const k = r.kind + ':' + r.id; if (!seen.has(k)) { seen.add(k); keyed.push({ kind: r.kind, id: r.id }); } }
+  for (const r of selfAth) { const k = 'athlete:' + r.id; if (!seen.has(k)) { seen.add(k); keyed.push({ kind: 'athlete', id: r.id }); } }
   const out: { kind: string; id: string; name: string }[] = [];
-  for (const r of rows) {
+  for (const r of keyed) {
     const tbl = r.kind === 'athlete' ? 'athlete' : r.kind === 'association' ? 'association' : r.kind === 'team' ? 'team' : 'club';
     const col = r.kind === 'athlete' ? 'display_name' : 'name';
     const nm = (await db.query<any>(`SELECT ${col} n FROM ${tbl} WHERE id=$1`, [r.id])).rows[0]?.n ?? 'Entity';

@@ -435,11 +435,8 @@ export function renderCheckout(d: EventDetail, fanId: string, live = false): str
 export function renderEditEvent(d: EventDetail, viewerFanId: string | null, opt: { canCustomUrl?: boolean; origin?: string; error?: string } = {}): string {
   const fld = 'display:block;margin:12px 0;font-size:13px;color:var(--mut)';
   const inp = 'display:block;width:100%;margin-top:6px;background:var(--s);border:1px solid var(--b);border-radius:10px;color:var(--bone);padding:11px;font:inherit';
-  const host = (opt.origin || 'joinhorda.com').replace(/^https?:\/\//, '');
-  // Custom event URL — free for everyone.
-  const customUrl = `<label style="${fld}">Custom URL <span class="mut">· optional</span>
-        <div style="display:flex;align-items:center;gap:2px;margin-top:6px"><span class="mut" style="font-size:13px;white-space:nowrap">${esc(host)}/e/</span><input style="${inp};margin-top:0" name="slug" value="${esc(d.slug ?? '')}" placeholder="derby-2026" maxlength="40" pattern="[A-Za-z0-9-]*"></div>
-        <span class="mut" style="font-size:11.5px">Letters, numbers and hyphens. Leave blank to use the default link.</span></label>`;
+  // Custom event URLs are not offered right now (we use attributable promo
+  // links instead), so the edit form no longer shows the slug field.
   const isOnline = d.locationKind === 'online';
   const streamUrl = (d.streams && (d.streams as any).primary) || (typeof d.location === 'string' && /^https?:/i.test(d.location) ? d.location : '');
   const draft = `Hi everyone — sorry, but we've had to call off ${d.title}. ${d.priceCents ? 'If you bought a spot, you\'ll be refunded. ' : ''}Thanks for backing it — we'll be back with the next one.`;
@@ -451,7 +448,6 @@ export function renderEditEvent(d: EventDetail, viewerFanId: string | null, opt:
 
     <form method="post" action="/e/${esc(d.id)}/edit" onsubmit="return hzPrep(this)">
       <label style="${fld}">Event name<input style="${inp}" name="title" value="${esc(d.title)}" maxlength="200" required></label>
-      ${customUrl}
 
       <label style="${fld}">Date &amp; time <span class="mut">(locked)</span>
         <input style="${inp};opacity:.6" value="${esc([d.date, d.time].filter(Boolean).join(' · ') || 'TBA')}" disabled></label>
@@ -506,18 +502,45 @@ export function renderEditEvent(d: EventDetail, viewerFanId: string | null, opt:
 
 // owner: schedule an event. `parent` set when adding a sub-event (bout / race).
 // `defaultSport` = the host's own sport, pre-selected (see the topsel comment).
-export function renderCreateEvent(hostKind: string, hostId: string, hostName: string, parent?: { id: string; title: string; location?: string | null }, defaultSport?: string | null, viewerFanId?: string | null, opt: { canCustomUrl?: boolean; origin?: string } = {}): string {
+export function renderCreateEvent(hostKind: string, hostId: string, hostName: string, parent?: { id: string; title: string; location?: string | null }, defaultSport?: string | null, viewerFanId?: string | null, opt: { canCustomUrl?: boolean; origin?: string; personas?: { kind: string; id: string; name: string }[] } = {}): string {
   const fld = 'display:block;margin:12px 0;font-size:13px;color:var(--mut)';
   const inp = 'display:block;width:100%;margin-top:6px;background:var(--s);border:1px solid var(--b);border-radius:10px;color:var(--bone);padding:10px;font:inherit';
-  const host = (opt.origin || 'joinhorda.com').replace(/^https?:\/\//, '');
-  // Custom URL — free for everyone, offered at creation (sub-events inherit the
-  // parent's, so it's only on top-level events).
-  const customUrl = parent ? '' : `<label style="${fld}">Custom URL <span class="mut">· optional</span>
-        <div style="display:flex;align-items:center;gap:2px;margin-top:6px"><span class="mut" style="font-size:13px;white-space:nowrap">${esc(host)}/e/</span><input style="${inp};margin-top:0" name="slug" placeholder="derby-2026" maxlength="40" pattern="[A-Za-z0-9-]*"></div>
-        <span class="mut" style="font-size:11.5px">Letters, numbers and hyphens. Leave blank for the default link.</span></label>`;
+  const kindLabel: Record<string, string> = { athlete: 'Athlete', club: 'Club', team: 'Team', association: 'League' };
+  const inits = (n: string) => (n || '?').trim().split(/\s+/).slice(0, 2).map(w => w[0]?.toUpperCase() ?? '').join('') || '?';
+  // "Creating as" — always show, front and centre, WHICH entity is hosting this
+  // event (your athlete page, a club, a federation…). When the account runs more
+  // than one, offer one-tap switches to the others without leaving the form.
+  // Sub-events inherit the parent's host, so the bar is hidden for those.
+  const personas = (opt.personas ?? []).filter(p => !!p.id);
+  const current = personas.find(p => p.kind === hostKind && p.id === hostId) ?? { kind: hostKind, id: hostId, name: hostName };
+  const others = personas.filter(p => !(p.kind === hostKind && p.id === hostId));
+  const personaBar = parent ? '' : `
+  <div class="hostbar">
+    <span class="hbav">${esc(inits(current.name))}</span>
+    <div class="hbmeta"><span class="hbk">Creating as</span><b class="hbn">${esc(current.name)} <span class="hbkind">${esc(kindLabel[current.kind] ?? current.kind)}</span></b></div>
+  </div>
+  ${others.length ? `<div class="hbswitch"><span class="hbsl">Switch to</span>${others.map(p => `<a class="hbchip" href="/host/${esc(p.kind)}/${esc(p.id)}/new"><span class="hbcav">${esc(inits(p.name))}</span>${esc(p.name)} <i>${esc(kindLabel[p.kind] ?? p.kind)}</i></a>`).join('')}</div>` : ''}
+  <style>
+    .hostbar{display:flex;align-items:center;gap:12px;border:1.5px solid var(--acc);border-radius:14px;padding:11px 14px;background:color-mix(in srgb, var(--acc) 9%, var(--s));margin:4px 0 10px}
+    .hbav{width:40px;height:40px;border-radius:10px;background:var(--acc);color:var(--accink);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:15px;flex:0 0 auto}
+    .hbmeta{display:flex;flex-direction:column;line-height:1.25;min-width:0}
+    .hbk{font-size:11px;text-transform:uppercase;letter-spacing:.09em;color:var(--acc);font-weight:800}
+    .hbn{font-size:18px;font-weight:800;color:var(--bone)}
+    .hbkind{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--mut);margin-left:4px}
+    .hbswitch{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:0 0 14px}
+    .hbsl{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--mut);font-weight:700}
+    .hbchip{display:inline-flex;align-items:center;gap:7px;border:1px solid var(--b);border-radius:999px;padding:5px 12px 5px 6px;background:var(--s);text-decoration:none;color:var(--bone);font-size:13px;font-weight:600}
+    .hbchip:hover{border-color:var(--bone)}
+    .hbchip i{color:var(--mut);font-style:normal;font-size:10.5px;text-transform:uppercase;letter-spacing:.05em}
+    .hbcav{width:22px;height:22px;border-radius:6px;background:var(--ink);color:var(--bone);display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;flex:0 0 auto}
+  </style>`;
+  // Custom event URLs are intentionally NOT offered at creation right now — we
+  // rely on attributable promo links instead. (setEventSlug still exists server-
+  // side for later, but nothing in the form sets it.)
   const body = `
   <h1>${parent ? 'Add a sub-event' : 'Schedule an event'}</h1>
-  <p class="mut">${parent ? `Under <b style="color:var(--bone)">${esc(parent.title)}</b> — a bout or race-within-the-race. It gets its own sides and promo links; attribution rolls up.` : `As ${esc(hostName)}. Choose the shape, who's on the card, and how fans get in.`}</p>
+  ${personaBar}
+  <p class="mut">${parent ? `Under <b style="color:var(--bone)">${esc(parent.title)}</b> — a bout or race-within-the-race. It gets its own sides and promo links; attribution rolls up.` : `Choose the shape, who's on the card, and how fans get in.`}</p>
   <form method="post" action="/events" id="evform" onsubmit="return hzPrep(this)">
     <input type="hidden" name="host_kind" value="${esc(hostKind)}"><input type="hidden" name="host_id" value="${esc(hostId)}">
     ${parent ? `<input type="hidden" name="parent_id" value="${esc(parent.id)}">` : ''}
@@ -541,7 +564,6 @@ export function renderCreateEvent(hostKind: string, hostId: string, hostName: st
     <p class="mut" id="ev_vis_hint" style="font-size:12px;margin:0 0 4px">Listed on Horda, in search and on your page.</p>
 
     <label style="${fld}">Event name<input style="${inp}" name="title" required placeholder="${parent ? 'Rico vs. Tariq' : 'Open sparring night'}"></label>
-    ${customUrl}
 
     ${/* Shape sits directly under the name so it's the first structural choice —
         and the Banner design below reacts to it live (versus → the banner splits),

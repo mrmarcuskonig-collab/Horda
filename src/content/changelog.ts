@@ -72,6 +72,36 @@ export const BUILDING: BuildingEntry[] = [
 // ---------------------------------------------------------------------------
 export const SHIPPED: ChangeEntry[] = [
   {
+    date: '2026-07-30',
+    title: 'Your own link: joinhorda.com/yourname',
+    body: 'Clubs, teams, federations and athletes can now claim a memorable link — joinhorda.com/yourname — that shows your page with every event you run. Share that one link instead of a Horda page URL; you never have to link "to Horda" again. Set it on your page under Edit.',
+    tag: 'new',
+  },
+  {
+    date: '2026-07-30',
+    title: 'Every event gets a designed banner from your picture',
+    body: 'Create an event and it already looks like yours: your photo or club logo is built into a proper poster, no upload needed. A versus event splits the banner in two. No picture? It uses your initials. You can still upload your own.',
+    tag: 'new',
+  },
+  {
+    date: '2026-07-30',
+    title: 'When you create an event, you can see which page it is for',
+    body: 'If you run more than one page — your athlete page plus a club or two — the create form now shows, front and centre, which one is hosting the event, and lets you switch in one tap. No more publishing under the wrong page by accident.',
+    tag: 'better',
+  },
+  {
+    date: '2026-07-30',
+    title: 'Your profile is now your home base',
+    body: 'Tapping your profile lands you on your hub — your events, your profile, notifications and settings — with your public page one tap away. One account to edit (personal, or your athlete page), and a + to create club, federation or organiser pages from scratch.',
+    tag: 'better',
+  },
+  {
+    date: '2026-07-30',
+    title: 'Setting a ticket price works again',
+    body: 'A hidden glitch was stopping the price field (and a few other things) from appearing when you built an event. Fixed — choose Paid and set your ticket price, and let one person claim several spots at once.',
+    tag: 'fixed',
+  },
+  {
     date: '2026-07-17',
     title: 'Sharing an event now sends the whole matchday card',
     body: 'Paste an event into WhatsApp and your mates see the card — who, when, where, what it costs — instead of a naked link. On a phone you can send the picture itself straight to an Instagram Story. Share it under your name and you still get the credit for who you bring.',

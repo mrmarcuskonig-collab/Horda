@@ -45,11 +45,17 @@ export function reportError(err: unknown, ctx: ErrContext = {}): void {
   const WEBHOOK = webhook(), SENTRY_DSN = sentryDsn(), RELEASE = release();
   try {
     if (WEBHOOK) {
-      const text = `🔴 Horda error (${RELEASE})\n${ctx.method || ''} ${ctx.path || ctx.where || ''}\n${message}\n\`\`\`${stack.slice(0, 1500)}\`\`\``;
+      // Discord caps `content` at 2000 chars and 400s if you exceed it, so build
+      // the message and hard-cap it (leave room for the ``` fence). The header is
+      // always kept; the stack is what gets truncated.
+      const head = `🔴 **Horda error** (${RELEASE})\n${ctx.method || ''} ${ctx.path || ctx.where || ''}\n${message}`;
+      const room = Math.max(0, 1900 - head.length - 8);
+      const text = `${head}\n\`\`\`${stack.slice(0, room)}\`\`\``.slice(0, 1990);
       void fetch(WEBHOOK, {
         method: 'POST', headers: { 'content-type': 'application/json' },
-        // `content` suits Discord/Slack; a custom endpoint can read `message`+`stack`.
-        body: JSON.stringify({ content: text, text, message, stack, release: RELEASE, ...ctx }),
+        // `content` + `username` are Discord's fields (Slack reads `text`); a
+        // custom endpoint can still read `message`/`stack`/`path`.
+        body: JSON.stringify({ username: 'Horda Alerts', content: text, text, message, stack, release: RELEASE, ...ctx }),
       }).catch(() => {});
     } else if (SENTRY_DSN) {
       void sendSentry(message, stack, ctx).catch(() => {});

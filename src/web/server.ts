@@ -33,6 +33,7 @@ import { signup, verifyLogin, createSession, sessionAccount, deleteSession, dele
 import { getDiscover, REGIONS, searchEntities } from '../db/discover_repo.ts';
 import { renderEventPage, renderCreateEvent, renderEditEvent, renderManage, renderCheckout, renderPayouts } from './events.ts';
 import { updateEventFields, cancelEvent, eventAudienceFans, setEventSlug } from '../db/events_repo.ts';
+import { resolveEntityHandle, setEntityHandle, getEntityHandle, isReservedHandle, RESERVED_HANDLES } from '../db/handles_repo.ts';
 import { seedDemo, type DemoIds } from './seed.ts';
 import { renderIndex, renderDiscover, renderMap, renderAthletePage, renderCustomize, renderEntityEdit, renderCompose, renderFanHome, renderSignup, renderLogin, renderForgot, renderReset, renderSharePage, renderMemberWelcome, renderClaimPending, renderClaimQueue, renderOnboardFan, renderAiPrompt, renderProfilePreview, renderOnboardClaim, renderCreatorEntry, renderClaimHandle, sportsLabel, SPORT_EN_LABELS, renderSettings, renderPros, renderCreatePicker, renderCreateAge, renderMagicSent, renderFollowing, renderWelcome, sportLabel } from './pages.ts';
 import { getEmailer, resetEmail, loginEmail } from './email.ts';
@@ -162,7 +163,7 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
   return createServer(async (req, res) => {
     try {
       const url = new URL(req.url ?? '/', 'http://localhost');
-      const path = url.pathname;
+      let path = url.pathname;
       // Health check FIRST — before session/auth, so it reflects the server's
       // real state (DB reachable + migrations at HEAD), not a rendered page.
       // Render points its health check here; a 503 fails a bad deploy loudly.
@@ -171,6 +172,17 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
         res.writeHead(hr.ok ? 200 : 503, { 'content-type': 'application/json', 'cache-control': 'no-store' });
         res.end(hr.body);
         return;
+      }
+      // Vanity handle → public entity page, KEEPING the pretty URL. A single,
+      // non-reserved segment like /fcrival is resolved to the canonical entity
+      // route INTERNALLY (no redirect), so joinhorda.com/<handle> stays in the
+      // address bar while the club/athlete page (with all its events) renders.
+      if (req.method === 'GET' && path.length > 1 && path.indexOf('/', 1) === -1) {
+        const seg = path.slice(1);
+        if (!RESERVED_HANDLES.has(seg.toLowerCase()) && /^[A-Za-z0-9_][A-Za-z0-9_.-]{1,39}$/.test(seg)) {
+          const ent = await resolveEntityHandle(db, seg);
+          if (ent) path = ent.kind === 'athlete' ? `/athlete/${ent.id}` : `/${ent.kind}/${ent.id}`;
+        }
       }
       // --- identity: resolve the session account (demo fallback keeps it usable without login) ---
       const cookies = parseCookies(req.headers.cookie);
@@ -1527,7 +1539,14 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
         const parent = pe ? { id: pe.id, title: pe.title, location: pe.location ?? null } : undefined;
         // Pre-select the host's own sport — right ~95% of the time, one click to change.
         const hostSport = em[1] === 'athlete' ? await getAthleteSport(db, em[2]) : null;
-        return html(res, renderCreateEvent(em[1], em[2], await hostName(db, em[1], em[2]), parent, hostSport, viewerGuest ? null : viewer, { canCustomUrl: true, origin }));
+        // Personas the account can host as — so "Creating as" can switch between an
+        // athlete page and their clubs/teams without leaving the form. Ensure the
+        // current host is present even if it's not in the owned list.
+        let personas = (!viewerGuest && account) ? await ownedEntities(db, account.id) : [];
+        if (!personas.some(p => p.kind === em[1] && p.id === em[2])) {
+          personas = [{ kind: em[1], id: em[2], name: await hostName(db, em[1], em[2]) }, ...personas];
+        }
+        return html(res, renderCreateEvent(em[1], em[2], await hostName(db, em[1], em[2]), parent, hostSport, viewerGuest ? null : viewer, { canCustomUrl: true, origin, personas }));
       }
       // Multi-party: claim an unclaimed side/roster slot (the two-sided growth loop).
       // ORGANIZER invites the other side. The other side is NOT open to whoever
@@ -1770,8 +1789,9 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
       // profile" button → Settings); otherwise the personal dashboard.
       if (path === '/me') {
         if (viewerGuest) return redirect(res, '/signup?next=/me');
-        const own = ownedForNav.find(e => e.kind === 'athlete') ?? ownedForNav[0];
-        if (own) return redirect(res, `/${own.kind}/${own.id}`);
+        // Profile lands on your "You" hub (Your events · Profile · Notifications ·
+        // Settings + your pages), NOT your public entity page. Your public page is
+        // one tap away from the hub's "Your pages".
         return redirect(res, `/fan/${viewer}`);
       }
       if (path === '/settings') {
@@ -1785,7 +1805,10 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
         const flash = url.searchParams.get('upgraded') ? 'Welcome to Horda Plus — your paid tickets are now 0% fee.'
           : url.searchParams.get('downgraded') ? 'Horda Plus cancelled. You’re back on the Free plan.'
           : url.searchParams.get('ok') || undefined;
-        return html(res, renderSettings({ fanId: viewer, fanName: account?.displayName || 'You', handle, email: account?.email, phone, ownsPages: ownsCount > 0, editPageHref: editHref, insightsHref: insHref, createHref: viewerCreateHref, notice: flash, error: url.searchParams.get('err') || undefined, plan, plusLive: getPlan('plus').live, platformFeePct: TAKE_RATE_PCT, managed: ownedForNav.map(o => ({ kind: o.kind, id: o.id, name: o.name })) }));
+        // Only NON-personal pages here (clubs / teams / federations / organisers).
+        // The athlete page is the personal account's own creator page, not a peer.
+        const managedPages = ownedForNav.filter(o => o.kind !== 'athlete').map(o => ({ kind: o.kind, id: o.id, name: o.name }));
+        return html(res, renderSettings({ fanId: viewer, fanName: account?.displayName || 'You', handle, email: account?.email, phone, ownsPages: ownsCount > 0, editPageHref: editHref, insightsHref: insHref, createHref: viewerCreateHref, notice: flash, error: url.searchParams.get('err') || undefined, plan, plusLive: getPlan('plus').live, platformFeePct: TAKE_RATE_PCT, managed: managedPages }));
       }
       // Live username availability — the settings field polls this as you type.
       if (path === '/account/username-available') {
@@ -2259,19 +2282,26 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
         if (!await canEdit(ek, eid)) return redirect(res, `/${ek}/${eid}`);
         const b = await getBranding(db, ek, eid);
         const managed = ownedForNav.map(o => ({ kind: o.kind, id: o.id, name: o.name }));
-        return html(res, renderEntityEdit({ kind: ek, id: eid, fanId: viewer, name: (await hostName(db, ek, eid)) || 'Your page', tagline: b.tagline, avatarUrl: b.avatarUrl, bannerUrl: b.bannerUrl, links: b.links, managed, error: url.searchParams.get('err') || undefined }));
+        return html(res, renderEntityEdit({ kind: ek, id: eid, fanId: viewer, name: (await hostName(db, ek, eid)) || 'Your page', tagline: b.tagline, avatarUrl: b.avatarUrl, bannerUrl: b.bannerUrl, links: b.links, managed, handle: await getEntityHandle(db, ek, eid), origin, error: url.searchParams.get('err') || undefined }));
       }
-      // Save a club/team/federation's name, about + social links (owner only).
+      // Save a club/team/federation's name, about, vanity handle + social links (owner only).
       if (req.method === 'POST' && (entEdit = path.match(/^\/(club|team|association)\/([^/]+)\/identity$/))) {
         const ek = entEdit[1] as 'club' | 'team' | 'association', eid = entEdit[2];
         if (!await canEdit(ek, eid)) return redirect(res, `/${ek}/${eid}`);
         const f = await parseForm(req);
         if ((f.name || '').trim()) await updateEntityName(db, ek, eid, f.name);
+        // Vanity handle → joinhorda.com/<handle>. A taken/invalid one is reported,
+        // the rest of the edit still saves.
+        let handleErr = '';
+        if (typeof f.handle === 'string') {
+          const hr = await setEntityHandle(db, ek, eid, f.handle);
+          if (!hr.ok) handleErr = hr.error;
+        }
         const cur = await getBranding(db, ek, eid);
         const links: Record<string, string> = { ...cur.links };
         for (const k of ['instagram', 'x', 'tiktok', 'youtube', 'website']) links[k] = (f[k] || '').trim();
         await setBranding(db, ek, eid, { tagline: (f.tagline || '').trim() || undefined, links, avatarUrl: cur.avatarUrl || undefined, bannerUrl: cur.bannerUrl || undefined });
-        return redirect(res, `/${ek}/${eid}/customize`);
+        return redirect(res, `/${ek}/${eid}/customize${handleErr ? '?err=' + encodeURIComponent(handleErr) : ''}`);
       }
       // Save a club/team/federation's photos (owner only) — preserves name/about/links.
       if (req.method === 'POST' && (entEdit = path.match(/^\/(club|team|association)\/([^/]+)\/photos$/))) {

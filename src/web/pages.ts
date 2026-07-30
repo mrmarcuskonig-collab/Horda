@@ -853,15 +853,24 @@ export function renderSportPicker(selected: string[]): string {
 // personal account settings, each athlete page, each club/federation page — with
 // the current one highlighted. Makes it unmistakable which surface you're on and
 // lets you jump straight to another one you manage.
-export function profileSwitcher(d: { personalActive: boolean; pages?: { kind: string; id: string; name: string; active: boolean }[] }): string {
-  const kindLabel = (k: string) => k === 'athlete' ? 'Athlete page' : k === 'club' ? 'Club page' : k === 'team' ? 'Team page' : k === 'association' ? 'Federation page' : 'Page';
+// The "You're editing" row. There is exactly ONE personal account — your own
+// account (a fan, or your athlete page once you've opted in) — shown as the first
+// chip. Everything after it is a separate PAGE you also manage (clubs, teams,
+// federations, organisers), plus a "＋ Create a page" to make a new one from
+// scratch. Pass only NON-personal pages in `pages` (the athlete is folded into
+// the personal account, not listed as a peer).
+export function profileSwitcher(d: { personalActive: boolean; personalName?: string; personalKind?: 'fan' | 'athlete'; pages?: { kind: string; id: string; name: string; active: boolean }[] }): string {
+  const kindLabel = (k: string) => k === 'club' ? 'Club page' : k === 'team' ? 'Team page' : k === 'association' ? 'Federation page' : 'Page';
   const editHref = (p: { kind: string; id: string }) => `/${p.kind}/${p.id}/customize`;
-  const chip = (kicker: string, name: string, href: string, active: boolean) =>
-    `<a class="pswx${active ? ' on' : ''}" href="${href}"${active ? ' aria-current="page"' : ''}><span class="pswk">${esc(kicker)}</span><span class="pswn">${esc(name)}</span></a>`;
-  const pages = (d.pages ?? []).map(p => chip(kindLabel(p.kind), p.name, editHref(p), p.active)).join('');
+  const chip = (kicker: string, name: string, href: string, active: boolean, cls = '') =>
+    `<a class="pswx${active ? ' on' : ''}${cls ? ' ' + cls : ''}" href="${href}"${active ? ' aria-current="page"' : ''}><span class="pswk">${esc(kicker)}</span><span class="pswn">${esc(name)}</span></a>`;
+  const personalKicker = d.personalKind === 'athlete' ? 'Personal · Creator' : 'Personal account';
+  const personalName = d.personalName || (d.personalKind === 'athlete' ? 'Your athlete page' : 'Your profile');
+  const pages = (d.pages ?? []).filter(p => p.kind !== 'athlete').map(p => chip(kindLabel(p.kind), p.name, editHref(p), p.active)).join('');
+  const plus = `<a class="pswx pswadd" href="/onboarding"><span class="pswk">New</span><span class="pswn">＋ Create a page</span></a>`;
   return `<div class="psw">
     <div class="pswlbl">You're editing</div>
-    <div class="pswrow">${chip('Personal account', 'Your fan profile', '/settings', d.personalActive)}${pages}</div>
+    <div class="pswrow">${chip(personalKicker, personalName, '/settings', d.personalActive)}${pages}${plus}</div>
     <style>
       .psw{margin:2px 0 14px}
       .pswlbl{font-size:11px;letter-spacing:1.5px;text-transform:uppercase;color:var(--mut);font-weight:800;margin-bottom:8px}
@@ -871,6 +880,7 @@ export function profileSwitcher(d: { personalActive: boolean; pages?: { kind: st
       .pswx .pswn{display:block;font-size:14px;font-weight:700;color:var(--bone);margin-top:2px}
       .pswx.on{border-color:var(--acc);background:color-mix(in srgb, var(--acc) 14%, var(--s))}
       .pswx.on .pswk{color:var(--acc)}
+      .pswx.pswadd{border-style:dashed}.pswx.pswadd .pswn{color:var(--acc)}
     </style>
   </div>`;
 }
@@ -918,9 +928,9 @@ export function renderCustomize(d: { athleteId: string; fanId: string | null; sp
       .secrow.drag{opacity:.45}
     </style>
     ${profileTabs({ fanId: d.fanId ?? d.athleteId, active: 'profile', profileHref: `/athlete/${esc(d.athleteId)}/customize` })}
-    ${profileSwitcher({ personalActive: false, pages: (d.managed ?? [{ kind: 'athlete', id: d.athleteId, name: d.name ?? 'Your athlete page' }]).map(p => ({ ...p, active: p.kind === 'athlete' && p.id === d.athleteId })) })}
+    ${profileSwitcher({ personalActive: true, personalKind: 'athlete', personalName: d.name ?? 'Your athlete page', pages: (d.managed ?? []).map(p => ({ ...p, active: false })) })}
     <h1>Edit your athlete page</h1>
-    <p class="mut" style="margin:-4px 0 6px">This is your public athlete page — name, @handle, about, photos, background, sections and links. It's separate from your personal account.</p>
+    <p class="mut" style="margin:-4px 0 6px">This is your personal creator page — name, @handle, about, photos, background, sections and links. It's the public face of your account. Clubs, federations and organiser pages are separate — create one with ＋ above.</p>
     ${d.error ? `<div class="card" style="border-color:#ff6b6b;margin:8px 0"><strong style="color:#ff6b6b">${esc(d.error)}</strong></div>` : ''}
 
     <div class="card" style="margin-top:6px">
@@ -1030,7 +1040,8 @@ export function renderCustomize(d: { athleteId: string; fanId: string | null; sp
 // --- club / team / federation page editor — same depth as the athlete + personal
 // editors: name, about, photos and links, with the profile switcher on top so it's
 // clear which page you're editing.
-export function renderEntityEdit(d: { kind: 'club' | 'team' | 'association'; id: string; fanId: string | null; name: string; tagline?: string | null; avatarUrl?: string | null; bannerUrl?: string | null; links?: Record<string, string>; managed?: { kind: string; id: string; name: string }[]; error?: string }): string {
+export function renderEntityEdit(d: { kind: 'club' | 'team' | 'association'; id: string; fanId: string | null; name: string; tagline?: string | null; avatarUrl?: string | null; bannerUrl?: string | null; links?: Record<string, string>; managed?: { kind: string; id: string; name: string }[]; handle?: string | null; origin?: string; error?: string }): string {
+  const host = (d.origin || 'joinhorda.com').replace(/^https?:\/\//, '');
   const inp = 'display:block;width:100%;margin-top:6px;background:var(--s);border:1px solid var(--b);border-radius:10px;color:var(--bone);padding:10px;font:inherit';
   const ta = 'display:block;width:100%;margin-top:8px;background:var(--s);border:1px solid var(--b);border-radius:12px;color:var(--bone);padding:12px;font:inherit;min-height:90px';
   const L = d.links ?? {};
@@ -1046,6 +1057,9 @@ export function renderEntityEdit(d: { kind: 'club' | 'team' | 'association'; id:
       <h2 style="font-size:13px;letter-spacing:1px;text-transform:uppercase;margin-bottom:6px">Name, about &amp; links</h2>
       <form method="post" action="/${d.kind}/${esc(d.id)}/identity">
         <label class="mut" style="display:block;font-size:13px">Name<input style="${inp}" name="name" value="${esc(d.name)}" required></label>
+        <label class="mut" style="display:block;margin:8px 0 0;font-size:13px">Your link <span style="color:var(--acc)">· share this, not a Horda link</span>
+          <div style="display:flex;align-items:center;gap:2px;margin-top:6px"><span class="mut" style="font-size:13px;white-space:nowrap">${esc(host)}/</span><input style="${inp};margin-top:0" name="handle" value="${esc(d.handle ?? '')}" placeholder="${esc(kindLabel)}name" maxlength="40" pattern="[A-Za-z0-9_.-]*" autocapitalize="off" autocomplete="off"></div>
+          <span class="mut" style="font-size:11.5px">Your public page — everyone sees every event you run. Letters, numbers, and _ . - Leave blank to keep the default link.</span></label>
         <label class="mut" style="display:block;margin:8px 0 0;font-size:13px">About<textarea style="${ta}" name="tagline" maxlength="280" placeholder="What this ${kindLabel} is — who you are, what you compete in.">${esc(d.tagline ?? '')}</textarea></label>
         <div style="margin-top:10px;font-size:12px;letter-spacing:1px;text-transform:uppercase;color:var(--mut);font-weight:700">Connect socials</div>
         ${linkField('instagram', 'Instagram', 'https://instagram.com/…')}
@@ -1140,9 +1154,10 @@ export function renderSettings(d: { fanId: string; fanName: string; handle?: str
       .unhint.ok{color:#7ee2a0;font-weight:600}.unhint.bad{color:#e5707a;font-weight:600}
     </style>
     ${profileTabs({ fanId: d.fanId, active: 'settings', profileHref: d.editPageHref })}
-    ${profileSwitcher({ personalActive: true, pages: (d.managed ?? []).map(p => ({ ...p, active: false })) })}
-    <h1>Personal account</h1>
-    <p class="mut" style="margin:-4px 0 6px">Your own account as a fan — name, @username, contact and plan. Your athlete and club pages are edited separately (switch above).</p>
+    ${profileSwitcher({ personalActive: true, personalKind: d.editPageHref ? 'athlete' : 'fan', personalName: d.fanName, pages: (d.managed ?? []).map(p => ({ ...p, active: false })) })}
+    <h1>${d.editPageHref ? 'Your account' : 'Personal account'}</h1>
+    <p class="mut" style="margin:-4px 0 6px">Your one account — name, @username, contact and plan.${d.editPageHref ? ' Your athlete page is your public creator profile (edit it below).' : ' Opt in to an athlete page any time.'} Clubs, federations and organiser pages are separate — create one with ＋ above.</p>
+    ${d.editPageHref ? `<a class="setrow" href="${esc(d.editPageHref)}" style="border-radius:12px;border-bottom:1px solid var(--b);margin:8px 0 0"><span>Edit your athlete page<span class="setsub">Your public creator profile — name, @handle, about, photos</span></span>${chev}</a>` : ''}
     ${d.notice ? `<div class="flash ok">${esc(d.notice)}</div>` : ''}
     ${d.error ? `<div class="flash err">${esc(d.error)}</div>` : ''}
 
@@ -1806,8 +1821,8 @@ export function renderFanHome(d: { fanId: string; fanName: string; handle?: stri
           ? `<ul style="list-style:none;margin:8px 0 0">${pg.events.slice(0, 5).map(e => `<li style="display:flex;align-items:center;gap:8px;padding:5px 0;border-top:1px solid var(--b)"><a class="hl" href="/e/${e.id}" style="flex:1">${esc(e.title)}</a><span class="dt">${esc(e.date ?? '')}</span><a class="tag mutd" href="/manage/${e.id}">Manage</a></li>`).join('')}</ul>`
           : `<p class="mut" style="font-size:12.5px;margin:6px 0 0">No events yet.</p>`;
         return `<div class="card"><div class="row" style="justify-content:space-between;margin:0"><a class="hl" href="${ehref(pg.kind, pg.id)}">${esc(pg.name)} <span class="tag mutd">${esc(pg.kind)}</span></a><span class="row" style="gap:6px;margin:0"><a class="tag mutd" href="/embed/${pg.kind}/${pg.id}/code" title="Show your events on your own website">Embed</a><a class="tag" href="/host/${pg.kind}/${pg.id}/new">＋ Event</a></span></div>${nextUp}${evs}</div>`;
-      }).join('')}<div class="row"><a class="tag mutd" href="/create">＋ Create another page</a></div>`
-    : `<div class="card" style="border-color:var(--bone)"><strong>Competing? Become a Creathor.</strong><p class="mut" style="font-size:12.5px;margin:6px 0 10px">It's just an upgrade on this account — your fan feed stays exactly as it is. Get an athlete page, run events, and see who you bring to the door.</p><div class="row"><a class="btn sm" href="/pros">Get your athlete page →</a><a class="tag mutd" href="/create">Claim a club</a></div></div>`;
+      }).join('')}<div class="row"><a class="tag mutd" href="/onboarding">＋ Create a page (club, federation, organiser…)</a></div>`
+    : `<div class="card" style="border-color:var(--bone)"><strong>Competing? Become a Creathor.</strong><p class="mut" style="font-size:12.5px;margin:6px 0 10px">It's just an upgrade on this account — your fan feed stays exactly as it is. Get an athlete page, run events, and see who you bring to the door.</p><div class="row"><a class="btn sm" href="/pros">Get your athlete page →</a><a class="tag mutd" href="/onboarding">Create a club page</a></div></div>`;
   const unread = home.notifications.filter(n => !n.read).length;
 
   const following = d.follows.length
