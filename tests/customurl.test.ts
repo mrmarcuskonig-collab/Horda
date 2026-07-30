@@ -17,22 +17,22 @@ const get = (p: string, cookie?: string) => fetch(base + p, { headers: cookie ? 
 
 console.log('\n[customurl] custom event URLs — free for everyone');
 
-// --- the CREATE form always offers the field, and no longer upsells Plus ---
+// --- the custom-URL field is no longer offered in the UI (we use promo links) ---
 const create = renderCreateEvent('athlete', 'a', 'Rico', undefined, null, 'f', { origin: 'https://joinhorda.com' });
-ok('create form shows the custom-URL field for everyone', create.includes('name="slug"') && create.includes('/e/'));
+ok('the create form no longer shows a custom-URL field', !create.includes('name="slug"'));
 ok('the create form no longer upsells Horda Plus for the URL', !create.includes('Horda Plus'));
-ok('sub-events never offer a custom URL (they inherit the parent)', !renderCreateEvent('athlete', 'a', 'Rico', { id: 'p', title: 'Card' }, null, 'f', {}).includes('name="slug"'));
 
 const ath = app.ids.athletes[0].id;
 const acct = (await app.db.query<{ account_id: string }>(`SELECT account_id FROM athlete WHERE id=$1`, [ath])).rows[0].account_id;
 const cookie = `hz_session=${await createSession(app.db, acct)}`;
 const ev = await createScheduledEvent(app.db, { hostKind: 'athlete', hostId: ath, title: 'Derby Night', startsAt: new Date(Date.now() + 864e5).toISOString(), location: 'Berlin', admission: 'open' });
 
-// --- any organiser can set a slug from the edit page and it resolves ---
+// --- the edit form no longer shows the field, but the backend still resolves a
+//     slug if one is ever set (kept for later) ---
 const edit = await get(`/e/${ev}/edit`, cookie);
-ok('the edit page shows the custom-URL field for everyone (no Plus upsell)', edit.includes('name="slug"') && edit.includes('/e/') && !edit.includes('Horda Plus'));
+ok('the edit form no longer shows a custom-URL field', !edit.includes('name="slug"'));
 const saved = await post(`/e/${ev}/edit`, 'title=Derby Night&slug=Derby-2026', cookie);
-ok('saving a custom URL redirects to manage', saved.status === 303);
+ok('the backend still applies a posted slug and redirects', saved.status === 303);
 ok('the slug is stored (slugified to lowercase)', (await resolveEventId(app.db, 'derby-2026')) === ev);
 
 // --- the custom URL resolves the public event page ---

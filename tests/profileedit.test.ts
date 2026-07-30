@@ -23,7 +23,7 @@ console.log('\n[profileedit] edit your pages with depth + a clear profile switch
 
 // --- the athlete page editor ---
 const cz = await get(`/athlete/${rico}/customize`);
-ok('the switcher shows "You\'re editing" with a Personal account chip', cz.includes("You're editing") && cz.includes('Personal account'));
+ok('the switcher shows "You\'re editing" with one personal-account chip + a create-a-page action', cz.includes("You're editing") && cz.includes('Personal') && cz.includes('Create a page'));
 ok('the athlete editor has name, @handle and about fields', cz.includes('name="name"') && cz.includes('name="handle"') && cz.includes('name="tagline"'));
 ok('it clearly says you\'re editing the athlete page (not settings)', cz.includes('Edit your athlete page') && !cz.includes('Personal account settings'));
 
@@ -45,8 +45,8 @@ ok('a bad @handle is refused', !(await updateAthleteIdentity(app.db, rico, { han
 
 // --- personal settings is labelled + carries the switcher ---
 const set = await get('/settings');
-ok('settings is titled "Personal account" and shows the switcher', set.includes('Personal account') && set.includes("You're editing"));
-ok('the switcher on settings lists the athlete page as another editor', set.includes(`/athlete/${rico}/customize`));
+ok('settings is titled for the one personal account and shows the switcher', (set.includes('Your account') || set.includes('Personal account')) && set.includes("You're editing"));
+ok('the athlete page is editable from the personal account (not a separate peer)', set.includes(`/athlete/${rico}/customize`) && set.includes('Create a page'));
 
 // --- the club page has its own editor ---
 const ce = await get(`/club/${club}/customize`);
