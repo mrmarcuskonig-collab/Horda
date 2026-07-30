@@ -5,7 +5,6 @@ import { layout, esc, ogMeta } from './layout.ts';
 import { eventJsonLd } from './schema.ts';
 import { UPLOAD_SCRIPT } from './shell.ts';
 import { shareButton, followControl } from './theme.ts';
-import { BANNER_STYLES, BANNER_STYLE_LABEL, normalizeBannerStyle } from './banner.ts';
 import { mapsChooser } from './maps.ts';
 import { socialIcon } from './icons.ts';
 import { sportSelect } from './pages.ts';
@@ -437,13 +436,10 @@ export function renderEditEvent(d: EventDetail, viewerFanId: string | null, opt:
   const fld = 'display:block;margin:12px 0;font-size:13px;color:var(--mut)';
   const inp = 'display:block;width:100%;margin-top:6px;background:var(--s);border:1px solid var(--b);border-radius:10px;color:var(--bone);padding:11px;font:inherit';
   const host = (opt.origin || 'joinhorda.com').replace(/^https?:\/\//, '');
-  // Custom event URL — a Horda Plus feature. Free organisers see an upsell; the
-  // whole block is gated by `canCustomUrl` (hasEntitlement('custom_url')).
-  const customUrl = opt.canCustomUrl
-    ? `<label style="${fld}">Custom URL <span class="mut">· Horda Plus</span>
+  // Custom event URL — free for everyone.
+  const customUrl = `<label style="${fld}">Custom URL <span class="mut">· optional</span>
         <div style="display:flex;align-items:center;gap:2px;margin-top:6px"><span class="mut" style="font-size:13px;white-space:nowrap">${esc(host)}/e/</span><input style="${inp};margin-top:0" name="slug" value="${esc(d.slug ?? '')}" placeholder="derby-2026" maxlength="40" pattern="[A-Za-z0-9-]*"></div>
-        <span class="mut" style="font-size:11.5px">Letters, numbers and hyphens. Leave blank to use the default link.</span></label>`
-    : `<div style="${fld};border:1px solid var(--b);border-radius:12px;padding:12px 14px;background:var(--s)"><b style="color:var(--bone)">Custom URL</b> — give this event a memorable link like <span class="mut">${esc(host)}/e/derby</span>. <a href="/about/pricing" style="color:var(--acc)">Horda Plus →</a></div>`;
+        <span class="mut" style="font-size:11.5px">Letters, numbers and hyphens. Leave blank to use the default link.</span></label>`;
   const isOnline = d.locationKind === 'online';
   const streamUrl = (d.streams && (d.streams as any).primary) || (typeof d.location === 'string' && /^https?:/i.test(d.location) ? d.location : '');
   const draft = `Hi everyone — sorry, but we've had to call off ${d.title}. ${d.priceCents ? 'If you bought a spot, you\'ll be refunded. ' : ''}Thanks for backing it — we'll be back with the next one.`;
@@ -476,14 +472,11 @@ export function renderEditEvent(d: EventDetail, viewerFanId: string | null, opt:
       </label>
       <input type="hidden" name="cover">
 
-      ${/* Banner design — the generated default (from the host's picture, split for
-          versus). A cover upload above overrides it. */''}
-      <label style="${fld}">Banner design <span class="mut">· the background picture</span></label>
-      <img id="ev_banner_prev" src="/banner/preview.svg?host_kind=${esc(d.hostKind ?? '')}&host_id=${esc(d.hostId ?? '')}&style=${esc(normalizeBannerStyle(d.bannerStyle))}&versus=${d.archetype === 'versus' ? '1' : '0'}" alt="Banner preview" style="width:100%;aspect-ratio:5/2;object-fit:cover;border-radius:12px;border:1px solid var(--b);display:block;background:var(--s)">
-      <div class="bnstyles" style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">${BANNER_STYLES.map(s => `<button type="button" class="bnst" data-style="${s}" style="background:var(--s);border:1px solid ${normalizeBannerStyle(d.bannerStyle) === s ? 'var(--acc)' : 'var(--b)'};border-radius:999px;color:${normalizeBannerStyle(d.bannerStyle) === s ? 'var(--acc)' : 'var(--bone)'};padding:7px 14px;font:inherit;font-size:13px;font-weight:${normalizeBannerStyle(d.bannerStyle) === s ? '700' : '400'};cursor:pointer">${esc(BANNER_STYLE_LABEL[s])}</button>`).join('')}</div>
-      <input type="hidden" name="banner_style" value="${esc(normalizeBannerStyle(d.bannerStyle))}">
-      <script>(function(){var inp=document.getElementsByName('banner_style')[0];if(!inp)return;var f=inp.form,prev=document.getElementById('ev_banner_prev');
-        [].forEach.call(f.querySelectorAll('.bnst'),function(b){b.addEventListener('click',function(){[].forEach.call(f.querySelectorAll('.bnst'),function(x){x.style.borderColor='var(--b)';x.style.color='var(--bone)';x.style.fontWeight='400'});b.style.borderColor='var(--acc)';b.style.color='var(--acc)';b.style.fontWeight='700';inp.value=b.getAttribute('data-style');prev.src='/banner/preview.svg?host_kind=${esc(d.hostKind ?? '')}&host_id=${esc(d.hostId ?? '')}&style='+inp.value+'&versus=${d.archetype === 'versus' ? '1' : '0'}';});});})();</script>
+      ${/* Event banner — the auto-made poster from the host's picture (or their
+          initials), split for versus. A cover upload above overrides it. */''}
+      <label style="${fld}">Event banner <span class="mut">· made from your picture</span></label>
+      <img id="ev_banner_prev" src="/banner/preview.svg?host_kind=${esc(d.hostKind ?? '')}&host_id=${esc(d.hostId ?? '')}&versus=${d.archetype === 'versus' ? '1' : '0'}" alt="Event banner preview" style="width:100%;aspect-ratio:5/2;object-fit:cover;border-radius:12px;border:1px solid var(--b);display:block;background:var(--s)">
+      <p class="mut" style="font-size:11.5px;margin:6px 0 0">Or upload a cover above to use your own image instead.</p>
 
       <div class="row"><button type="submit">Save changes</button></div>
     </form>
@@ -517,13 +510,11 @@ export function renderCreateEvent(hostKind: string, hostId: string, hostName: st
   const fld = 'display:block;margin:12px 0;font-size:13px;color:var(--mut)';
   const inp = 'display:block;width:100%;margin-top:6px;background:var(--s);border:1px solid var(--b);border-radius:10px;color:var(--bone);padding:10px;font:inherit';
   const host = (opt.origin || 'joinhorda.com').replace(/^https?:\/\//, '');
-  // Custom URL — a Horda Plus feature, offered at creation (sub-events inherit the
-  // parent's, so it's only on top-level events). Free organisers see an upsell.
-  const customUrl = parent ? '' : (opt.canCustomUrl
-    ? `<label style="${fld}">Custom URL <span class="mut">· Horda Plus · optional</span>
+  // Custom URL — free for everyone, offered at creation (sub-events inherit the
+  // parent's, so it's only on top-level events).
+  const customUrl = parent ? '' : `<label style="${fld}">Custom URL <span class="mut">· optional</span>
         <div style="display:flex;align-items:center;gap:2px;margin-top:6px"><span class="mut" style="font-size:13px;white-space:nowrap">${esc(host)}/e/</span><input style="${inp};margin-top:0" name="slug" placeholder="derby-2026" maxlength="40" pattern="[A-Za-z0-9-]*"></div>
-        <span class="mut" style="font-size:11.5px">Letters, numbers and hyphens. Leave blank for the default link.</span></label>`
-    : `<div style="${fld};border:1px solid var(--b);border-radius:12px;padding:12px 14px;background:var(--s)"><b style="color:var(--bone)">Custom URL</b> — a memorable link like <span class="mut">${esc(host)}/e/derby</span>. <a href="/about/pricing" style="color:var(--acc)">Horda Plus →</a></div>`);
+        <span class="mut" style="font-size:11.5px">Letters, numbers and hyphens. Leave blank for the default link.</span></label>`;
   const body = `
   <h1>${parent ? 'Add a sub-event' : 'Schedule an event'}</h1>
   <p class="mut">${parent ? `Under <b style="color:var(--bone)">${esc(parent.title)}</b> — a bout or race-within-the-race. It gets its own sides and promo links; attribution rolls up.` : `As ${esc(hostName)}. Choose the shape, who's on the card, and how fans get in.`}</p>
@@ -552,45 +543,9 @@ export function renderCreateEvent(hostKind: string, hostId: string, hostName: st
     <label style="${fld}">Event name<input style="${inp}" name="title" required placeholder="${parent ? 'Rico vs. Tariq' : 'Open sparring night'}"></label>
     ${customUrl}
 
-    ${/* Event image. Deliberately near the top, not buried in the details fold:
-        the picture is what makes a card get clicked, and if you don't ask for it
-        while the organiser is still excited about their event, you never get it.
-        It renders on the event page AND on every feed card. Without one we
-        generate a themed backdrop, so a card is never empty — but a real photo
-        beats generated art every time, so the empty state says so. */''}
-    <div style="${fld}">Event image <span class="mut">(optional)</span>
-      <label class="cvdrop" id="ev_cover_drop">
-        <input type="file" accept="image/*" data-target="cover" id="ev_cover_in" hidden>
-        <img id="ev_cover_prev" alt="" hidden>
-        <span class="cvhint" id="ev_cover_hint">
-          <b>Add a photo</b>
-          <i>Shows on the event page and on every card in the feed. Landscape works best. Skip it and we'll generate one.</i>
-        </span>
-      </label>
-      <button type="button" class="cvclear" id="ev_cover_clear" hidden>Remove image</button>
-    </div>
-    <input type="hidden" name="cover">
-
-    ${/* Dynamic default banner — a designed treatment of the host's own picture,
-        with a few looks to pick from. It splits for a versus event. Uploading a
-        photo above overrides it. */''}
-    <div style="${fld}">Banner design <span class="mut">· the background picture</span>
-      <div class="bnpick">
-        <img id="ev_banner_prev" src="/banner/preview.svg?host_kind=${esc(hostKind)}&host_id=${esc(hostId)}&style=ember" alt="Banner preview">
-        <div class="bnstyles">${BANNER_STYLES.map((s, i) => `<button type="button" class="bnst${i === 0 ? ' on' : ''}" data-style="${s}">${esc(BANNER_STYLE_LABEL[s])}</button>`).join('')}</div>
-        <p class="mut" style="font-size:11.5px;margin:6px 0 0">Made from your page's picture — it splits in two for a versus event. Upload a photo above to use your own instead.</p>
-      </div>
-    </div>
-    <input type="hidden" name="banner_style" value="ember">
-    <style>.bnpick img{width:100%;aspect-ratio:5/2;object-fit:cover;border-radius:12px;border:1px solid var(--b);display:block;background:var(--s)}
-      .bnstyles{display:flex;gap:8px;margin-top:8px;flex-wrap:wrap}
-      .bnst{background:var(--s);border:1px solid var(--b);border-radius:999px;color:var(--bone);padding:7px 14px;font:inherit;font-size:13px;cursor:pointer}
-      .bnst.on{border-color:var(--acc);color:var(--acc);font-weight:700}</style>
-    <script>(function(){var f=document.getElementById('evform');if(!f)return;var prev=document.getElementById('ev_banner_prev'),si=f.elements['banner_style'],ar=document.getElementById('ev_arch');if(!prev||!si)return;
-      function refresh(){prev.src='/banner/preview.svg?host_kind=${esc(hostKind)}&host_id=${esc(hostId)}&style='+(si.value||'ember')+'&versus='+((ar&&ar.value==='versus')?'1':'0');}
-      [].forEach.call(f.querySelectorAll('.bnst'),function(b){b.addEventListener('click',function(){[].forEach.call(f.querySelectorAll('.bnst'),function(x){x.classList.remove('on')});b.classList.add('on');si.value=b.getAttribute('data-style');refresh();});});
-      if(ar)ar.addEventListener('change',refresh);})();</script>
-
+    ${/* Shape sits directly under the name so it's the first structural choice —
+        and the Banner design below reacts to it live (versus → the banner splits),
+        which is why the two are adjacent. */''}
     <label style="${fld}">Shape
       <select id="ev_arch" name="archetype" style="${inp}" onchange="var v=this.value;document.getElementById('ev_versus').style.display=v==='versus'?'block':'none';document.getElementById('ev_roster').style.display=v==='multi'?'block':'none'">
         <option value="single">Single — one host, open roster (a run club, a mass race)</option>
@@ -716,6 +671,31 @@ export function renderCreateEvent(hostKind: string, hostId: string, hostName: st
         ri.value=''; sync();
       });
     })();</script>
+
+    ${/* Event banner — sits right under Shape so changing the shape visibly
+        changes the banner (a versus event splits it in two). One clean design:
+        the host's own photo/logo embedded into a dark, ember-lit field — no
+        ring, no picker. No picture falls back to the name's initials. "Use your
+        own image" writes the hidden cover field and wins over the generated
+        banner. */''}
+    <div style="${fld}">Event banner <span class="mut">· made from your picture</span>
+      <div class="bnpick">
+        <img id="ev_banner_prev" src="/banner/preview.svg?host_kind=${esc(hostKind)}&host_id=${esc(hostId)}&versus=0" alt="Event banner preview">
+        <div class="bnrow">
+          <span class="mut" style="font-size:12px">Your photo or logo, embedded — it splits in two for a versus event.</span>
+          <label class="bnup" id="ev_cover_drop">Use your own image<input type="file" accept="image/*" data-target="cover" id="ev_cover_in" hidden></label>
+          <button type="button" class="cvclear" id="ev_cover_clear" hidden>Back to ours</button>
+        </div>
+      </div>
+    </div>
+    <input type="hidden" name="cover">
+    <style>.bnpick img{width:100%;aspect-ratio:5/2;object-fit:cover;border-radius:12px;border:1px solid var(--b);display:block;background:var(--s)}
+      .bnrow{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:10px}
+      .bnup{background:var(--s);border:1px dashed var(--b);border-radius:999px;color:var(--bone);padding:7px 14px;font:inherit;font-size:13px;cursor:pointer;display:inline-flex;align-items:center}
+      .bnup:hover{border-color:var(--acc)}
+      .bnup.on{border-style:solid;border-color:var(--acc);color:var(--acc)}
+      .cvclear{background:transparent;border:1px solid var(--b);border-radius:999px;color:var(--mut);padding:7px 12px;font:inherit;font-size:12.5px;cursor:pointer}</style>
+
     ${/* The time the organiser types is WALL-CLOCK at the venue. The browser
         knows which zone they're in; the server cannot guess it. Without this
         hidden field the naive string was resolved in the SERVER's zone, and the
@@ -837,9 +817,9 @@ export function renderCreateEvent(hostKind: string, hostId: string, hostName: st
         decision, not the paperwork — an event you can create in 20 seconds is an
         event that gets created. */''}
     <details class="more">
-      <summary>Add details — description, cover, line-up, repeats</summary>
-      ${/* The cover input lives up top now — two inputs writing the same hidden
-           cover field would race, and the last one to fire would win. */''}
+      <summary>Add details — description, line-up, repeats</summary>
+      ${/* The banner/cover control lives up top now (under Banner design) — two
+           inputs writing the same hidden cover field would race. */''}
       <label style="${fld}">About this event<textarea style="${inp};min-height:90px" name="description" placeholder="What's happening, who's invited, what to expect…"></textarea></label>
       <label style="${fld}">Repeats
         <select name="recurrence" style="${inp}">
@@ -907,7 +887,7 @@ export function renderCreateEvent(hostKind: string, hostId: string, hostName: st
       var tz = '';
       try { tz = Intl.DateTimeFormat().resolvedOptions().timeZone || ''; } catch(e) {}
       tzf.value = tz;
-      if (hint && tz) hint.textContent = 'Times are in ' + tz.replace(/_/g,' ') + ' — the venue\'s local time, which is what fans will see.';
+      if (hint && tz) hint.textContent = 'Times are in ' + tz.replace(/_/g,' ') + ' — the venue\\'s local time, which is what fans will see.';
     })();
 
     // --- 1. WHERE → which get-in options can apply -------------------------
@@ -1020,34 +1000,33 @@ export function renderCreateEvent(hostKind: string, hostId: string, hostName: st
     applyWhere();
     vis.dispatchEvent(new Event('change'));
 
-    // --- 5b. cover image preview ------------------------------------------
-    // UPLOAD_SCRIPT reads the file into the hidden cover field as a data URL.
-    // We mirror it into an <img> so the organiser sees the actual card art
-    // before publishing — "upload a file and hope" is how you get sideways
-    // photos on the home screen. The preview also survives a language switch,
-    // because the data URL is part of the form snapshot.
-    var cin=document.getElementById('ev_cover_in'), cimg=document.getElementById('ev_cover_prev'),
-        chint=document.getElementById('ev_cover_hint'), cclear=document.getElementById('ev_cover_clear'),
-        chid=form.elements['cover'];
-    function paintCover(){
-      var v=chid && chid.value;
-      if(v){ cimg.src=v; cimg.hidden=false; chint.hidden=true; cclear.hidden=false; }
-      else { cimg.hidden=true; chint.hidden=false; cclear.hidden=true; }
+    // --- 5b. event banner + "use your own image" --------------------------
+    // The banner is the auto-made one (host photo/logo, or initials) OR a custom
+    // image the organiser uploads. An upload writes a data URL into the hidden
+    // cover field, so the preview shows and stays (the old flash-then-vanish
+    // fix), survives a language-switch snapshot, and wins over the generated
+    // banner on submit. Runs AFTER restore(). The banner reacts to Shape (versus
+    // splits it).
+    var bprev=document.getElementById('ev_banner_prev'),
+        barch=document.getElementById('ev_arch'), bcin=document.getElementById('ev_cover_in'),
+        bcov=form.elements['cover'], bclear=document.getElementById('ev_cover_clear'),
+        bup=document.getElementById('ev_cover_drop');
+    function bGen(){ return '/banner/preview.svg?host_kind=${esc(hostKind)}&host_id=${esc(hostId)}&versus='+((barch&&barch.value==='versus')?'1':'0'); }
+    function bPaint(){
+      if(!bprev) return;
+      var v=bcov&&bcov.value;
+      if(v){ bprev.src=v; if(bclear)bclear.hidden=false; if(bup)bup.classList.add('on'); }
+      else { bprev.src=bGen(); if(bclear)bclear.hidden=true; if(bup)bup.classList.remove('on'); }
     }
-    if(cin){
-      // Populate the hidden cover field from the picked file RIGHT AWAY (data URL),
-      // instead of waiting for the submit-time UPLOAD_SCRIPT. This fixes the bug
-      // where the preview flashed then vanished: the old code polled for the hidden
-      // field, timed out (it's only written on submit), then paintCover() hid the
-      // image again. Writing chid.value now means the preview shows and stays, the
-      // value survives a language-switch snapshot, and submit still works.
-      cin.addEventListener('change', function(){
-        var f = cin.files && cin.files[0];
-        if(f){ var fr=new FileReader(); fr.onload=function(){ if(chid) chid.value=fr.result; paintCover(); snapshot(); }; fr.readAsDataURL(f); }
-        else { paintCover(); snapshot(); }
+    if(bprev){
+      if(bcin) bcin.addEventListener('change', function(){
+        var f=bcin.files && bcin.files[0];
+        if(f){ var fr=new FileReader(); fr.onload=function(){ if(bcov)bcov.value=fr.result; bPaint(); snapshot(); }; fr.readAsDataURL(f); }
+        else bPaint();
       });
-      cclear.addEventListener('click', function(){ if(chid) chid.value=''; cin.value=''; paintCover(); snapshot(); });
-      paintCover();   // restore a snapshotted image after a language switch
+      if(bclear) bclear.addEventListener('click', function(){ if(bcov)bcov.value=''; if(bcin)bcin.value=''; bPaint(); snapshot(); });
+      if(barch) barch.addEventListener('change', function(){ if(!(bcov&&bcov.value)) bPaint(); });
+      bPaint();   // reflect a restored cover / design after a language switch
     }
 
     // --- 6. address autofill ----------------------------------------------

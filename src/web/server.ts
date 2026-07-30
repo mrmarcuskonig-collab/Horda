@@ -33,7 +33,6 @@ import { signup, verifyLogin, createSession, sessionAccount, deleteSession, dele
 import { getDiscover, REGIONS, searchEntities } from '../db/discover_repo.ts';
 import { renderEventPage, renderCreateEvent, renderEditEvent, renderManage, renderCheckout, renderPayouts } from './events.ts';
 import { updateEventFields, cancelEvent, eventAudienceFans, setEventSlug } from '../db/events_repo.ts';
-import { hasEntitlement } from './pricing.ts';
 import { seedDemo, type DemoIds } from './seed.ts';
 import { renderIndex, renderDiscover, renderMap, renderAthletePage, renderCustomize, renderEntityEdit, renderCompose, renderFanHome, renderSignup, renderLogin, renderForgot, renderReset, renderSharePage, renderMemberWelcome, renderClaimPending, renderClaimQueue, renderOnboardFan, renderAiPrompt, renderProfilePreview, renderOnboardClaim, renderCreatorEntry, renderClaimHandle, sportsLabel, SPORT_EN_LABELS, renderSettings, renderPros, renderCreatePicker, renderCreateAge, renderMagicSent, renderFollowing, renderWelcome, sportLabel } from './pages.ts';
 import { getEmailer, resetEmail, loginEmail } from './email.ts';
@@ -686,8 +685,8 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
         }
         const id = await createScheduledEvent(db, { ...subArgs, recurrence: f.recurrence, parentEventId: parentId });
         await applyFormats(id);
-        // Custom URL at creation — Horda Plus only, top-level events only.
-        if (!parentId && typeof f.slug === 'string' && f.slug.trim() && hasEntitlement(await planForHost(db, f.host_kind, f.host_id), 'custom_url')) {
+        // Custom URL at creation — free for everyone, top-level events only.
+        if (!parentId && typeof f.slug === 'string' && f.slug.trim()) {
           await setEventSlug(db, id, f.slug).catch(() => {});   // a taken/invalid slug just doesn't apply; the event is still created
         }
         // Multi-party spine. In a VERSUS event the organising account IS a competitor,
@@ -1279,7 +1278,7 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
           opponent = sideB ? { name: sideB.name, avatarUrl: sideB.entityId ? await avatarFor(sideB.entityKind, sideB.entityId) : null } : { name: '', avatarUrl: null };
         }
         res.writeHead(200, { 'content-type': 'image/svg+xml; charset=utf-8', 'cache-control': 'public, max-age=120' });
-        res.end(eventBannerSvg({ style: normalizeBannerStyle(d.bannerStyle), host: { name: d.hostName, avatarUrl: hostAvatar }, opponent, versus }));
+        res.end(eventBannerSvg({ style: d.bannerStyle, host: { name: d.hostName, avatarUrl: hostAvatar }, opponent, versus }));
         return;
       }
       // Live preview of the default banner while CREATING an event (no event row
@@ -1287,7 +1286,9 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
       // with a placeholder opponent. Used by the create/edit form's design picker.
       if (path === '/banner/preview.svg') {
         const hk = url.searchParams.get('host_kind'), hi = url.searchParams.get('host_id');
-        const style = normalizeBannerStyle(url.searchParams.get('style'));
+        // Raw (may be null) — the generator auto-picks a direction from the host
+        // when no explicit one is given, so there's no colour-variant to choose.
+        const style = url.searchParams.get('style');
         const versus = url.searchParams.get('versus') === '1';
         let hostAvatar: string | null = null, hostNm = 'Host';
         if (hk && hi) {
@@ -1478,8 +1479,7 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
         const d = await getEventDetail(db, em[1]);
         if (!d) return html(res, 'Not found', 404);
         if (!await canEdit(d.hostKind ?? '', d.hostId ?? '')) return redirect(res, `/e/${em[1]}`);
-        const canCustomUrl = hasEntitlement(await planForHost(db, d.hostKind ?? null, d.hostId ?? null), 'custom_url');
-        return html(res, renderEditEvent(d, viewerGuest ? null : viewer, { canCustomUrl, origin, error: url.searchParams.get('err') || undefined }));
+        return html(res, renderEditEvent(d, viewerGuest ? null : viewer, { canCustomUrl: true, origin, error: url.searchParams.get('err') || undefined }));
       }
       if ((em = path.match(/^\/e\/([^/]+)\/edit$/)) && req.method === 'POST') {
         const d = await getEventDetail(db, em[1]);
@@ -1492,8 +1492,8 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
         if (d.locationKind === 'online') { const u = (f.stream_url || '').trim(); patch.location = u; patch.streams = { ...(d.streams as any), primary: u }; }
         else if (f.location !== undefined) patch.location = f.location;
         await updateEventFields(db, d.id, patch);
-        // Custom URL — Horda Plus only. Silently ignored for Free organisers.
-        if (typeof f.slug === 'string' && hasEntitlement(await planForHost(db, d.hostKind ?? null, d.hostId ?? null), 'custom_url')) {
+        // Custom URL — free for everyone.
+        if (typeof f.slug === 'string') {
           const r = await setEventSlug(db, d.id, f.slug);
           if (!r.ok) return redirect(res, `/e/${d.id}/edit?err=${encodeURIComponent(r.error ?? 'Could not save that URL.')}`);
         }
@@ -1527,8 +1527,7 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
         const parent = pe ? { id: pe.id, title: pe.title, location: pe.location ?? null } : undefined;
         // Pre-select the host's own sport — right ~95% of the time, one click to change.
         const hostSport = em[1] === 'athlete' ? await getAthleteSport(db, em[2]) : null;
-        const canCustomUrl = hasEntitlement(await planForHost(db, em[1], em[2]), 'custom_url');
-        return html(res, renderCreateEvent(em[1], em[2], await hostName(db, em[1], em[2]), parent, hostSport, viewerGuest ? null : viewer, { canCustomUrl, origin }));
+        return html(res, renderCreateEvent(em[1], em[2], await hostName(db, em[1], em[2]), parent, hostSport, viewerGuest ? null : viewer, { canCustomUrl: true, origin }));
       }
       // Multi-party: claim an unclaimed side/roster slot (the two-sided growth loop).
       // ORGANIZER invites the other side. The other side is NOT open to whoever
