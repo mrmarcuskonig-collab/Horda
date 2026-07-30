@@ -70,13 +70,14 @@ ok('module points at /discord', discordModule().includes('href="/discord"') && !
 const on = renderChangelog(true);
 ok('changelog links Discord via /discord', on.includes('/discord') && !on.includes('discord.gg'));
 
-// A channel URL is not an invite. This is the exact mistake that was nearly
-// shipped — it silently fails for everyone who isn't already a member.
+// A channel URL is not an invite (it 404s for non-members). Rather than hide
+// Discord entirely, we fall back to the default discord.gg invite — so a link
+// that actually works for everyone is always published, and the surfaces stay live.
 process.env.DISCORD_INVITE_URL = 'https://discord.com/channels/1527306633506721873/1527306634601168958';
-ok('a /channels/ deep link is refused as not-an-invite', hasDiscord() === false && discordUrl() === '');
-ok('refused invite → no Discord link renders anywhere', [discordBtn(), discordModule(), discordFootLink()].every(s => s === ''));
+ok('a /channels/ deep link falls back to a real discord.gg invite', hasDiscord() === true && discordUrl().includes('discord.gg/') && !discordUrl().includes('/channels/'));
+ok('with the fallback, Discord surfaces still render (via /discord)', [discordBtn(), discordModule(), discordFootLink()].every(s => s.includes('/discord')));
 const off = renderChangelog(true);
-ok('refused invite → changelog still offers a way to ask', off.includes('Tell us what to build'));
+ok('changelog still offers a way to ask', off.includes('Tell us what to build'));
 
 // Kill switch: an explicit empty value turns everything off without a deploy.
 process.env.DISCORD_INVITE_URL = '';

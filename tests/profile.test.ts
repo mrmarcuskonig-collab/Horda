@@ -73,7 +73,7 @@ ok('a kept category stays on', !off.includes('invites'));
 // --- Profile tab: the athlete photo/background/section editors on one hub tab ---
 const ath = app.ids.athletes[0].id;
 const cust = await get(`/athlete/${ath}/customize`);
-ok('the editor is the "Profile" tab (hub tab bar, Profile active)', cust.includes('class="proftop"') && /class="pt active"[^>]*>Profile</.test(cust) && cust.includes('<h1>Profile</h1>'));
+ok('the editor is the "Profile" tab (hub tab bar, Profile active) and clearly edits the athlete page', cust.includes('class="proftop"') && /class="pt active"[^>]*>Profile</.test(cust) && cust.includes('<h1>Edit your athlete page</h1>') && cust.includes("You're editing"));
 ok('Profile tab holds photo + background + sections editors together', cust.includes('Profile photo') && cust.includes('Banner photo') && cust.includes('>Sections<'));
 ok('the hub top selector links to the Profile tab for creators', /class="pt"[^>]*\/customize[^>]*>Profile</.test(fan));
 ok('Settings + Notification prefs share the same hub tab bar', set.includes('class="proftop"') && (await get('/notifications/settings')).includes('class="proftop"'));

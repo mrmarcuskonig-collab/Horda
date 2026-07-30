@@ -40,22 +40,22 @@ const authed = (p: string) => fetch(base + p, { headers: { cookie } }).then(r =>
 
 console.log('\n[auth · a fan owns nothing → no owner tools, but can engage]');
 const athletePage = await authed(`/athlete/${rico}`);
-ok('logged-in fan does NOT see the owner edit panel', !athletePage.includes('Edit profile (owner)'));
+ok('logged-in fan does NOT see the owner edit affordance', !athletePage.includes('Edit this page'));
 ok('logged-in fan CAN act (follow form posts to /follow, not gated to signup)', athletePage.includes('action="/follow"') && athletePage.includes('crowd'));
 
 console.log('\n[auth · claim is a verified request, not instant ownership]');
 const before = await authed(`/club/${club}`);
-ok('before claiming, no edit panel on the club', !before.includes('Edit profile (owner)'));
+ok('before claiming, no edit affordance on the club', !before.includes('Edit this page'));
 const claimResp = await authed(`/claim/club/${club}`);
 ok('claiming opens a verification request (not instant ownership)', claimResp.includes('Claim received'));
 const stillGuarded = await authed(`/club/${club}`);
-ok('pending claim still shows NO owner edit panel', !stillGuarded.includes('Edit profile (owner)'));
+ok('pending claim still shows NO owner edit affordance', !stillGuarded.includes('Edit this page'));
 // admin verifies the claim → ownership is granted, owner tools unlock
 const sam = (await app.db.query<{ id: string }>(`SELECT id FROM account WHERE email='sam@horda.app'`)).rows[0].id;
 const claimId = (await app.db.query<{ id: string }>(`SELECT id FROM claim_request WHERE account_id=$1 AND target_id=$2`, [sam, club])).rows[0].id;
 await decideClaim(app.db, claimId, { id: app.ids.demoAccountId, email: 'demo@horda.app', isAdmin: true }, true);
 const after = await authed(`/club/${club}`);
-ok('after admin verification, the club shows the owner edit panel', after.includes('Edit profile (owner)'));
+ok('after admin verification, the club shows the owner edit affordance', after.includes('Edit this page') && after.includes(`/club/${club}/customize`));
 
 console.log('\n[auth · passwordless magic link + OTP (Build Order item 1)]');
 const post = (o: Record<string, string>) => ({ method: 'POST', redirect: 'manual' as const, headers: { 'content-type': 'application/x-www-form-urlencoded' }, body: enc(o) });

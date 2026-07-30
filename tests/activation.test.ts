@@ -31,13 +31,13 @@ ok('three follows auto-checks the "follow 3" step', fc.steps.find(s => s.label.s
 console.log('\n[activation · athlete owner]');
 const ac = await athleteChecklist(db, rico);
 ok('athlete: "page is live" is done', ac.steps[0].done === true);
-ok('athlete: doctrine steps (clubs/leagues), no tiers/drops/social prompt', ac.steps.some(s => s.label.includes('clubs & leagues')) && !ac.steps.some(s => /tier|drop|social/i.test(s.label)));
-ok('athlete: has 4 steps', ac.steps.length === 4);
+ok('athlete: doctrine steps — no clubs/leagues connect, no tiers/drops/social prompt', !ac.steps.some(s => /connect|club|league|tier|drop|social/i.test(s.label)));
+ok('athlete: has 3 steps (page live, photo/banner, first event)', ac.steps.length === 3);
 
 console.log('\n[activation · club owner]');
 const ec = await entityChecklist(db, 'club', club);
 ok('club: "claimed & verified" is done', ec.steps[0].done === true);
-ok('club: has 4 steps', ec.steps.length === 4);
+ok('club: has 3 steps (no connect-to-league step)', ec.steps.length === 3);
 
 console.log('\n[activation · render rules]');
 ok('a complete checklist renders nothing (no nag)', renderChecklist({ title: 'x', steps: [{ label: 'a', done: true, href: '/' }], complete: true, storageKey: 'k' }) === '');

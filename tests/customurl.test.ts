@@ -7,6 +7,7 @@ import { startServer } from '../src/web/server.ts';
 import { createSession, setAccountPlan } from '../src/db/auth_repo.ts';
 import { createScheduledEvent, resolveEventId, setEventSlug } from '../src/db/events_repo.ts';
 import { hasEntitlement } from '../src/web/pricing.ts';
+import { renderCreateEvent } from '../src/web/events.ts';
 
 let pass = 0, fail = 0;
 const ok = (n: string, c: boolean) => { console.log(`  ${c ? 'PASS' : 'FAIL'}  ${n}`); c ? pass++ : fail++; };
@@ -18,6 +19,13 @@ const get = (p: string, cookie?: string) => fetch(base + p, { headers: cookie ? 
 console.log('\n[customurl] custom event URLs — Horda Plus feature');
 
 ok('config: Plus includes custom_url, Free does not', hasEntitlement('plus', 'custom_url') && !hasEntitlement('free', 'custom_url'));
+
+// --- the CREATE form offers the field to Plus and an upsell to Free ---
+const createPlus = renderCreateEvent('athlete', 'a', 'Rico', undefined, null, 'f', { canCustomUrl: true, origin: 'https://joinhorda.com' });
+const createFree = renderCreateEvent('athlete', 'a', 'Rico', undefined, null, 'f', { canCustomUrl: false });
+ok('create form shows the custom-URL field for Plus', createPlus.includes('name="slug"') && createPlus.includes('/e/'));
+ok('create form shows the upsell for Free', !createFree.includes('name="slug"') && createFree.includes('Horda Plus'));
+ok('sub-events never offer a custom URL (they inherit the parent)', !renderCreateEvent('athlete', 'a', 'Rico', { id: 'p', title: 'Card' }, null, 'f', { canCustomUrl: true }).includes('name="slug"'));
 
 const ath = app.ids.athletes[0].id;
 const acct = (await app.db.query<{ account_id: string }>(`SELECT account_id FROM athlete WHERE id=$1`, [ath])).rows[0].account_id;

@@ -280,7 +280,7 @@ ok('the image renders on the event card on the home screen', homeImg.includes('I
 // A feed of empty rectangles is worse than generated art, so there's always art.
 await ev({ location_kind: 'in_person', getin: 'free_open', sport: 'boxing', title: 'NOIMG_EVENT', starts_at: soonISO });
 const homeNo = await get('/?guest=1');   // guest = non-owner, sees all public events
-ok('an event with no image still gets generated art, never an empty card', homeNo.includes('NOIMG_EVENT') && homeNo.includes('class="fimg" src="data:image/svg'));
+ok('an event with no image still gets a dynamic banner, never an empty card', homeNo.includes('NOIMG_EVENT') && /class="fimg" src="\/e\/[^"]+\/banner\.svg"/.test(homeNo));
 const cform2 = await get(`/host/athlete/${hostA}/new`);
 ok('the image upload sits up top, not buried in the details fold', cform2.includes('ev_cover_drop') && cform2.indexOf('ev_cover_drop') < cform2.indexOf('<details class="more"'));
 ok('exactly one input writes the cover field (two would race)', (cform2.match(/data-target="cover"/g) || []).length === 1);
@@ -458,8 +458,16 @@ const tkId = await mkEvent({ host_kind: 'athlete', host_id: rico, title: 'Door T
 ok('ticket-mode event: guest CTA says "Claim your spot" (QR ticket)', (await get(`/e/${tkId}?guest=1`)).includes('Claim your spot'));
 const tkPass = await claimToPass(tkId);
 ok('ticket-mode pass shows a scannable QR (client-side QR) + door instruction', tkPass.includes('id="hzqr"') && tkPass.includes('qrcode.min.js') && tkPass.includes('Show this QR at the door'));
+// The QR encodes a native-camera check-in URL (/e/:id/scan/:token), not a bare token.
+const scanTok = (tkPass.match(/\/e\/[^/"]+\/scan\/([0-9a-f]{12,})/) || [])[1] || '';
+ok('the pass QR encodes a native-camera check-in URL, not just a token', !!scanTok && tkPass.includes(`/e/${tkId}/scan/${scanTok}`));
 const checkinPage = await get(`/e/${tkId}/check-in`);
-ok('organizer check-in has a camera QR scanner + manual fallback', checkinPage.includes('jsQR') && checkinPage.includes('hzScan') && checkinPage.includes('Scan a QR ticket') && checkinPage.includes('name="token"'));
+ok('organizer check-in has a camera scanner (jsQR via jsdelivr) + manual fallback', checkinPage.includes('cdn.jsdelivr.net/npm/jsqr') && checkinPage.includes('hzScan') && checkinPage.includes('Scan a QR ticket') && checkinPage.includes('name="token"'));
+// The organiser scanning the QR with their phone's camera app checks the fan in.
+const scanned = await get(`/e/${tkId}/scan/${scanTok}`);   // no cookie = demo owner of Rico
+ok('scanning the QR as the organiser checks the fan in', scanned.includes('Checked in'));
+ok('scanning it again reads "already checked in"', (await get(`/e/${tkId}/scan/${scanTok}`)).includes('Already checked in'));
+ok('a non-owner scanning it does NOT check in — it just shows the pass', (await fetch(base + `/e/${tkId}/scan/${scanTok}?guest=1`, { redirect: 'manual' })).headers.get('location')?.includes(`/pass/${scanTok}`));
 const lkId = await mkEvent({ host_kind: 'athlete', host_id: rico, title: 'Stream Test', starts_at: '2027-06-02T19:00', location_kind: 'online', location: 'https://youtube.com/live/x', admission: 'open', access_mode: 'link' });
 const lkPage = await get(`/e/${lkId}?guest=1`);
 ok('link-mode event: guest CTA is a claim (Claim your spot / Get access), not a QR "Get ticket"', (lkPage.includes('Claim your spot') || lkPage.includes('Get access')) && !lkPage.includes('Get ticket'));
@@ -480,6 +488,22 @@ const pubGuest = await get(`/e/${pubId}?guest=1`);
 ok('public online event: the watch/join link is open to unregistered users', pubGuest.includes('Join link') && !pubGuest.includes('Link revealed after you claim'));
 const gatedGuest = await get(`/e/${lkId}?guest=1`);
 ok('gated online event: link is hidden behind a claim for the unregistered', gatedGuest.includes('Link revealed after you claim') && !gatedGuest.includes('Join link'));
+
+// --- a GUEST claim is gated behind a magic link (no instant, unverified session) ---
+const gcId = await mkEvent({ host_kind: 'athlete', host_id: rico, title: 'Gate Test', starts_at: '2027-06-04T19:00', location_kind: 'in_person', location: 'Berlin', admission: 'open', access_mode: 'ticket' });
+const gcRes = await fetch(base + `/claim/${gcId}?guest=1`, { method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ name: 'Gate Fan', contact: `gate${Date.now()}@x.co` }).toString(), redirect: 'manual' });
+const gcBody = await gcRes.text();
+ok('guest claim mints NO session (no hz_session cookie)', !(gcRes.headers.get('set-cookie') || '').includes('hz_session'));
+ok('guest claim does NOT jump straight to a pass', gcRes.status === 200 && !(gcRes.headers.get('location') || '').includes('/pass/'));
+ok('guest claim sends a magic link to finish', /Check your email/i.test(gcBody));
+const gcLink = (gcBody.match(/\/auth\/verify\?token=[A-Za-z0-9_.-]+/) || [])[0] || '';
+ok('the magic link exists (dev mode)', !!gcLink);
+const gcVerify = await fetch(base + gcLink, { redirect: 'manual' });
+const gcNext = gcVerify.headers.get('location') || '';
+ok('clicking the link verifies and routes into /claim/:id/resume', gcNext.includes(`/claim/${gcId}/resume`));
+const gcCookie = (gcVerify.headers.get('set-cookie') || '').match(/hz_session=[^;]+/)?.[0] || '';
+const gcResume = await fetch(base + gcNext, { headers: { cookie: gcCookie }, redirect: 'manual' });
+ok('only after verifying does the claim complete → a pass', (gcResume.headers.get('location') || '').includes('/pass/'));
 
 // --- share (anonymous) vs share-under-your-name (attributable, logged-in only) ---
 const guestShareView = await get(`/e/${tkId}?guest=1`);

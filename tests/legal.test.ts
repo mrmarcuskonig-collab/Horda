@@ -117,12 +117,13 @@ ok('both are served as English documents', agb.includes('<html lang="en"') && wi
 const d = await raw('/discord');
 ok('/discord redirects to a real discord.gg invite', d.status >= 300 && d.status < 400 && (d.headers.get('location') || '').includes('discord.gg/'));
 
-// A /channels/ deep link is NOT an invite — it 404s for non-members. Refusing it
-// is the whole point; this is the exact mistake that was nearly shipped.
+// A /channels/ deep link is NOT an invite — it 404s for non-members. Rather than
+// hide Discord, we fall back to the default discord.gg invite so a working link
+// is always published.
 const saved = process.env.DISCORD_INVITE_URL;
 process.env.DISCORD_INVITE_URL = 'https://discord.com/channels/1527306633506721873/1527306634601168958';
 const { discordUrl, hasDiscord } = await import('../src/web/community.ts?bust=1');
-ok('a /channels/ URL is rejected as not-an-invite', hasDiscord() === false && discordUrl() === '');
+ok('a /channels/ URL falls back to a real discord.gg invite', hasDiscord() === true && discordUrl().includes('discord.gg/') && !discordUrl().includes('/channels/'));
 if (saved === undefined) delete process.env.DISCORD_INVITE_URL; else process.env.DISCORD_INVITE_URL = saved;
 
 await app.close();

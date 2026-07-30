@@ -79,7 +79,7 @@ const ft = await (await fetch(base + '/about/features')).text();
 ok('/about/features: outcome-led + fight-night walkthrough', ft.includes('Sell tickets. Scan') && ft.includes('See who drove them') && ft.includes('A fight night, end to end') && ft.includes('promo link'));
 const pr = await (await fetch(base + '/about/pricing')).text();
 ok('/about/pricing: Luma-style two-tier (Free 5% + Horda Plus 0% fee), config-driven', pr.includes('Horda Free') && pr.includes('Horda Plus') && pr.includes('5% platform fee') && pr.includes('0% platform fee') && !pr.includes('Clubhouse'));
-ok('nav active state highlights the current page', cr.includes('class="navitem on"'));
+ok('about header is logo-only (no marketing nav bar), logo links back to the app', cr.includes('class="mnav"') && !cr.includes('class="navitem') && /class="mark" href="\/"/.test(cr));
 ok('old /athletes + /clubs redirect into /about/creators', (await fetch(base + '/athletes', { redirect: 'manual' })).headers.get('location') === '/about/creators' && (await fetch(base + '/clubs', { redirect: 'manual' })).headers.get('location') === '/about/creators');
 
 await app.close();

@@ -46,6 +46,13 @@ ok('HYBRID gives the fan TWO doors to choose between', B.ways.length === 2 && B.
 ok('the two doors price independently (€25 in the hall, free on the stream)', B.ways.find(w => w.kind === 'in_person')!.priceCents === 2500 && B.ways.find(w => w.kind === 'stream')!.requiresTicket === false);
 ok('a stream seat is always 1 per person (a stream ticket for four is meaningless)', B.ways.find(w => w.kind === 'stream')!.maxPerPerson === 1);
 
+// Extra platforms: the same broadcast also on Twitch + TikTok → three watch doors.
+const M = await mk({ location_kind: 'online', fmt_stream: '1', st_cost: 'free', fmt_stream1_url: 'https://youtube.com/live', fmt_stream1_label: 'YouTube', fmt_stream2_url: 'https://twitch.tv/rico', fmt_stream2_label: 'Twitch', fmt_stream3_url: 'https://tiktok.com/@rico/live', fmt_stream3_label: 'TikTok Live' });
+const mStreams = M.ways.filter(w => w.kind === 'stream');
+ok('three streaming platforms → three separate watch doors', mStreams.length === 3);
+ok('each extra platform keeps its own label + link', mStreams.some(w => w.label === 'Twitch' && w.channelUrl === 'https://twitch.tv/rico') && mStreams.some(w => w.label === 'TikTok Live' && w.channelUrl === 'https://tiktok.com/@rico/live'));
+ok('extra platforms are free watch options (no ticket wall)', mStreams.filter(w => w.label !== 'YouTube').every(w => w.requiresTicket === false));
+
 const C = await mk({ location_kind: 'online', fmt_stream: '1', st_cost: 'open', fmt_stream1_url: 'https://yt/x' });
 ok('online + open stream → public access, nobody counted', C.ev.admission === 'open' && C.ev.access_mode === 'public');
 const D = await mk({ location_kind: 'online', fmt_inperson: '1', ip_cost: 'paid', fmt_inperson_price: '9', fmt_stream: '1', st_cost: 'paid', fmt_stream1_price: '5', fmt_stream1_url: 'https://yt/x' });

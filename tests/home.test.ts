@@ -32,11 +32,18 @@ await grantOwnership(app.db, otherAccount, 'athlete', otherId);
 const soon = new Date(Date.now() + 36e5).toISOString();
 const evId = await createScheduledEvent(app.db, { hostKind: 'athlete', hostId: otherId, title: 'CLAIMED_HOME_EVENT', startsAt: soon, admission: 'open' });
 await createClaim(app.db, { eventId: evId, fanId: app.ids.fanId, capacity: 100, mode: 'open', priceCents: 0 });
+// A second public event the viewer has NOT claimed → it drives the "join" band.
+await createScheduledEvent(app.db, { hostKind: 'athlete', hostId: otherId, title: 'JOINABLE_HOME_EVENT', startsAt: new Date(Date.now() + 72e5).toISOString(), admission: 'open' });
 
 const home2 = await get('/');
-ok('the public band is titled "Events · live & upcoming" (not "Public events")',
-  home2.includes('Events · live &amp; upcoming') && !home2.includes('Public events'));
-ok('a claimed public event appears on the home page', home2.includes('CLAIMED_HOME_EVENT'));
+// Logged-in feed now has three bands: "Events you can join" → "More events for
+// you" → "You're going" (what you've claimed), so your own tickets sit in their
+// own band, not mixed into the discovery list.
+ok('feed has a join band and a separate "You\'re going" band', home2.includes('Events you can join') && home2.includes("You're going") && !home2.includes('Public events'));
+ok('"You\'re going" (claimed) sits BELOW the join band', home2.indexOf('Events you can join') < home2.indexOf("You're going"));
+ok('an unclaimed public event is in the join band', home2.includes('JOINABLE_HOME_EVENT') && home2.indexOf('JOINABLE_HOME_EVENT') < home2.indexOf("You're going"));
+ok('a claimed event appears on the home page', home2.includes('CLAIMED_HOME_EVENT'));
+ok('the claimed event is in the "You\'re going" band (below the join band)', home2.indexOf('CLAIMED_HOME_EVENT') > home2.indexOf("You're going"));
 ok('the claimed event is marked (orange "You\'re in" + accent card)',
   /class="fcard[^"]*claimed[^"]*"[\s\S]*CLAIMED_HOME_EVENT/.test(home2) || (home2.includes('claimedpill') && home2.includes('CLAIMED_HOME_EVENT')));
 ok('the claimed event is NOT in the organise band (it is not organised by the viewer)',
