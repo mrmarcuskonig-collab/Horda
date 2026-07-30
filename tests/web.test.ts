@@ -284,7 +284,7 @@ ok('an event with no image still gets a dynamic banner, never an empty card', ho
 const cform2 = await get(`/host/athlete/${hostA}/new`);
 ok('the image upload sits up top, not buried in the details fold', cform2.includes('ev_cover_drop') && cform2.indexOf('ev_cover_drop') < cform2.indexOf('<details class="more"'));
 ok('exactly one input writes the cover field (two would race)', (cform2.match(/data-target="cover"/g) || []).length === 1);
-ok('the upload previews the actual card art before publishing', cform2.includes('ev_cover_prev'));
+ok('the upload previews the actual card art before publishing', cform2.includes('ev_banner_prev'));
 
 // --- rival / roster typeahead ---------------------------------------------
 // Naming a rival as free text mints an UNCLAIMED placeholder. If that rival is

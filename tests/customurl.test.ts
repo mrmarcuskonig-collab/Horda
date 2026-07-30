@@ -1,12 +1,11 @@
-// customurl.test.ts — custom event URLs, the first real Horda Plus feature.
-//   * gated by hasEntitlement(plan,'custom_url') — Plus sees the field, Free an upsell
-//   * a slug set by a Plus organiser resolves the public event page
-//   * slugs are validated + unique; a Free organiser's slug is ignored
+// customurl.test.ts — custom event URLs, now FREE for every organiser.
+//   * the create + edit forms always show the slug field (no Horda Plus gate)
+//   * a slug set by any organiser resolves the public event page
+//   * slugs are validated + unique
 // Run: node tests/customurl.test.ts
 import { startServer } from '../src/web/server.ts';
-import { createSession, setAccountPlan } from '../src/db/auth_repo.ts';
+import { createSession } from '../src/db/auth_repo.ts';
 import { createScheduledEvent, resolveEventId, setEventSlug } from '../src/db/events_repo.ts';
-import { hasEntitlement } from '../src/web/pricing.ts';
 import { renderCreateEvent } from '../src/web/events.ts';
 
 let pass = 0, fail = 0;
@@ -16,32 +15,22 @@ const base = `http://localhost:${app.port}`;
 const post = (p: string, body: string, cookie: string) => fetch(base + p, { method: 'POST', redirect: 'manual', headers: { 'content-type': 'application/x-www-form-urlencoded', cookie } as any, body });
 const get = (p: string, cookie?: string) => fetch(base + p, { headers: cookie ? { cookie } as any : undefined }).then(r => r.text());
 
-console.log('\n[customurl] custom event URLs — Horda Plus feature');
+console.log('\n[customurl] custom event URLs — free for everyone');
 
-ok('config: Plus includes custom_url, Free does not', hasEntitlement('plus', 'custom_url') && !hasEntitlement('free', 'custom_url'));
-
-// --- the CREATE form offers the field to Plus and an upsell to Free ---
-const createPlus = renderCreateEvent('athlete', 'a', 'Rico', undefined, null, 'f', { canCustomUrl: true, origin: 'https://joinhorda.com' });
-const createFree = renderCreateEvent('athlete', 'a', 'Rico', undefined, null, 'f', { canCustomUrl: false });
-ok('create form shows the custom-URL field for Plus', createPlus.includes('name="slug"') && createPlus.includes('/e/'));
-ok('create form shows the upsell for Free', !createFree.includes('name="slug"') && createFree.includes('Horda Plus'));
-ok('sub-events never offer a custom URL (they inherit the parent)', !renderCreateEvent('athlete', 'a', 'Rico', { id: 'p', title: 'Card' }, null, 'f', { canCustomUrl: true }).includes('name="slug"'));
+// --- the CREATE form always offers the field, and no longer upsells Plus ---
+const create = renderCreateEvent('athlete', 'a', 'Rico', undefined, null, 'f', { origin: 'https://joinhorda.com' });
+ok('create form shows the custom-URL field for everyone', create.includes('name="slug"') && create.includes('/e/'));
+ok('the create form no longer upsells Horda Plus for the URL', !create.includes('Horda Plus'));
+ok('sub-events never offer a custom URL (they inherit the parent)', !renderCreateEvent('athlete', 'a', 'Rico', { id: 'p', title: 'Card' }, null, 'f', {}).includes('name="slug"'));
 
 const ath = app.ids.athletes[0].id;
 const acct = (await app.db.query<{ account_id: string }>(`SELECT account_id FROM athlete WHERE id=$1`, [ath])).rows[0].account_id;
 const cookie = `hz_session=${await createSession(app.db, acct)}`;
 const ev = await createScheduledEvent(app.db, { hostKind: 'athlete', hostId: ath, title: 'Derby Night', startsAt: new Date(Date.now() + 864e5).toISOString(), location: 'Berlin', admission: 'open' });
 
-// --- Free organiser: sees an upsell, and any slug they post is ignored ---
-const editFree = await get(`/e/${ev}/edit`, cookie);
-ok('Free organiser edit page shows the Plus upsell, not the field', editFree.includes('Custom URL') && editFree.includes('Horda Plus') && !editFree.includes('name="slug"'));
-await post(`/e/${ev}/edit`, 'title=Derby Night&slug=derby-free', cookie);
-ok('a Free organiser’s slug is ignored (not saved)', (await resolveEventId(app.db, 'derby-free')) === null);
-
-// --- upgrade to Plus, then the field appears and the slug works ---
-await setAccountPlan(app.db, acct, 'plus', 'sub_cu');
-const editPlus = await get(`/e/${ev}/edit`, cookie);
-ok('Plus organiser edit page shows the custom-URL field', editPlus.includes('name="slug"') && editPlus.includes('/e/'));
+// --- any organiser can set a slug from the edit page and it resolves ---
+const edit = await get(`/e/${ev}/edit`, cookie);
+ok('the edit page shows the custom-URL field for everyone (no Plus upsell)', edit.includes('name="slug"') && edit.includes('/e/') && !edit.includes('Horda Plus'));
 const saved = await post(`/e/${ev}/edit`, 'title=Derby Night&slug=Derby-2026', cookie);
 ok('saving a custom URL redirects to manage', saved.status === 303);
 ok('the slug is stored (slugified to lowercase)', (await resolveEventId(app.db, 'derby-2026')) === ev);
@@ -50,6 +39,11 @@ ok('the slug is stored (slugified to lowercase)', (await resolveEventId(app.db, 
 const bySlug = await get('/e/derby-2026?guest=1');
 ok('/e/<slug> renders the event page', bySlug.includes('Derby Night'));
 ok('the uuid URL still works too', (await get(`/e/${ev}?guest=1`)).includes('Derby Night'));
+
+// --- set a slug at creation via POST (free) ---
+const created = await post('/events', 'host_kind=athlete&host_id=' + ath + '&title=Open+Night&starts_at=2027-11-01T09:00&location_kind=in_person&location=Berlin&archetype=single&slug=open-night', cookie);
+const newId = (created.headers.get('location') || '').match(/\/e\/([^/?]+)/)?.[1] || '';
+ok('a slug set at creation is applied for a free organiser', !!newId && (await resolveEventId(app.db, 'open-night')) !== null);
 
 // --- validation + uniqueness ---
 const ev2 = await createScheduledEvent(app.db, { hostKind: 'athlete', hostId: ath, title: 'Other', startsAt: new Date(Date.now() + 2 * 864e5).toISOString(), location: 'Berlin', admission: 'open' });
