@@ -1,0 +1,72 @@
+name: PR review
+
+# Automatic adversarial review on every pull request, plus @claude mentions.
+# Requires repository secret: ANTHROPIC_API_KEY
+
+on:
+  pull_request:
+    types: [opened, synchronize]
+  issue_comment:
+    types: [created]
+  pull_request_review_comment:
+    types: [created]
+
+jobs:
+  review:
+    if: |
+      github.event_name == 'pull_request' ||
+      (github.event_name == 'issue_comment' && contains(github.event.comment.body, '@claude')) ||
+      (github.event_name == 'pull_request_review_comment' && contains(github.event.comment.body, '@claude'))
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: write
+      id-token: write
+      actions: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 1
+
+      - name: Review
+        uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          # Use the workflow's own token instead of the Claude GitHub App.
+          # Without this the action tries an OIDC -> app-token exchange and
+          # fails with "Claude Code is not installed on this repository".
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          prompt: |
+            Review this pull request as a fresh, sceptical reader. You did not
+            write it, and your job is to find what its author rationalised.
+
+            Read AGENTS.md and docs/decisions/ first. Then review only the diff.
+
+            Post one review comment with exactly these sections:
+
+            **What changed** — two or three sentences, plainly.
+
+            **What could break** — specific failure scenarios with concrete
+            inputs or states, not generic risk language. If you cannot name a
+            realistic way it breaks, say so rather than inventing one.
+
+            **Contradictions** — anything that conflicts with AGENTS.md, with a
+            decision record in docs/decisions/, or with the scope stated in the
+            PR body. Quote the rule it breaks.
+
+            **Risk** — low / medium / high, and whether it is reversible.
+
+            Rules: do not comment on formatting or style. Do not suggest
+            refactors that are out of the PR's stated scope. Do not approve or
+            merge — Marcus is the final gate. If the PR body has no verification
+            command and result, say that first and treat it as the main finding.
+          # The action creates a comment it can update, and hands the agent the
+          # tool to write into it. Without this the agent has no sanctioned way
+          # to post and burns turns on denied tool calls.
+          track_progress: true
+          use_sticky_comment: true
+          claude_args: |
+            --max-turns 40
+            --allowedTools "Read,Grep,Glob,Bash(gh pr diff:*),Bash(gh pr view:*),Bash(git diff:*),Bash(git log:*),mcp__github_comment__update_claude_comment"

@@ -1,0 +1,4 @@
+node_modules/
+.horda-data/
+*.log
+.DS_Store
