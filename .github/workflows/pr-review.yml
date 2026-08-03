@@ -62,5 +62,11 @@ jobs:
             refactors that are out of the PR's stated scope. Do not approve or
             merge — Marcus is the final gate. If the PR body has no verification
             command and result, say that first and treat it as the main finding.
+          # The action creates a comment it can update, and hands the agent the
+          # tool to write into it. Without this the agent has no sanctioned way
+          # to post and burns turns on denied tool calls.
+          track_progress: true
+          use_sticky_comment: true
           claude_args: |
-            --max-turns 15
+            --max-turns 40
+            --allowedTools "Read,Grep,Glob,Bash(gh pr diff:*),Bash(gh pr view:*),Bash(git diff:*),Bash(git log:*),mcp__github_comment__update_claude_comment"
