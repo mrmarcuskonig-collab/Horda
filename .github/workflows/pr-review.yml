@@ -34,6 +34,10 @@ jobs:
         uses: anthropics/claude-code-action@v1
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          # Use the workflow's own token instead of the Claude GitHub App.
+          # Without this the action tries an OIDC -> app-token exchange and
+          # fails with "Claude Code is not installed on this repository".
+          github_token: ${{ secrets.GITHUB_TOKEN }}
           prompt: |
             Review this pull request as a fresh, sceptical reader. You did not
             write it, and your job is to find what its author rationalised.
