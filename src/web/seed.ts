@@ -20,6 +20,24 @@ export interface DemoIds {
   football: string; v11: string;
 }
 
+// Demo dates are RELATIVE TO NOW, never absolute. An absolute date is a time
+// bomb: the seeded "Season launch night" was pinned to 2026-08-01, and on
+// 2026-08-02 the demo silently started showing its flagship paid event as
+// already finished — the event page drops the price and the claim CTA for a
+// past event, and tests/web.test.ts went red on its own with nobody touching
+// the code. Offsets keep the demo world alive on whatever day it is opened.
+const DAY_MS = 86_400_000;
+/** ISO timestamp `days` from now (negative = past), at `hourUtc` on the hour. */
+function at(days: number, hourUtc: number): string {
+  const d = new Date(Date.now() + days * DAY_MS);
+  d.setUTCHours(hourUtc, 0, 0, 0);
+  return d.toISOString();
+}
+/** "27 August" — for demo copy that has to name the date in prose. */
+function prose(iso: string): string {
+  return new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', timeZone: 'UTC' });
+}
+
 export async function seedDemo(db: Database): Promise<DemoIds> {
   await applySchema(db);
 
@@ -42,9 +60,9 @@ export async function seedDemo(db: Database): Promise<DemoIds> {
   const names: Record<string, string> = { [rico]: "Rico 'The Raven' Vargas", [tariq]: 'Tariq Bello', [otto]: 'Otto Kahn', [max]: 'Max Stein' };
 
   // two past wins -> record 2-0 (settled before anyone follows, so no stale notifications)
-  const b1 = await createBout(db, boxing, bout, rico, tariq, '2025-11-15T20:00:00Z', names[rico], names[tariq]);
+  const b1 = await createBout(db, boxing, bout, rico, tariq, at(-261, 20), names[rico], names[tariq]);
   await commitBoutResult(db, b1, bout, rico, tariq, names, { method: 'UD' });
-  const b2 = await createBout(db, boxing, bout, rico, otto, '2026-03-08T20:00:00Z', names[rico], names[otto]);
+  const b2 = await createBout(db, boxing, bout, rico, otto, at(-148, 20), names[rico], names[otto]);
   await commitBoutResult(db, b2, bout, rico, otto, names, { method: 'KO', round: 5 });
 
   // ---- football: a club surface ----
@@ -90,8 +108,9 @@ Sa 28.06. 15:00 FC Beispiel – TSV Musterstadt
   await followEntity(db, fanId, 'athlete', rico);
   await followEntity(db, fanId, 'club', cid['FC Beispiel']);
 
-  await createPost(db, 'athlete', rico, 'Camp is done. June 27 I take the belt. 🐦‍⬛');
-  const nextBout = await createBout(db, boxing, bout, rico, max, '2026-06-27T20:00:00Z', names[rico], names[max]);
+  const boutDate = at(24, 20);
+  await createPost(db, 'athlete', rico, `Camp is done. ${prose(boutDate)} I take the belt. 🐦‍⬛`);
+  const nextBout = await createBout(db, boxing, bout, rico, max, boutDate, names[rico], names[max]);
   await setEventSpectator(db, nextBout, 'free', 'https://tickets.joinhorda.com/rico-max', 'https://stream.joinhorda.com/rico-max');
 
   // matchday: offer ticket + stream on FC Beispiel's next fixture too
@@ -99,9 +118,9 @@ Sa 28.06. 15:00 FC Beispiel – TSV Musterstadt
   if (nf) await setEventSpectator(db, nf.eventId, 'free', 'https://tickets.joinhorda.com/fcb', 'https://stream.joinhorda.com/fcb');
 
   // scheduled (Luma-style) events — one per admission type, across hosts
-  const ev1 = await createScheduledEvent(db, { hostKind: 'athlete', hostId: rico, title: 'Open sparring & meet — Kreuzberg BC', startsAt: '2026-06-24T18:00:00Z', location: 'Kreuzberg Boxing Club, Berlin', description: 'Watch the final session before fight night, then stick around for photos. Open to all.', admission: 'open', streams: { youtube: 'https://youtube.com/@ricotheraven/live', twitch: 'https://twitch.tv/ricotheraven' }, capacity: 60 });
-  const ev2 = await createScheduledEvent(db, { hostKind: 'club', hostId: cid['FC Beispiel'], title: 'Season launch night', startsAt: '2026-08-01T19:00:00Z', location: 'Vereinsheim, FC Beispiel', description: 'Meet the squad for the new Kreisliga A season. Bratwurst, the new kit, and the fixture reveal.', admission: 'paid', priceCents: 1500, capacity: 200 });
-  const ev3 = await createScheduledEvent(db, { hostKind: 'association', hostId: bfv, title: 'Kreisliga A — season opening ceremony', startsAt: '2026-08-08T17:00:00Z', location: 'Rathaus Berlin', description: 'Federation welcome for all clubs entering Kreisliga A. Club delegates apply for seats.', admission: 'apply', capacity: 120 });
+  const ev1 = await createScheduledEvent(db, { hostKind: 'athlete', hostId: rico, title: 'Open sparring & meet — Kreuzberg BC', startsAt: at(21, 18), location: 'Kreuzberg Boxing Club, Berlin', description: 'Watch the final session before fight night, then stick around for photos. Open to all.', admission: 'open', streams: { youtube: 'https://youtube.com/@ricotheraven/live', twitch: 'https://twitch.tv/ricotheraven' }, capacity: 60 });
+  const ev2 = await createScheduledEvent(db, { hostKind: 'club', hostId: cid['FC Beispiel'], title: 'Season launch night', startsAt: at(10, 19), location: 'Vereinsheim, FC Beispiel', description: 'Meet the squad for the new Kreisliga A season. Bratwurst, the new kit, and the fixture reveal.', admission: 'paid', priceCents: 1500, capacity: 200 });
+  const ev3 = await createScheduledEvent(db, { hostKind: 'association', hostId: bfv, title: 'Kreisliga A — season opening ceremony', startsAt: at(17, 17), location: 'Rathaus Berlin', description: 'Federation welcome for all clubs entering Kreisliga A. Club delegates apply for seats.', admission: 'apply', capacity: 120 });
   await rsvp(db, fanId, ev1, 'going');
 
   // cross-posting (feature): the athlete shares a club event; the club shares a federation event
