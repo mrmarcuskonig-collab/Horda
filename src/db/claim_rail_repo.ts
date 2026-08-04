@@ -2,6 +2,7 @@
 // standing (earned access), and the fan Record. The atomic unit is the claim.
 import { randomBytes } from 'node:crypto';
 import type { Database } from './index.ts';
+import { PRODUCT_SOURCE } from './product.ts';
 
 export interface ClaimEvent {
   id: string; title: string; capacity: number | null; tier: string;
@@ -57,6 +58,9 @@ export async function formatSpots(db: Database, formatId: string, capacity: numb
 
 export async function createClaim(db: Database, o: {
   eventId: string; fanId: string; capacity: number | null; mode: string; partySize?: number; priceCents?: number | null; sourceEdge?: string;
+  /** Which PRODUCT produced this fact (ADR-0002). Defaults to Horda; a future
+   *  product passes its own so the shared graph can attribute/scope per product. */
+  source?: string;
   /** The way-in the fan chose. Drives per-format capacity + the max-per-person cap. */
   formatId?: string | null;
   /** Per-format ceiling on how many spots one person may take (organiser's choice). */
@@ -79,11 +83,12 @@ export async function createClaim(db: Database, o: {
     ? await formatSpots(db, o.formatId, o.capacity)
     : await spotsInfo(db, o.eventId, o.capacity);
   const status = info.full ? 'waitlisted' : (o.mode === 'approval' ? 'approved' : 'claimed');
+  const source = o.source ?? PRODUCT_SOURCE;
   const claim = (await db.query<{ id: string }>(
-    `INSERT INTO claim (event_id, fan_id, status, party_size, price_cents, source_edge, format_id) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id`,
-    [o.eventId, o.fanId, status, party, o.priceCents ?? null, o.sourceEdge ?? null, o.formatId ?? null])).rows[0];
+    `INSERT INTO claim (event_id, fan_id, status, party_size, price_cents, source_edge, format_id, source) VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id`,
+    [o.eventId, o.fanId, status, party, o.priceCents ?? null, o.sourceEdge ?? null, o.formatId ?? null, source])).rows[0];
   const token = randomBytes(16).toString('hex');
-  await db.query(`INSERT INTO pass (claim_id, fan_id, token) VALUES ($1,$2,$3)`, [claim.id, o.fanId, token]);
+  await db.query(`INSERT INTO pass (claim_id, fan_id, token, source) VALUES ($1,$2,$3,$4)`, [claim.id, o.fanId, token, source]);
   return { claimId: claim.id, passToken: token, status, partySize: party };
 }
 
@@ -113,7 +118,11 @@ export async function verifyPass(db: Database, token: string, byAccount: string 
   if (!p) return { ok: false };
   const fanName = (await db.query<{ n: string }>(`SELECT display_name n FROM fan WHERE id=$1`, [p.fanId])).rows[0]?.n ?? 'A fan';
   if (p.verified) return { ok: true, already: true, fanName };
-  await db.query(`INSERT INTO presence (claim_id, fan_id, event_id, fidelity, verified_by) VALUES ($1,$2,$3,$4,$5) ON CONFLICT (claim_id) DO NOTHING`,
+  // Presence inherits the claim's product source (ADR-0002) — the proof-of-attendance
+  // fact belongs to whichever product the claim was made in.
+  await db.query(`INSERT INTO presence (claim_id, fan_id, event_id, fidelity, verified_by, source)
+     SELECT $1,$2,$3,$4,$5, COALESCE(c.source,'horda') FROM claim c WHERE c.id=$1
+     ON CONFLICT (claim_id) DO NOTHING`,
     [p.claimId, p.fanId, p.eventId, fidelity, byAccount]);
   await db.query(`UPDATE claim SET status='verified' WHERE id=$1`, [p.claimId]);
   if (p.hostKind && p.hostId) {

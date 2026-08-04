@@ -7,6 +7,25 @@ import { PEEK_CSS, PEEK_SCRIPT } from './peek.ts';
 import { type Lang } from './i18n.ts';
 // map the bottom-nav active key to the labelled rail's active key
 const railActive = (a?: string) => a === 'you' ? 'profile' : a === 'home' ? 'explore' : a;
+
+// Lock-to-edit — important fields (your name, @handle) render read-only and
+// greyed so they can't be changed by accident. An "Edit" button on any
+// form[data-lockedit] unlocks its text fields and reveals Save. Progressive
+// enhancement: with JS off the fields stay editable and Save stays visible, so
+// nobody is ever locked out of saving.
+const LOCK_EDIT_CSS = `.lk-locked{opacity:.55;background:var(--ink);cursor:default;pointer-events:none}`;
+const LOCK_EDIT_SCRIPT = `<script>(function(){
+  [].forEach.call(document.querySelectorAll('form[data-lockedit]'), function(f){
+    var edit=f.querySelector('.lk-edit'), save=f.querySelector('.lk-save');
+    var fields=[].filter.call(f.querySelectorAll('input,textarea'), function(el){ var t=(el.type||'').toLowerCase(); return t!=='hidden'&&t!=='button'&&t!=='submit'&&t!=='file'; });
+    function set(unlocked){
+      fields.forEach(function(el){ if(unlocked){el.removeAttribute('readonly');el.classList.remove('lk-locked');} else {el.setAttribute('readonly','readonly');el.classList.add('lk-locked');} });
+      if(edit)edit.hidden=unlocked; if(save)save.hidden=!unlocked;
+    }
+    set(false);
+    if(edit)edit.addEventListener('click',function(){ set(true); var fst=fields[0]; if(fst){try{fst.focus();}catch(e){}} });
+  });
+})();</script>`;
 export const esc = (s: string) => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]!));
 
 // Escape, then turn any pasted http(s) URL into a clickable link. Safe because we
@@ -94,6 +113,7 @@ export function layout(title: string, body: string, opts: { back?: string; head?
   .prov{margin-top:28px;color:var(--mut);font-size:11px;border-top:1px solid var(--b);padding-top:12px}
   .backx{display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:999px;border:1.5px solid var(--b);color:var(--bone);font-size:22px;line-height:1;text-decoration:none;padding-bottom:2px}.backx:hover{border-color:var(--bone)}
   ${MAPS_CSS}
+  ${LOCK_EDIT_CSS}
 </style></head><body class="deskrail">
   ${deskRail({ guest: nv.guest, fanId: nv.fanId, lang: nv.lang, unread: nv.unread, active: railActive(nv.active) })}
   ${opts.back ? backButton(opts.back) : ''}
@@ -104,5 +124,6 @@ export function layout(title: string, body: string, opts: { back?: string; head?
   ${bottomNav(nv)}
   ${SHARE_SCRIPT}
   ${MAPS_SCRIPT}
+  ${LOCK_EDIT_SCRIPT}
 </body></html>`;
 }

@@ -2,6 +2,7 @@
 // Hub-and-spoke only: fans follow entities; entities broadcast to followers;
 // fans predict real outcomes; the system notifies fans. No fan->fan path exists.
 import type { Database } from './index.ts';
+import { PRODUCT_SOURCE } from './product.ts';
 import { computeStanding } from '../engines/index.ts';
 import { summarize } from '../engines/summarize.ts';
 import type { ResultRow, StandingDef } from '../engines/types.ts';
@@ -25,8 +26,9 @@ export async function setAthleteProfile(db: Database, athleteId: string, p: { ta
     [athleteId, p.tagline ?? null, p.avatarUrl ?? null, p.bannerUrl ?? null, p.links ? JSON.stringify(p.links) : null]);
 }
 
-export async function followEntity(db: Database, fanId: string, targetType: 'club' | 'team' | 'athlete' | 'association', targetId: string): Promise<void> {
-  await db.query(`INSERT INTO follow (fan_id,target_type,target_id) VALUES ($1,$2,$3) ON CONFLICT DO NOTHING`, [fanId, targetType, targetId]);
+export async function followEntity(db: Database, fanId: string, targetType: 'club' | 'team' | 'athlete' | 'association', targetId: string, source: string = PRODUCT_SOURCE): Promise<void> {
+  // `source` = which product produced this follow edge (ADR-0002); defaults to Horda.
+  await db.query(`INSERT INTO follow (fan_id,target_type,target_id,source) VALUES ($1,$2,$3,$4) ON CONFLICT DO NOTHING`, [fanId, targetType, targetId, source]);
 }
 export async function unfollowEntity(db: Database, fanId: string, targetType: string, targetId: string): Promise<void> {
   await db.query(`DELETE FROM follow WHERE fan_id=$1 AND target_type::text=$2 AND target_id=$3`, [fanId, targetType, targetId]);

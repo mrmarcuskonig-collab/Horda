@@ -72,6 +72,24 @@ export const BUILDING: BuildingEntry[] = [
 // ---------------------------------------------------------------------------
 export const SHIPPED: ChangeEntry[] = [
   {
+    date: '2026-08-04',
+    title: 'Setting up a club now actually works — find it or create it as you type',
+    body: 'Start typing your club, federation or organiser name and matches appear live. If your page already exists on Horda you see it with its logo; if it is there but unclaimed, a Claim button lets you take it over (after a quick check that you represent it). If it is not on Horda at all, one tap creates it and you own it instantly. Same name as an existing page? Allowed — we just tell you.',
+    tag: 'fixed',
+  },
+  {
+    date: '2026-08-03',
+    title: 'Create the right kind of page — athlete, club, federation or organiser',
+    body: 'The “＋ Create a page” screen now lays out every option clearly: set up your own athlete page, or a page for a club, a federation, or the events you organise. Once you already have an athlete page, it stops offering you a second one and shows just the club/federation/organiser choices.',
+    tag: 'better',
+  },
+  {
+    date: '2026-08-03',
+    title: 'No more changing your name or @handle by accident',
+    body: 'Your name and username now sit locked on your settings and page-edit screens — tap Edit to change them, and only then does Save appear. A stray tap can no longer rewrite the link people use to find you.',
+    tag: 'better',
+  },
+  {
     date: '2026-07-30',
     title: 'Your own link: joinhorda.com/yourname',
     body: 'Clubs, teams, federations and athletes can now claim a memorable link — joinhorda.com/yourname — that shows your page with every event you run. Share that one link instead of a Horda page URL; you never have to link "to Horda" again. Set it on your page under Edit.',

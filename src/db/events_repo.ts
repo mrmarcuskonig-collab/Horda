@@ -2,6 +2,7 @@
 // association, and fan RSVPs (going / not_going / stream / interested).
 import { randomBytes } from 'node:crypto';
 import type { Database } from './index.ts';
+import { PRODUCT_SOURCE } from './product.ts';
 
 export type RsvpResponse = 'going' | 'not_going' | 'stream' | 'interested';
 export type Admission = 'open' | 'register' | 'apply' | 'paid';
@@ -304,13 +305,14 @@ export async function listUpcomingByHost(db: Database, hostKind: string, hostId:
 // A logged-in fan can share "under their name": one stable token per (event,fan).
 // The bare /e/:id link stays anonymous; /e/:id?via=<token> credits the sharer.
 // Attribution is measurement only — it counts claims, it never moves money.
-export async function getOrCreateShareToken(db: Database, eventId: string, fanId: string): Promise<string> {
+export async function getOrCreateShareToken(db: Database, eventId: string, fanId: string, source: string = PRODUCT_SOURCE): Promise<string> {
   const existing = (await db.query<{ token: string }>(`SELECT token FROM event_share WHERE event_id=$1 AND fan_id=$2`, [eventId, fanId])).rows[0];
   if (existing) return existing.token;
   const token = 's' + randomBytes(8).toString('hex');   // short, URL-safe, non-guessable
+  // `source` = which product produced this attribution edge (ADR-0002).
   await db.query(
-    `INSERT INTO event_share (event_id, fan_id, token) VALUES ($1,$2,$3)
-     ON CONFLICT (event_id, fan_id) DO NOTHING`, [eventId, fanId, token]);
+    `INSERT INTO event_share (event_id, fan_id, token, source) VALUES ($1,$2,$3,$4)
+     ON CONFLICT (event_id, fan_id) DO NOTHING`, [eventId, fanId, token, source]);
   return (await db.query<{ token: string }>(`SELECT token FROM event_share WHERE event_id=$1 AND fan_id=$2`, [eventId, fanId])).rows[0].token;
 }
 // Resolve an inbound ?via= token to its sharer + count the click (idempotent-ish).
