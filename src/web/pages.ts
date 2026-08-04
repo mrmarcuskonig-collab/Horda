@@ -935,11 +935,12 @@ export function renderCustomize(d: { athleteId: string; fanId: string | null; sp
 
     <div class="card" style="margin-top:6px">
       <h2 style="font-size:13px;letter-spacing:1px;text-transform:uppercase;margin-bottom:6px">Name, @handle & about</h2>
-      <form method="post" action="/athlete/${esc(d.athleteId)}/identity" style="margin-bottom:14px;border-bottom:1px solid var(--b);padding-bottom:12px">
+      <form method="post" action="/athlete/${esc(d.athleteId)}/identity" data-lockedit style="margin-bottom:14px;border-bottom:1px solid var(--b);padding-bottom:12px">
+        <p class="mut" style="font-size:12px;margin:0 0 8px">Locked to avoid accidental changes — tap <b style="color:var(--bone)">Edit</b> to change your name or @handle.</p>
         <label class="mut" style="display:block;font-size:13px">Name<input style="${inp}" name="name" value="${esc(d.name ?? '')}" placeholder="Rico Ravens" required></label>
         <label class="mut" style="display:block;margin:8px 0 0;font-size:13px">@handle<div style="display:flex;align-items:center;gap:4px;margin-top:6px"><span class="mut" style="font-size:16px">@</span><input style="${inp};margin-top:0" name="handle" value="${esc((d.handle ?? '').replace(/^@/, ''))}" placeholder="ricoravens" pattern="[A-Za-z0-9_]{2,30}"></div></label>
         <label class="mut" style="display:block;margin:8px 0 0;font-size:13px">About<textarea style="${ta}" name="tagline" maxlength="280" placeholder="A line or two about you — what you compete in, what fans should know.">${esc(d.tagline ?? '')}</textarea></label>
-        <div class="row" style="margin-top:10px"><button type="submit">Save name, handle & about</button></div>
+        <div class="row" style="margin-top:10px"><button type="button" class="lk-edit ghost" hidden>Edit</button><button type="submit" class="lk-save">Save name, handle & about</button></div>
       </form>
       <h2 style="font-size:13px;letter-spacing:1px;text-transform:uppercase;margin-bottom:6px">Photos</h2>
       <form method="post" action="/athlete/${esc(d.athleteId)}/branding" onsubmit="return hzPrep(this)" style="margin-bottom:14px;border-bottom:1px solid var(--b);padding-bottom:12px">
@@ -1055,7 +1056,8 @@ export function renderEntityEdit(d: { kind: 'club' | 'team' | 'association'; id:
     ${d.error ? `<div class="card" style="border-color:#ff6b6b;margin:8px 0"><strong style="color:#ff6b6b">${esc(d.error)}</strong></div>` : ''}
     <div class="card" style="margin-top:6px">
       <h2 style="font-size:13px;letter-spacing:1px;text-transform:uppercase;margin-bottom:6px">Name, about &amp; links</h2>
-      <form method="post" action="/${d.kind}/${esc(d.id)}/identity">
+      <form method="post" action="/${d.kind}/${esc(d.id)}/identity" data-lockedit>
+        <p class="mut" style="font-size:12px;margin:0 0 8px">Locked to avoid accidental changes — tap <b style="color:var(--bone)">Edit</b> to change your name or link.</p>
         <label class="mut" style="display:block;font-size:13px">Name<input style="${inp}" name="name" value="${esc(d.name)}" required></label>
         <label class="mut" style="display:block;margin:8px 0 0;font-size:13px">Your link <span style="color:var(--acc)">· share this, not a Horda link</span>
           <div style="display:flex;align-items:center;gap:2px;margin-top:6px"><span class="mut" style="font-size:13px;white-space:nowrap">${esc(host)}/</span><input style="${inp};margin-top:0" name="handle" value="${esc(d.handle ?? '')}" placeholder="${esc(kindLabel)}name" maxlength="40" pattern="[A-Za-z0-9_.-]*" autocapitalize="off" autocomplete="off"></div>
@@ -1067,7 +1069,7 @@ export function renderEntityEdit(d: { kind: 'club' | 'team' | 'association'; id:
         ${linkField('tiktok', 'TikTok', 'https://tiktok.com/@…')}
         ${linkField('youtube', 'YouTube', 'https://youtube.com/@…')}
         ${linkField('website', 'Website', 'https://…')}
-        <div class="row" style="margin-top:12px"><button type="submit">Save name, about &amp; links</button></div>
+        <div class="row" style="margin-top:12px"><button type="button" class="lk-edit ghost" hidden>Edit</button><button type="submit" class="lk-save">Save name, about &amp; links</button></div>
       </form>
       <h2 style="font-size:13px;letter-spacing:1px;text-transform:uppercase;margin:16px 0 6px">Photos</h2>
       <form method="post" action="/${d.kind}/${esc(d.id)}/photos" onsubmit="return hzPrep(this)">
@@ -1162,13 +1164,13 @@ export function renderSettings(d: { fanId: string; fanName: string; handle?: str
     ${d.error ? `<div class="flash err">${esc(d.error)}</div>` : ''}
 
     <div class="setgroup"><div class="seth">Account</div>
-      <form class="setcard" method="post" action="/account/profile">
+      <form class="setcard" method="post" action="/account/profile" data-lockedit>
         <h4>Name &amp; username</h4>
-        <p class="fh">Your username is your @handle — change it any time it isn’t taken.</p>
+        <p class="fh">Your username is your @handle. It's locked to avoid accidental changes — tap <b style="color:var(--bone)">Edit</b> to change it.</p>
         <label style="${fieldLabel}">Name<input style="${inp}" name="name" value="${esc(d.fanName)}" maxlength="80"></label>
         <label style="${fieldLabel};display:block;margin-top:10px">Username<span style="position:relative;display:block"><span style="position:absolute;left:12px;top:50%;transform:translateY(-30%);color:var(--mut)">@</span><input style="${inp};padding-left:26px" id="unamefield" name="username" value="${esc(d.handle ?? '')}" placeholder="yourname" autocomplete="off" pattern="[A-Za-z0-9_]{3,20}" title="3–20 letters, numbers or underscores" data-current="${esc((d.handle ?? '').toLowerCase())}"></span></label>
         <div id="unamestatus" class="unhint"></div>
-        <div class="row" style="margin-top:12px"><button class="btn" type="submit">Save</button></div>
+        <div class="row" style="margin-top:12px"><button type="button" class="btn ghost lk-edit" hidden>Edit</button><button class="btn lk-save" type="submit">Save</button></div>
       </form>
       <script>(function(){
         var i=document.getElementById('unamefield'),s=document.getElementById('unamestatus'),t;
@@ -1548,16 +1550,35 @@ export function renderCreateAge(d: { name: string; error?: boolean }): string {
     </form>
   `, { back: '/', nav: { active: 'create', guest: false, fanId: null } });
 }
-export function renderCreatorEntry(d: { guest: boolean }): string {
+// The "＋ Create a page" hub. Which options show depends on what the account
+// already is:
+//   • A plain fan (no athlete page) can create an athlete page OR an org page
+//     (club, federation, event organiser).
+//   • Someone who already has an athlete page only sees the org options — you
+//     get one personal athlete page, not two, so that card is hidden.
+// `hasAthlete` is decided by the server from ownedEntities; guests never have one.
+export function renderCreatorEntry(d: { guest: boolean; hasAthlete?: boolean }): string {
   const athleteHref = d.guest ? '/signup?next=/onboarding/athlete' : '/onboarding/athlete';
-  const claimHref = d.guest ? '/signup?next=/onboarding/claim' : '/onboarding/claim';
+  const claimHref = (kind: string) => d.guest ? `/signup?next=${encodeURIComponent('/onboarding/claim?kind=' + kind)}` : `/onboarding/claim?kind=${kind}`;
+  const showAthlete = !d.hasAthlete;
+  const athleteCard = showAthlete
+    ? `<div class="ccard"><h2>I’m an athlete</h2><p>Describe yourself in a sentence and we build your page — headline, cover, the lot. You own it instantly.</p><a class="btn" href="${athleteHref}">Create my page →</a> <a href="/about#features" style="margin-left:8px;font-size:13px;border-bottom:1px solid var(--b)">what you get →</a></div>`
+    : '';
+  const orgCard = (title: string, blurb: string, kind: string, cta: string) =>
+    `<div class="ccard"><h2>${title}</h2><p>${blurb}</p><a class="btn" href="${claimHref(kind)}">${cta}</a> <a href="/about#features" style="margin-left:8px;font-size:13px;border-bottom:1px solid var(--b)">what you get →</a></div>`;
+  const heading = showAthlete ? 'Create a page' : 'Create a club, federation or event organiser page';
+  const lead = showAthlete
+    ? 'Run your own page on Horda — for you as an athlete, or for a club, federation or event you organise.'
+    : 'You already have your athlete page. Add a page for a club, federation or event you organise.';
   return layout('Set up your page', `
     <style>.cgrid{display:grid;gap:12px;margin-top:16px}.ccard{border:1px solid var(--b);border-radius:14px;padding:16px 18px}.ccard h2{margin:0 0 4px;font-size:17px;border:none;padding:0;text-transform:none;letter-spacing:0}.ccard p{color:var(--mut);font-size:13.5px;margin:0 0 12px}</style>
-    <h1>For athletes, clubs &amp; federations</h1>
-    <p class="mut">Run your own page on Horda — posts, members, tiers and events, all in one place.</p>
+    <h1>${heading}</h1>
+    <p class="mut">${lead}</p>
     <div class="cgrid">
-      <div class="ccard"><h2>I’m an athlete</h2><p>Describe yourself in a sentence and we build your page — headline, cover, the lot. You own it instantly.</p><a class="btn" href="${athleteHref}">Create my page →</a> <a href="/about#features" style="margin-left:8px;font-size:13px;border-bottom:1px solid var(--b)">what you get →</a></div>
-      <div class="ccard"><h2>We’re a club or federation</h2><p>Find your page and verify you represent it (official email, a code on your site, or a quick review).</p><a class="btn" href="${claimHref}">Claim our page →</a> <a href="/about#features" style="margin-left:8px;font-size:13px;border-bottom:1px solid var(--b)">what you get →</a></div>
+      ${athleteCard}
+      ${orgCard('We’re a club', 'Find your club and verify you represent it — an official email, a code on your site, or a quick review.', 'club', 'Claim our page →')}
+      ${orgCard('We’re a federation', 'Federations and associations run whole leagues. Find yours and verify you represent it.', 'association', 'Claim our page →')}
+      ${orgCard('We organise events', 'Promoters, gyms and organisers: set up a page for the events you run, no team required.', 'organizer', 'Create our page →')}
     </div>
     ${d.guest ? `<p class="mut" style="margin-top:16px;font-size:12.5px">Just here to follow? <a href="/signup" style="border-bottom:1px solid var(--b)">Create a fan account →</a></p>` : `<p class="mut" style="margin-top:16px;font-size:12.5px">No need for a separate account — your page lives on your existing login.</p>`}`, { back: '/' });
 }
@@ -1666,18 +1687,93 @@ export function renderProfilePreview(d: { kind: string; gen: { displayName: stri
     ${UPLOAD_SCRIPT}`, { back: '/' });
 }
 
-// --- onboarding: club / federation finds + claims its page -----------------
-export function renderOnboardClaim(d: { q: string; results: { kind: string; id: string; name: string; region: string | null }[] }): string {
-  const inp = 'flex:1;background:var(--s);border:1px solid var(--b);border-radius:10px;color:var(--bone);padding:11px;font:inherit';
-  const rows = d.results.length
-    ? d.results.map(r => `<div class="ocard"><div class="ometa"><div class="on">${esc(r.name)}</div><div class="osub">${esc(r.kind)}${r.region ? ' · ' + esc(r.region) : ''}</div></div><a class="btn sm" href="/claim/${r.kind}/${r.id}">Claim →</a></div>`).join('')
-    : (d.q ? `<p class="mut">No match for “${esc(d.q)}”. It may not be on Horda yet — <a href="/onboarding/athlete" style="border-bottom:1px solid var(--b)">create a page</a> or contact us to add your league.</p>` : '');
-  return layout('Claim your page', `
-    <style>.ocard{display:flex;align-items:center;justify-content:space-between;gap:10px;border:1px solid var(--b);border-radius:12px;padding:11px 13px;margin:8px 0}.on{font-weight:800;font-size:15px}.osub{color:var(--mut);font-size:12px;text-transform:capitalize}.btn.sm{padding:7px 14px;font-size:13px}</style>
-    <h1>Claim your club or federation</h1>
-    <p class="mut">Find your page, then verify you represent it — by an official email, a code on your site, or a quick review.</p>
-    <form method="get" action="/onboarding/claim"><div class="row" style="margin:12px 0"><input style="${inp}" name="q" value="${esc(d.q)}" placeholder="Search your club or federation"><button type="submit">Search</button></div></form>
-    ${rows}`, { back: '/' });
+// --- onboarding: find + claim an existing org page, or create one from scratch
+// A single live-search field. As you type it shows matching pages: unclaimed ones
+// get a "Claim" button; ones already on Horda are highlighted with their logo (no
+// claim). A "Create" button always makes your own page — same name as an existing
+// one is allowed, with a notice. Progressive enhancement: the Search button and the
+// Create form both work with JavaScript off.
+export function renderOnboardClaim(d: { q: string; kind?: string; results: { kind: string; id: string; name: string; avatarUrl?: string | null; claimable: boolean }[]; exact?: boolean }): string {
+  const kind = (d.kind || 'club').toLowerCase();
+  const kindLabel = (kind === 'association' || kind === 'federation' || kind === 'league') ? 'federation'
+    : (kind === 'organizer' || kind === 'organiser') ? 'event organiser'
+    : kind === 'agency' ? 'agency' : 'club';
+  const inp = 'flex:1;min-width:0;background:var(--s);border:1px solid var(--b);border-radius:10px;color:var(--bone);padding:11px;font:inherit';
+  const initials = (n: string) => (n || '').split(/\s+/).map(w => w[0] || '').join('').slice(0, 2).toUpperCase();
+  const resRow = (r: { kind: string; id: string; name: string; avatarUrl?: string | null; claimable: boolean }) => {
+    const logo = r.avatarUrl ? `<img class="lg" src="${esc(r.avatarUrl)}" alt="">` : `<span class="lg ini">${esc(initials(r.name))}</span>`;
+    const right = r.claimable ? `<a class="mini p" href="/claim/${r.kind}/${r.id}">Claim</a>` : `<span class="tag mutd">On Horda</span>`;
+    return `<div class="eres${r.claimable ? '' : ' exists'}">${logo}<span class="en">${esc(r.name)}<span class="ek">${esc(r.kind)}</span></span>${right}</div>`;
+  };
+  const serverResults = d.results.map(resRow).join('') || (d.q.length >= 2 ? `<p class="mut" style="font-size:13px;margin:8px 2px">No ${esc(kindLabel)} with that name yet — create yours below.</p>` : '');
+  const CSS = `.searchrow{display:flex;gap:8px;align-items:center;margin:14px 0 6px}
+    .eres{display:flex;align-items:center;gap:11px;border:1px solid var(--b);border-radius:12px;padding:9px 12px;margin:8px 0}
+    .eres.exists{border-color:var(--bone);background:var(--s)}
+    .eres .lg{width:36px;height:36px;border-radius:9px;object-fit:cover;flex-shrink:0;background:var(--s);display:flex;align-items:center;justify-content:center}
+    .eres .lg.ini{font-weight:800;font-size:13px;letter-spacing:.5px;color:var(--mut);border:1px solid var(--b)}
+    .eres .en{flex:1;min-width:0;font-weight:800;font-size:14.5px;display:flex;flex-direction:column;gap:1px;overflow:hidden}
+    .eres .ek{font-weight:600;font-size:11px;color:var(--mut);text-transform:capitalize}
+    .mini{display:inline-flex;align-items:center;padding:7px 13px;font-size:13px;font-weight:800;border-radius:9px;border:1.5px solid var(--b);background:transparent;color:var(--bone);cursor:pointer;white-space:nowrap}
+    .mini.p{background:var(--acc);border-color:var(--acc);color:var(--accink)}
+    .mini.ghost{color:var(--mut)}
+    .notice{font-size:12.5px;color:var(--mut);background:var(--s);border:1px solid var(--b);border-radius:9px;padding:8px 11px;margin:10px 0 8px}
+    #createform{margin-top:14px;border-top:1px solid var(--b);padding-top:14px}`;
+  const SCRIPT = `<script>(function(){
+    var q=document.getElementById("q"), results=document.getElementById("results");
+    var cname=document.getElementById("createname"), clabel=document.getElementById("createlabel");
+    var notice=document.getElementById("notice"), nname=document.getElementById("noticename"), find=document.getElementById("findform");
+    if(!q||!results) return;
+    if(find) find.addEventListener("submit",function(e){e.preventDefault();});
+    function ini(n){return (n||"").split(/\\s+/).map(function(w){return w.charAt(0);}).join("").slice(0,2).toUpperCase();}
+    function row(it){
+      var w=document.createElement("div"); w.className="eres"+(it.claimable?"":" exists");
+      var lg;
+      if(it.avatarUrl){lg=document.createElement("img");lg.className="lg";lg.src=it.avatarUrl;lg.alt="";}
+      else {lg=document.createElement("span");lg.className="lg ini";lg.textContent=ini(it.name);}
+      var en=document.createElement("span");en.className="en";en.textContent=it.name;
+      var ek=document.createElement("span");ek.className="ek";ek.textContent=it.kind;en.appendChild(ek);
+      var right;
+      if(it.claimable){right=document.createElement("a");right.className="mini p";var cu="/claim/"+it.kind+"/"+it.id;right.setAttribute("href",cu);right.textContent="Claim";}
+      else {right=document.createElement("span");right.className="tag mutd";right.textContent="On Horda";}
+      w.appendChild(lg);w.appendChild(en);w.appendChild(right);return w;
+    }
+    function sync(){var v=q.value.trim(); if(cname)cname.value=v; if(clabel)clabel.textContent=v||"your page"; if(nname)nname.textContent=v;}
+    function draw(data){
+      results.textContent="";
+      if(!data.items.length){var p=document.createElement("p");p.className="mut";p.style.cssText="font-size:13px;margin:8px 2px";p.textContent="No match yet — create yours below.";results.appendChild(p);}
+      else data.items.forEach(function(it){results.appendChild(row(it));});
+      if(notice) notice.hidden=!data.exact;
+    }
+    var t;
+    function go(){
+      var v=q.value.trim(); sync();
+      if(v.length<2){results.textContent=""; if(notice)notice.hidden=true; return;}
+      fetch("/onboarding/claim/search?kind="+encodeURIComponent(${JSON.stringify(kind)})+"&q="+encodeURIComponent(v))
+        .then(function(r){return r.json();}).then(draw).catch(function(){});
+    }
+    q.addEventListener("input",function(){clearTimeout(t);t=setTimeout(go,180);});
+    sync();
+  })();</script>`;
+  return layout('Set up your page', `
+    <style>${CSS}</style>
+    <h1>Find or create your ${esc(kindLabel)}</h1>
+    <p class="mut">Start typing. If your ${esc(kindLabel)} is already on Horda you can claim it; if not, create it in a tap.</p>
+    <form method="get" action="/onboarding/claim" id="findform" autocomplete="off">
+      <input type="hidden" name="kind" value="${esc(kind)}">
+      <div class="searchrow">
+        <input id="q" name="q" value="${esc(d.q)}" placeholder="Type your ${esc(kindLabel)} name…" style="${inp}">
+        <button type="submit" class="mini ghost" id="findbtn">Search</button>
+      </div>
+    </form>
+    <p class="mut" style="font-size:12px;margin:0 2px 4px">Claiming a page you don’t own asks you to verify you represent it — an official email, a code on your site, or a quick review.</p>
+    <div id="results">${serverResults}</div>
+    <form method="post" action="/onboarding/create" id="createform">
+      <input type="hidden" name="kind" value="${esc(kind)}">
+      <input type="hidden" name="name" id="createname" value="${esc(d.q)}">
+      <p class="notice" id="notice"${d.exact ? '' : ' hidden'}>A ${esc(kindLabel)} named “<span id="noticename">${esc(d.q)}</span>” already exists on Horda — creating yours makes a separate page.</p>
+      <button type="submit" class="mini p" id="createbtn">＋ Create “<span id="createlabel">${esc(d.q) || 'your ' + kindLabel}</span>”</button>
+    </form>
+    ${SCRIPT}`, { back: '/onboarding' });
 }
 
 export function renderLogin(next: string): string {

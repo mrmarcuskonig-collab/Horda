@@ -179,6 +179,7 @@
   .mapmenu .mapnote{color:var(--mut);font-size:11px;padding:4px 10px 2px;line-height:1.4}
   .mapmenu .mapre{color:var(--mut);font-size:11px;padding:6px 10px 2px;border-top:1px solid var(--b);margin-top:4px}
   .mapmenu .mapre button{display:inline;padding:0;font-size:11px;font-weight:600;color:var(--mut);text-decoration:underline;width:auto}
+  .lk-locked{opacity:.55;background:var(--ink);cursor:default;pointer-events:none}
 </style></head><body class="deskrail">
   <aside class="drail">
     <a class="dr-logo" href="/" aria-label="Horda"><svg width="26" height="26" viewBox="2 47 166 141" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Horda"><path fill="currentColor" fill-rule="evenodd" d="M12,100 L68,80 L84,60 L120,55 L140,58 L156,74 L158,104 L150,132 L140,160 L128,176 L106,180 L84,152 L62,120 Z M98,82 L110,76 L113,80 L101,86 Z"/></svg><b>Horda</b></a>
@@ -238,14 +239,14 @@
     if(window.__hzPeekOpen) window.__hzPeekOpen(href); else location.href=href;
   });
 })();</script>
-  <a class="hz-back" href="/e/cda7b4e2-2a50-410e-b19a-1db6d5c9bbb5" aria-label="Back" title="Back" onclick="if(history.length>1){event.preventDefault();history.back()}"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 5-7 7 7 7"/></svg></a>
+  <a class="hz-back" href="/e/fe60cfc0-39c0-45c8-8967-54efd78f54e8" aria-label="Back" title="Back" onclick="if(history.length>1){event.preventDefault();history.back()}"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 5-7 7 7 7"/></svg></a>
   <div class="hz-main">
   <div style="height:40px"></div>
   
   <h1>Checkout</h1>
-  <div class="card"><b>Season launch night</b><div class="mut" style="margin:6px 0">Sat 01 Aug 2026 · 19:00 · Vereinsheim, FC Beispiel</div>
+  <div class="card"><b>Season launch night</b><div class="mut" style="margin:6px 0">Fri 14 Aug 2026 · 19:00 · Vereinsheim, FC Beispiel</div>
     <div style="font-size:30px;font-weight:800;margin-top:10px">€15</div></div>
-  <form method="post" action="/e/cda7b4e2-2a50-410e-b19a-1db6d5c9bbb5/pay"><input type="hidden" name="fan_id" value="6fafc1cc-5e9b-4d8c-8c95-21ba4f71e5b3">
+  <form method="post" action="/e/fe60cfc0-39c0-45c8-8967-54efd78f54e8/pay"><input type="hidden" name="fan_id" value="83a8c1ad-2369-46ef-9a30-f3b6a7d60d67">
     <div class="row"><button type="submit">Pay €15 · get ticket</button></div></form>
   <p class="mut" style="margin-top:12px">Demo checkout — payments are stubbed (set STRIPE_SECRET_KEY to charge for real). The ticket + guest-list flow is already live.</p>
   </div>
@@ -324,5 +325,17 @@ window.hzShare=function(b){
     [].forEach.call(document.querySelectorAll('.mapch[open]'),function(d){ if(!d.contains(e.target)) d.open=false; });
   });
   document.addEventListener('keydown',function(e){ if(e.key==='Escape')[].forEach.call(document.querySelectorAll('.mapch[open]'),function(d){d.open=false}); });
+})();</script>
+  <script>(function(){
+  [].forEach.call(document.querySelectorAll('form[data-lockedit]'), function(f){
+    var edit=f.querySelector('.lk-edit'), save=f.querySelector('.lk-save');
+    var fields=[].filter.call(f.querySelectorAll('input,textarea'), function(el){ var t=(el.type||'').toLowerCase(); return t!=='hidden'&&t!=='button'&&t!=='submit'&&t!=='file'; });
+    function set(unlocked){
+      fields.forEach(function(el){ if(unlocked){el.removeAttribute('readonly');el.classList.remove('lk-locked');} else {el.setAttribute('readonly','readonly');el.classList.add('lk-locked');} });
+      if(edit)edit.hidden=unlocked; if(save)save.hidden=!unlocked;
+    }
+    set(false);
+    if(edit)edit.addEventListener('click',function(){ set(true); var fst=fields[0]; if(fst){try{fst.focus();}catch(e){}} });
+  });
 })();</script>
 </body></html>

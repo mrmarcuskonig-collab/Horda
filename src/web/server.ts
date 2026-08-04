@@ -23,6 +23,7 @@ import {
 import {
   getBranding, setBranding, updateEntityName, getClub, getTeamsOfClub, getTeam, getRoster,
   getAssociation, getAssociationLeagues, getAssociationClubs, getNextFixtureForTeam,
+  searchClaimTargets, createOwnedEntity,
 } from '../db/entity_repo.ts';
 import { renderEntityProfile, tableDark } from './shell.ts';
 import { FAVICON_SVG } from './brand.ts';
@@ -363,17 +364,38 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
           generateAction: `/onboarding/brand/${kind}/${id}/generate`, back: `/${kind}/${id}`,
         }));
       }
+      // Real-time typeahead for "find your page" — returns JSON the field calls
+      // as you type. Each hit says whether it's still CLAIMABLE (unclaimed + no
+      // owner) or already on Horda, and carries its logo for the "this exists" cue.
+      if (path === '/onboarding/claim/search') {
+        const q = (url.searchParams.get('q') || '').trim();
+        const items = q.length >= 2 ? await searchClaimTargets(db, q, 8) : [];
+        const exact = items.some(i => i.name.toLowerCase() === q.toLowerCase());
+        res.writeHead(200, { 'content-type': 'application/json; charset=utf-8' });
+        res.end(JSON.stringify({ items, exact }));
+        return;
+      }
+      // Create an org page FROM SCRATCH, owned instantly (vs. claiming an existing
+      // one, which still verifies). This is the path that was missing — "create a
+      // club" had nowhere to go. Same name as an existing page is allowed on
+      // purpose (names aren't unique; handles are); the UI shows a notice.
+      if (req.method === 'POST' && path === '/onboarding/create') {
+        if (!account) return redirect(res, '/signup?next=/onboarding');
+        const f = await parseForm(req);
+        const name = (f.name || '').trim();
+        const rawKind = (f.kind || 'club').toLowerCase();
+        const kind: 'club' | 'association' = (rawKind === 'association' || rawKind === 'league' || rawKind === 'federation') ? 'association' : 'club';
+        if (!name) return redirect(res, `/onboarding/claim?kind=${encodeURIComponent(rawKind)}`);
+        const id = await createOwnedEntity(db, account.id, kind, name);
+        return redirect(res, `/onboarding/brand/${kind}/${id}`);
+      }
       if (path === '/onboarding/claim') {
         if (!account) return redirect(res, '/signup');
         const q = (url.searchParams.get('q') || '').trim();
-        let results: { kind: string; id: string; name: string; region: string | null }[] = [];
-        if (q) {
-          const like = '%' + q.toLowerCase() + '%';
-          const clubs = (await db.query<any>(`SELECT id, name, region FROM club WHERE lower(name) LIKE $1 ORDER BY name LIMIT 10`, [like])).rows.map(r => ({ kind: 'club', id: r.id, name: r.name, region: r.region ?? null }));
-          const assoc = (await db.query<any>(`SELECT id, name FROM association WHERE lower(name) LIKE $1 ORDER BY name LIMIT 10`, [like])).rows.map(r => ({ kind: 'association', id: r.id, name: r.name, region: null }));
-          results = [...clubs, ...assoc];
-        }
-        return html(res, renderOnboardClaim({ q, results }));
+        const kind = (url.searchParams.get('kind') || 'club').toLowerCase();
+        const results = q.length >= 2 ? await searchClaimTargets(db, q, 8) : [];
+        const exact = results.some(r => r.name.toLowerCase() === q.toLowerCase());
+        return html(res, renderOnboardClaim({ q, kind, results, exact }));
       }
       if (req.method === 'POST' && path === '/login') {
         const f = await parseForm(req);
@@ -1761,7 +1783,10 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
       // The "run a full page" entrance (athlete / club / federation) — for people
       // who want a standing creator page, distinct from just hosting one event.
       if (path === '/onboarding') {
-        return html(res, renderCreatorEntry({ guest: viewerGuest }));
+        // Already have an athlete page? Then only the org options (club,
+        // federation, event organiser) — you get one personal athlete page.
+        const hasAthlete = (!viewerGuest && account) ? (await ownedEntities(db, account.id)).some(e => e.kind === 'athlete') : false;
+        return html(res, renderCreatorEntry({ guest: viewerGuest, hasAthlete }));
       }
       // Create an event — the events-first doctrine: any logged-in person can host.
       //

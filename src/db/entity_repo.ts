@@ -1,6 +1,48 @@
 // entity_repo.ts — non-person entities (club / team / association): branding,
 // the relationships that populate their "members" lists, and matchday fixtures.
 import type { Database } from './index.ts';
+import { grantOwnership } from './auth_repo.ts';
+
+// A page you might find when setting up: an existing club or federation. Carries
+// its logo (for the "this really exists" cue) and whether it's still CLAIMABLE
+// (unclaimed + nobody owns it) vs. already on Horda (claimed / owned).
+export interface ClaimTarget { kind: 'club' | 'association'; id: string; name: string; avatarUrl: string | null; claimable: boolean }
+
+// Real-time "find your page" search across the org entities a person can run.
+// Union of club + association, name-prefix/substring, logo joined, ownership
+// checked so the UI can show Claim (claimable) vs. On Horda (taken).
+export async function searchClaimTargets(db: Database, q: string, limit = 8): Promise<ClaimTarget[]> {
+  const like = '%' + q.toLowerCase().trim() + '%';
+  const rows = (await db.query<any>(
+    `SELECT kind, id, name, avatar_url,
+            (claim_status <> 'claimed' AND NOT owned) AS claimable
+       FROM (
+         SELECT 'club' kind, c.id, c.name, c.claim_status::text claim_status, b.avatar_url,
+                EXISTS(SELECT 1 FROM ownership o WHERE o.owner_kind='club' AND o.owner_id=c.id) owned
+           FROM club c LEFT JOIN entity_branding b ON b.entity_type='club' AND b.entity_id=c.id
+          WHERE lower(c.name) LIKE $1
+         UNION ALL
+         SELECT 'association' kind, a.id, a.name, a.claim_status::text, b.avatar_url,
+                EXISTS(SELECT 1 FROM ownership o WHERE o.owner_kind='association' AND o.owner_id=a.id) owned
+           FROM association a LEFT JOIN entity_branding b ON b.entity_type='association' AND b.entity_id=a.id
+          WHERE lower(a.name) LIKE $1
+       ) u
+      ORDER BY name LIMIT $2`, [like, limit])).rows;
+  return rows.map(r => ({ kind: r.kind, id: r.id, name: r.name, avatarUrl: r.avatar_url ?? null, claimable: !!r.claimable }));
+}
+
+// Create a brand-new org page FROM SCRATCH, owned by the creator instantly —
+// this is the "Create" path (vs. claiming someone else's existing page, which
+// still goes through verification). `claim_status='claimed'` + an ownership row
+// mean the creator immediately has owner tools. `kind` is whitelisted so the
+// table name is never attacker-controlled.
+export async function createOwnedEntity(db: Database, accountId: string, kind: 'club' | 'association', name: string): Promise<string> {
+  const tbl = kind === 'association' ? 'association' : 'club';
+  const id = (await db.query<{ id: string }>(
+    `INSERT INTO ${tbl} (name, source, claim_status) VALUES ($1,'native','claimed') RETURNING id`, [name.trim()])).rows[0].id;
+  await grantOwnership(db, accountId, kind, id);
+  return id;
+}
 
 export interface Branding { tagline: string | null; avatarUrl: string | null; bannerUrl: string | null; links: Record<string, string> }
 

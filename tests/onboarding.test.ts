@@ -28,6 +28,15 @@ console.log('\n[onboarding · clean fan-first sign-up + separate creator entranc
 ok('sign-up is fan-clean (no role chooser)', !(await (await fetch(base + '/signup')).text()).includes("I'm here to"));
 const create = await (await fetch(base + '/onboarding?guest=1')).text();
 ok('creator entrance offers both paths (guest → sign up first)', create.includes('Create my page') && create.includes('Claim our page') && create.includes('/signup?next=/onboarding/athlete'));
+
+// The create-a-page hub adapts to what you already are.
+import { renderCreatorEntry } from '../src/web/pages.ts';
+const noAth = renderCreatorEntry({ guest: false, hasAthlete: false });
+ok('a fan (no athlete page) can create as athlete AND club/federation/organiser',
+  noAth.includes('Create my page') && noAth.includes('We’re a club') && noAth.includes('We’re a federation') && noAth.includes('We organise events'));
+const withAth = renderCreatorEntry({ guest: false, hasAthlete: true });
+ok('once you have an athlete page, only the org options remain (no second athlete page)',
+  !withAth.includes('Create my page') && withAth.includes('We’re a club') && withAth.includes('We’re a federation') && withAth.includes('We organise events'));
 // /create is now the event-first action, not the page chooser: guests are sent to sign up
 const createGuest = await fetch(base + '/create?guest=1', { redirect: 'manual' });
 ok('/create routes guests to sign up (then straight to hosting)', createGuest.status === 303 && (createGuest.headers.get('location') || '').startsWith('/signup'));
@@ -66,7 +75,10 @@ const cookieF = (sf.headers.get('set-cookie') || '').split(';')[0];
 ok('fan onboarding = multi-select follow picker (save to persist)', (await (await fetch(base + '/onboarding/fan', { headers: { cookie: cookieF } })).text()).includes('action="/onboarding/follow"'));
 const cookieC = (sc.headers.get('set-cookie') || '').split(';')[0];
 const cs = await (await fetch(base + '/onboarding/claim?q=Beispiel', { headers: { cookie: cookieC } })).text();
-ok('claim search finds the club + offers Claim', cs.includes('FC Beispiel') && cs.includes('/claim/club/'));
+// search surfaces the existing club (with its logo/name); claimable → Claim button,
+// already on Horda → an "On Horda" marker. Either way it's found and a create form exists.
+ok('claim search finds the club + shows claim-or-exists', cs.includes('FC Beispiel') && (cs.includes('/claim/club/') || cs.includes('On Horda')));
+ok('claim page offers create-from-scratch', cs.includes('action="/onboarding/create"'));
 
 console.log('\n[onboarding · /about marketing site (4 pages + nav)]');
 const about = await (await fetch(base + '/about')).text();
