@@ -44,18 +44,20 @@ export async function createOwnedEntity(db: Database, accountId: string, kind: '
   return id;
 }
 
-export interface Branding { tagline: string | null; avatarUrl: string | null; bannerUrl: string | null; links: Record<string, string> }
+// tagline = the one-line about that sits beside the name; description = the
+// longer body underneath it. Both owner-written, both optional.
+export interface Branding { tagline: string | null; description: string | null; avatarUrl: string | null; bannerUrl: string | null; links: Record<string, string> }
 
-export async function setBranding(db: Database, type: 'club' | 'team' | 'association', id: string, b: { tagline?: string; avatarUrl?: string; bannerUrl?: string; links?: Record<string, string> }): Promise<void> {
+export async function setBranding(db: Database, type: 'club' | 'team' | 'association', id: string, b: { tagline?: string; description?: string; avatarUrl?: string; bannerUrl?: string; links?: Record<string, string> }): Promise<void> {
   await db.query(
-    `INSERT INTO entity_branding (entity_type,entity_id,tagline,avatar_url,banner_url,links)
-     VALUES ($1,$2,$3,$4,$5,$6::jsonb)
-     ON CONFLICT (entity_type,entity_id) DO UPDATE SET tagline=excluded.tagline, avatar_url=excluded.avatar_url, banner_url=excluded.banner_url, links=excluded.links`,
-    [type, id, b.tagline ?? null, b.avatarUrl ?? null, b.bannerUrl ?? null, JSON.stringify(b.links ?? {})]);
+    `INSERT INTO entity_branding (entity_type,entity_id,tagline,description,avatar_url,banner_url,links)
+     VALUES ($1,$2,$3,$4,$5,$6,$7::jsonb)
+     ON CONFLICT (entity_type,entity_id) DO UPDATE SET tagline=excluded.tagline, description=excluded.description, avatar_url=excluded.avatar_url, banner_url=excluded.banner_url, links=excluded.links`,
+    [type, id, b.tagline ?? null, b.description ?? null, b.avatarUrl ?? null, b.bannerUrl ?? null, JSON.stringify(b.links ?? {})]);
 }
 export async function getBranding(db: Database, type: string, id: string): Promise<Branding> {
-  const r = (await db.query<any>(`SELECT tagline, avatar_url, banner_url, links FROM entity_branding WHERE entity_type=$1 AND entity_id=$2`, [type, id])).rows[0];
-  return r ? { tagline: r.tagline, avatarUrl: r.avatar_url, bannerUrl: r.banner_url, links: r.links ?? {} } : { tagline: null, avatarUrl: null, bannerUrl: null, links: {} };
+  const r = (await db.query<any>(`SELECT tagline, description, avatar_url, banner_url, links FROM entity_branding WHERE entity_type=$1 AND entity_id=$2`, [type, id])).rows[0];
+  return r ? { tagline: r.tagline, description: r.description ?? null, avatarUrl: r.avatar_url, bannerUrl: r.banner_url, links: r.links ?? {} } : { tagline: null, description: null, avatarUrl: null, bannerUrl: null, links: {} };
 }
 
 // Rename a club/team/association. The display name lives on the entity's own
@@ -64,17 +66,17 @@ export async function updateEntityName(db: Database, type: 'club' | 'team' | 'as
   const n = (name || '').trim().slice(0, 80);
   if (n) await db.query(`UPDATE ${type} SET name=$2 WHERE id=$1`, [id, n]);
 }
-export async function getClub(db: Database, id: string) { return (await db.query<any>(`SELECT id,name FROM club WHERE id=$1`, [id])).rows[0]; }
+export async function getClub(db: Database, id: string) { return (await db.query<any>(`SELECT id,name,handle FROM club WHERE id=$1`, [id])).rows[0]; }
 export async function getTeamsOfClub(db: Database, clubId: string) {
   return (await db.query<any>(`SELECT t.id, t.name, t.division, t.gender, s.name sport FROM team t JOIN sport s ON s.id=t.sport_id WHERE t.club_id=$1 ORDER BY t.name`, [clubId])).rows;
 }
 export async function getTeam(db: Database, id: string) {
-  return (await db.query<any>(`SELECT t.id, t.name, t.division, t.gender, t.club_id, c.name club_name, s.name sport FROM team t JOIN club c ON c.id=t.club_id JOIN sport s ON s.id=t.sport_id WHERE t.id=$1`, [id])).rows[0];
+  return (await db.query<any>(`SELECT t.id, t.name, t.handle, t.division, t.gender, t.club_id, c.name club_name, s.name sport FROM team t JOIN club c ON c.id=t.club_id JOIN sport s ON s.id=t.sport_id WHERE t.id=$1`, [id])).rows[0];
 }
 export async function getRoster(db: Database, teamId: string) {
   return (await db.query<any>(`SELECT a.id, a.display_name name, a.handle FROM roster r JOIN athlete a ON a.id=r.athlete_id WHERE r.team_id=$1 ORDER BY a.display_name`, [teamId])).rows;
 }
-export async function getAssociation(db: Database, id: string) { return (await db.query<any>(`SELECT id,name FROM association WHERE id=$1`, [id])).rows[0]; }
+export async function getAssociation(db: Database, id: string) { return (await db.query<any>(`SELECT id,name,handle FROM association WHERE id=$1`, [id])).rows[0]; }
 export async function getAssociationLeagues(db: Database, id: string) {
   return (await db.query<any>(`SELECT id,name FROM league WHERE association_id=$1 ORDER BY name`, [id])).rows;
 }

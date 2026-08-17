@@ -29,7 +29,12 @@ export interface ProfileVM {
   events?: { id: string; title: string; date?: string; featured?: boolean; hostName?: string; mine?: boolean }[];  // scheduled + featured (mine = viewer holds a spot)
   scheduleHref?: string;              // owner: create-event endpoint
   parent?: { label: string; href: string | null };   // e.g. team -> its club
-  about?: string;
+  // Three distinct lines, deliberately not collapsed into one. `meta` is DERIVED
+  // (a team's sport · division · gender); tagline and description are what the
+  // owner actually wrote. These used to share one slot as `about || tagline`,
+  // which meant a team's derived meta silently hid its owner-written tagline.
+  meta?: string;                      // derived, never owner-written
+  description?: string | null;        // owner-written longer about
   merch?: boolean;
   backHref?: string;
   activation?: string;                // owner: "finish your setup" checklist (pre-rendered)
@@ -160,7 +165,9 @@ export function renderEntityProfile(vm: ProfileVM): string {
         ${vm.parent ? `<a class="parent" href="${gate(vm.parent.href ?? '#')}">▸ ${esc(vm.parent.label)}</a>` : ''}</div>
         <div class="sav">${vm.avatarUrl ? `<img src="${esc(vm.avatarUrl)}">` : avatarSvg(vm.name)}</div></div>
       ${socials ? `<div class="icons">${socials}</div>` : ''}
-      ${(vm.about || vm.tagline) ? `<p class="about">${esc(vm.about || vm.tagline!)}</p>` : ''}
+      ${vm.meta ? `<p class="smeta">${esc(vm.meta)}</p>` : ''}
+      ${vm.tagline ? `<p class="about">${esc(vm.tagline)}</p>` : ''}
+      ${vm.description ? `<p class="desc">${esc(vm.description)}</p>` : ''}
       ${vm.statLine ? `<div class="recline"><span class="rk">${esc(vm.statLine.label)}</span><span class="rv">${esc(vm.statLine.value)}</span>${vm.statLine.sub ? `<span class="rl">${esc(vm.statLine.sub)}</span>` : ''}</div>` : ''}
     </div>
     ${list(vm.members, 'sec-connected')}${list(vm.secondary)}
@@ -175,9 +182,8 @@ export function renderEntityProfile(vm: ProfileVM): string {
   ${deskRail({ guest: vm.guest, fanId: vm.fanId, active: 'explore' })}
   ${backButton(vm.backHref)}
   ${hero}${tabs}
-  <div class="grid"><main>${vm.activation ?? ''}${vm.canEdit ? `<div class="row" style="margin:0 0 10px;gap:8px;flex-wrap:wrap">${vm.customizeHref ? `<a class="btn" href="${esc(vm.customizeHref)}">Edit this page</a>` : ''}${vm.editAction ? `<a class="btn ghost" href="${esc(vm.editAction.replace('/entity/', '/onboarding/brand/').replace('/branding', ''))}">✦ AI page setup</a>` : ''}<a class="btn ghost" href="/settings">Account settings</a></div>` : ''}${notice}${post}${attend}${eventsCard}${merch}</main>${aside}</div>
+  <div class="grid"><main>${vm.activation ?? ''}${vm.canEdit ? `<div class="row" style="margin:0 0 10px;gap:8px;flex-wrap:wrap">${vm.customizeHref ? `<a class="btn" href="${esc(vm.customizeHref)}">Edit this page</a>` : ''}<a class="btn ghost" href="/settings">Account settings</a></div>` : ''}${notice}${post}${attend}${eventsCard}${merch}</main>${aside}</div>
   ${gatebar}
-  <div class="prov">${esc(vm.kindLabel)} profile · owner-controlled identity · system of record, no fan-to-fan venue. Social &amp; affiliation links are owner-chosen and point out.</div>
   ${bottomNav({ guest: vm.guest, fanId: vm.fanId })}
   ${SHARE_SCRIPT}
   ${(vm.editAction && vm.canEdit) ? UPLOAD_SCRIPT : ''}
@@ -241,7 +247,9 @@ export const DARK_CSS = `
   .sh{display:flex;justify-content:space-between;gap:10px}.sn{font-size:20px;font-weight:800}
   .sav{width:54px;height:54px;border-radius:50%;overflow:hidden;border:2px solid var(--bone);flex:0 0 auto}.sav img,.sav svg{width:100%;height:100%;object-fit:cover}
   .icons{display:flex;gap:15px;margin:14px 0}.ic{width:22px;height:22px;color:var(--bone);opacity:.85}.ic svg{width:22px;height:22px;display:block}.ic:hover{opacity:1}
-  .about{font-size:14px;color:var(--mut);margin:4px 0 14px}
+  .about{font-size:14px;color:var(--bone);margin:4px 0 6px}
+  .smeta{font-size:12.5px;color:var(--mut);margin:4px 0 2px;letter-spacing:.2px}
+  .desc{font-size:13.5px;color:var(--mut);margin:0 0 14px;line-height:1.6;white-space:pre-wrap}
   .recline{display:flex;align-items:baseline;gap:8px;border-top:1px solid var(--b);border-bottom:1px solid var(--b);padding:12px 0}
   .rk{font-size:11px;letter-spacing:1.5px;color:var(--mut)}.rv{font-size:24px;font-weight:800}.rl{font-size:11px;color:var(--mut)}
   .parent{display:inline-block;margin-top:6px;font-size:13px;color:var(--bone);border-bottom:1px solid var(--b)}
