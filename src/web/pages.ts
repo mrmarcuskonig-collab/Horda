@@ -9,6 +9,7 @@ import { sportLabelL } from './localize.ts';
 import { bannerSvg, defaultThemeForSport, svgDataUri } from './theme_engine.ts';
 import { oauthProviders } from './oauth.ts';
 import { SECTIONS } from './sections.ts';
+import { publicPathFor } from '../db/handles_repo.ts';
 import { discordFootLink, discordUrl, hasDiscord, discordMark, DISCORD_PATH } from './community.ts';
 
 // "Continue with Google / …" buttons — only render the providers configured via env
@@ -482,7 +483,8 @@ export function renderAthletePage(d: {
       <div class="phactions" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">${d.canEdit ? '' : followControl({ guest: d.guest, following: !!d.isFollowing, targetType: 'athlete', targetId: p.athleteId, fanId: d.fanId, cls: 'btn join' })}${shareProfileMenu({ title: p.name, url: `/athlete/${p.athleteId}` })}</div>
     </section>
     ${socials ? `<div class="icons">${socials}</div>` : ''}
-    ${p.tagline ? `<p class="tagline">${esc(p.tagline)}</p>` : ''}`;
+    ${p.tagline ? `<p class="tagline">${esc(p.tagline)}</p>` : ''}
+    ${p.description ? `<p class="pdesc">${esc(p.description)}</p>` : ''}`;
 
   // ONE PAGE, IN THE ENTITY'S OWN ORDER. Tabs are anchors into the same scroll —
   // not separate pages.
@@ -691,6 +693,7 @@ export function renderAthletePage(d: {
   .btn.ghost{background:transparent;color:var(--bone)}.btn.dark{background:var(--ink);color:var(--bone);border-color:var(--ink)}button.btn{font:inherit}
   .icons{display:flex;gap:16px;margin:16px 2px 0}.ic{width:22px;height:22px;color:var(--bone);opacity:.85}.ic svg{width:22px;height:22px;display:block}.ic:hover{opacity:1}
   .tagline{font-size:15px;margin:14px 2px 0;max-width:48ch}
+  .pdesc{font-size:13.5px;color:var(--mut);margin:8px 2px 0;max-width:56ch;line-height:1.6;white-space:pre-wrap}
   .tabs{display:flex;gap:22px;margin:20px 0 4px;padding:0 2px;border-bottom:1px solid var(--b);overflow-x:auto;position:sticky;top:52px;background:var(--ink);z-index:10}
   .tab{color:var(--mut);font-weight:700;font-size:14px;white-space:nowrap;padding:11px 0}
   .tab.on{color:var(--bone);box-shadow:inset 0 -2px 0 var(--bone)}
@@ -775,7 +778,6 @@ export function renderAthletePage(d: {
     ${sectionsHtml}
   </div>
   ${gatebar}
-  <div class="prov">Athlete-owned profile · persons self-create on Horda · coverage only, no fan-to-fan venue. Social &amp; affiliation links are athlete-chosen and point out.</div>
   ${d.canEdit ? '<div style="height:76px"></div>' + actionBar({ title: 'Your Crowd', sub: 'Create an event or booking', cta: `<a class="btn" href="/athlete/${p.athleteId}/compose">＋ Create</a>` }) : ''}
   ${bottomNav({ guest: d.guest, fanId: d.fanId, createHref: d.canEdit ? `/athlete/${p.athleteId}/compose` : d.createHref })}
   ${d.canEdit ? UPLOAD_SCRIPT : ''}
@@ -885,9 +887,63 @@ export function profileSwitcher(d: { personalActive: boolean; personalName?: str
   </div>`;
 }
 
-export function renderCustomize(d: { athleteId: string; fanId: string | null; sport: string | null; name?: string; handle?: string | null; tagline?: string | null; managed?: { kind: string; id: string; name: string }[]; error?: string; sports?: string[]; sections: { key: string; on: boolean }[]; links?: Record<string, string>; tiers?: { level: string; name: string; priceCents: number; priceAnnualCents: number | null; currency: string; perks: string[] }[]; saved?: boolean; bannerUrl?: string | null; banner?: { pos: { x: number; y: number; zoom: number } | null; videoUrl: string | null }; media?: { id: string; kind: string; url: string; caption: string | null }[]; sponsors?: { id: string; name: string; url: string | null; logoUrl: string | null }[]; shop?: { id: string; kind: string; title: string; subtitle: string | null; url: string | null; priceCents: number | null }[]; themeStudioHtml?: string }): string {
+// --- the custom-link field, with a live "is it free / is it valid" check ----
+// One component behind every custom URL in the product: a page's handle
+// (joinhorda.com/<v>) and an event's slug (joinhorda.com/e/<v>). It mirrors the
+// username field in Settings — 280ms debounce, a stale-response guard so a slow
+// answer can't overwrite a newer one, and a data-current attribute so "no
+// change" says nothing. Typing is forced lowercase, which is also the rule.
+export function customLinkField(d: {
+  scope: 'profile' | 'event'; kind?: string; id: string; field: 'handle' | 'slug';
+  value?: string | null; prefix: string; label: string; hint: string; inputStyle: string;
+}): string {
+  const dom = `lk_${d.field}`;
+  const q = d.scope === 'event'
+    ? `/link-available?scope=event&id=${encodeURIComponent(d.id)}&v=`
+    : `/link-available?scope=profile&kind=${encodeURIComponent(d.kind || '')}&id=${encodeURIComponent(d.id)}&v=`;
+  const rule = d.scope === 'event' ? 'Use at least 3 lowercase letters, numbers or dashes' : 'Use 2–40 lowercase letters, numbers, or _ . -';
+  return `
+    <label class="mut" style="display:block;margin:8px 0 0;font-size:13px">${esc(d.label)}
+      <div style="display:flex;align-items:center;gap:2px;margin-top:6px"><span class="mut" style="font-size:13px;white-space:nowrap">${esc(d.prefix)}</span><input style="${d.inputStyle};margin-top:0" id="${dom}" name="${d.field}" value="${esc(d.value ?? '')}" data-current="${esc((d.value ?? '').toLowerCase())}" placeholder="yourname" maxlength="40" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false"></div>
+      <div class="lkhint" id="${dom}_s"></div>
+      <span class="mut" style="font-size:11.5px">${esc(d.hint)}</span></label>
+    <style>.lkhint{font-size:12.5px;margin-top:6px;min-height:16px;color:var(--mut)}.lkhint.ok{color:#7ee2a0;font-weight:600}.lkhint.bad{color:#e5707a;font-weight:600}</style>
+    <script>(function(){
+      var i=document.getElementById('${dom}'),s=document.getElementById('${dom}_s'),t;
+      if(!i||!s)return;
+      var RE=${d.scope === 'event' ? '/^[a-z0-9][a-z0-9-]{2,39}$/' : '/^[a-z0-9_][a-z0-9_.-]{1,39}$/'};
+      function set(cls,txt){s.className='lkhint '+cls;s.textContent=txt;}
+      function val(){return i.value.trim().replace(/^@/,'').toLowerCase();}
+      function check(){
+        var v=val();
+        if(!v){set('','Leave blank to keep the default Horda link.');return;}
+        if(v===(i.getAttribute('data-current')||'')){set('','This is your link right now.');return;}
+        if(!RE.test(v)){set('bad',${JSON.stringify(rule)});return;}
+        set('','Checking availability…');
+        fetch(${JSON.stringify(q)}+encodeURIComponent(v),{headers:{accept:'application/json'}})
+          .then(function(r){return r.json()})
+          .then(function(d){ if(v!==val())return;
+            if(d && d.reserved){set('bad','✗ /'+v+' is reserved by Horda');}
+            else if(!d||!d.valid){set('bad',${JSON.stringify(rule)});}
+            else if(d.available){set('ok','✓ '+v+' is free');}
+            else{set('bad','✗ '+v+' is already taken');} })
+          .catch(function(){set('','');});
+      }
+      i.addEventListener('input',function(){
+        var lc=i.value.toLowerCase(); if(lc!==i.value){var p=i.selectionStart;i.value=lc;try{i.setSelectionRange(p,p);}catch(e){}}
+        clearTimeout(t);t=setTimeout(check,280);
+      });
+    })();</script>`;
+}
+
+export function renderCustomize(d: { athleteId: string; fanId: string | null; sport: string | null; name?: string; handle?: string | null; tagline?: string | null; description?: string | null; origin?: string; managed?: { kind: string; id: string; name: string }[]; error?: string; sports?: string[]; sections: { key: string; on: boolean }[]; links?: Record<string, string>; tiers?: { level: string; name: string; priceCents: number; priceAnnualCents: number | null; currency: string; perks: string[] }[]; saved?: boolean; bannerUrl?: string | null; banner?: { pos: { x: number; y: number; zoom: number } | null; videoUrl: string | null }; media?: { id: string; kind: string; url: string; caption: string | null }[]; sponsors?: { id: string; name: string; url: string | null; logoUrl: string | null }[]; shop?: { id: string; kind: string; title: string; subtitle: string | null; url: string | null; priceCents: number | null }[]; themeStudioHtml?: string }): string {
   const ta = 'display:block;width:100%;margin-top:8px;background:var(--s);border:1px solid var(--b);border-radius:12px;color:var(--bone);padding:12px;font:inherit;min-height:90px';
   const inp = 'display:block;width:100%;margin-top:6px;background:var(--s);border:1px solid var(--b);border-radius:10px;color:var(--bone);padding:10px;font:inherit';
+  // The link we show the owner is the one the page actually answers on — the
+  // custom handle the moment it exists, the /athlete/:id path until then.
+  const host = (d.origin || 'joinhorda.com').replace(/^https?:\/\//, '');
+  const livePath = publicPathFor('athlete', d.athleteId, d.handle);
+  const liveUrl = host + livePath, liveHref = livePath;
   const L = d.links ?? {};
   const linkField = (key: string, label: string, ph: string) => `<label class="mut" style="display:block;margin:10px 0 0;font-size:13px">${esc(label)}<input style="${inp}" name="${key}" value="${esc(L[key] ?? '')}" placeholder="${ph}"></label>`;
   // membership tier editor — set what fans pay for (wired to Stripe)
@@ -934,13 +990,16 @@ export function renderCustomize(d: { athleteId: string; fanId: string | null; sp
     ${d.error ? `<div class="card" style="border-color:#ff6b6b;margin:8px 0"><strong style="color:#ff6b6b">${esc(d.error)}</strong></div>` : ''}
 
     <div class="card" style="margin-top:6px">
-      <h2 style="font-size:13px;letter-spacing:1px;text-transform:uppercase;margin-bottom:6px">Name, @handle & about</h2>
+      <h2 style="font-size:13px;letter-spacing:1px;text-transform:uppercase;margin-bottom:6px">Name, link &amp; about</h2>
+      <p class="mut" style="font-size:12.5px;margin:0 0 8px">Your page is live at <a href="${esc(liveHref)}" style="color:var(--bone);border-bottom:1px solid var(--b)">${esc(liveUrl)}</a>${d.handle ? '' : ' — claim a custom link below'}.</p>
       <form method="post" action="/athlete/${esc(d.athleteId)}/identity" data-lockedit style="margin-bottom:14px;border-bottom:1px solid var(--b);padding-bottom:12px">
-        <p class="mut" style="font-size:12px;margin:0 0 8px">Locked to avoid accidental changes — tap <b style="color:var(--bone)">Edit</b> to change your name or @handle.</p>
+        <p class="mut" style="font-size:12px;margin:0 0 8px">Locked to avoid accidental changes — tap <b style="color:var(--bone)">Edit</b> to change your name or link.</p>
         <label class="mut" style="display:block;font-size:13px">Name<input style="${inp}" name="name" value="${esc(d.name ?? '')}" placeholder="Rico Ravens" required></label>
-        <label class="mut" style="display:block;margin:8px 0 0;font-size:13px">@handle<div style="display:flex;align-items:center;gap:4px;margin-top:6px"><span class="mut" style="font-size:16px">@</span><input style="${inp};margin-top:0" name="handle" value="${esc((d.handle ?? '').replace(/^@/, ''))}" placeholder="ricoravens" pattern="[A-Za-z0-9_]{2,30}"></div></label>
-        <label class="mut" style="display:block;margin:8px 0 0;font-size:13px">About<textarea style="${ta}" name="tagline" maxlength="280" placeholder="A line or two about you — what you compete in, what fans should know.">${esc(d.tagline ?? '')}</textarea></label>
-        <div class="row" style="margin-top:10px"><button type="button" class="lk-edit ghost" hidden>Edit</button><button type="submit" class="lk-save">Save name, handle & about</button></div>
+        ${customLinkField({ scope: 'profile', kind: 'athlete', id: d.athleteId, field: 'handle', value: (d.handle ?? '').replace(/^@/, ''), prefix: host + '/', label: 'Your link', hint: 'Lowercase letters, numbers, and _ . \u2014 this replaces the Horda link everywhere.', inputStyle: inp })}
+        <label class="mut" style="display:block;margin:8px 0 0;font-size:13px">One-line about<input style="${inp}" name="tagline" maxlength="90" value="${esc(d.tagline ?? '')}" placeholder="Southpaw welterweight out of Kreuzberg">
+          <span class="mut" style="font-size:11.5px">One line, shown next to your name. Max 90 characters.</span></label>
+        <label class="mut" style="display:block;margin:8px 0 0;font-size:13px">Description<textarea style="${ta}" name="description" maxlength="2000" placeholder="The longer version — what you compete in, where you train, what fans should know.">${esc(d.description ?? '')}</textarea></label>
+        <div class="row" style="margin-top:10px"><button type="button" class="lk-edit ghost" hidden>Edit</button><button type="submit" class="lk-save">Save name, link &amp; about</button></div>
       </form>
       <h2 style="font-size:13px;letter-spacing:1px;text-transform:uppercase;margin-bottom:6px">Photos</h2>
       <form method="post" action="/athlete/${esc(d.athleteId)}/branding" onsubmit="return hzPrep(this)" style="margin-bottom:14px;border-bottom:1px solid var(--b);padding-bottom:12px">
@@ -1041,8 +1100,10 @@ export function renderCustomize(d: { athleteId: string; fanId: string | null; sp
 // --- club / team / federation page editor — same depth as the athlete + personal
 // editors: name, about, photos and links, with the profile switcher on top so it's
 // clear which page you're editing.
-export function renderEntityEdit(d: { kind: 'club' | 'team' | 'association'; id: string; fanId: string | null; name: string; tagline?: string | null; avatarUrl?: string | null; bannerUrl?: string | null; links?: Record<string, string>; managed?: { kind: string; id: string; name: string }[]; handle?: string | null; origin?: string; error?: string }): string {
+export function renderEntityEdit(d: { kind: 'club' | 'team' | 'association'; id: string; fanId: string | null; name: string; tagline?: string | null; description?: string | null; avatarUrl?: string | null; bannerUrl?: string | null; links?: Record<string, string>; managed?: { kind: string; id: string; name: string }[]; handle?: string | null; origin?: string; error?: string }): string {
   const host = (d.origin || 'joinhorda.com').replace(/^https?:\/\//, '');
+  const livePath = publicPathFor(d.kind, d.id, d.handle);
+  const liveUrl = host + livePath;
   const inp = 'display:block;width:100%;margin-top:6px;background:var(--s);border:1px solid var(--b);border-radius:10px;color:var(--bone);padding:10px;font:inherit';
   const ta = 'display:block;width:100%;margin-top:8px;background:var(--s);border:1px solid var(--b);border-radius:12px;color:var(--bone);padding:12px;font:inherit;min-height:90px';
   const L = d.links ?? {};
@@ -1056,20 +1117,21 @@ export function renderEntityEdit(d: { kind: 'club' | 'team' | 'association'; id:
     ${d.error ? `<div class="card" style="border-color:#ff6b6b;margin:8px 0"><strong style="color:#ff6b6b">${esc(d.error)}</strong></div>` : ''}
     <div class="card" style="margin-top:6px">
       <h2 style="font-size:13px;letter-spacing:1px;text-transform:uppercase;margin-bottom:6px">Name, about &amp; links</h2>
+      <p class="mut" style="font-size:12.5px;margin:0 0 8px">Your page is live at <a href="${esc(livePath)}" style="color:var(--bone);border-bottom:1px solid var(--b)">${esc(liveUrl)}</a>${d.handle ? '' : ' — claim a custom link below'}.</p>
       <form method="post" action="/${d.kind}/${esc(d.id)}/identity" data-lockedit>
         <p class="mut" style="font-size:12px;margin:0 0 8px">Locked to avoid accidental changes — tap <b style="color:var(--bone)">Edit</b> to change your name or link.</p>
         <label class="mut" style="display:block;font-size:13px">Name<input style="${inp}" name="name" value="${esc(d.name)}" required></label>
-        <label class="mut" style="display:block;margin:8px 0 0;font-size:13px">Your link <span style="color:var(--acc)">· share this, not a Horda link</span>
-          <div style="display:flex;align-items:center;gap:2px;margin-top:6px"><span class="mut" style="font-size:13px;white-space:nowrap">${esc(host)}/</span><input style="${inp};margin-top:0" name="handle" value="${esc(d.handle ?? '')}" placeholder="${esc(kindLabel)}name" maxlength="40" pattern="[A-Za-z0-9_.-]*" autocapitalize="off" autocomplete="off"></div>
-          <span class="mut" style="font-size:11.5px">Your public page — everyone sees every event you run. Letters, numbers, and _ . - Leave blank to keep the default link.</span></label>
-        <label class="mut" style="display:block;margin:8px 0 0;font-size:13px">About<textarea style="${ta}" name="tagline" maxlength="280" placeholder="What this ${kindLabel} is — who you are, what you compete in.">${esc(d.tagline ?? '')}</textarea></label>
+        ${customLinkField({ scope: 'profile', kind: d.kind, id: d.id, field: 'handle', value: d.handle ?? '', prefix: host + '/', label: 'Your link \u00b7 share this, not a Horda link', hint: 'Lowercase letters, numbers, and _ . - \u2014 this replaces the Horda link everywhere. Leave blank to keep the default.', inputStyle: inp })}
+        <label class="mut" style="display:block;margin:8px 0 0;font-size:13px">One-line about<input style="${inp}" name="tagline" maxlength="90" value="${esc(d.tagline ?? '')}" placeholder="Grassroots football in Kreuzberg since 1924">
+          <span class="mut" style="font-size:11.5px">One line, shown next to the name. Max 90 characters.</span></label>
+        <label class="mut" style="display:block;margin:8px 0 0;font-size:13px">Description<textarea style="${ta}" name="description" maxlength="2000" placeholder="The longer version — who you are, what you run, who turns up.">${esc(d.description ?? '')}</textarea></label>
         <div style="margin-top:10px;font-size:12px;letter-spacing:1px;text-transform:uppercase;color:var(--mut);font-weight:700">Connect socials</div>
         ${linkField('instagram', 'Instagram', 'https://instagram.com/…')}
         ${linkField('x', 'X / Twitter', 'https://x.com/…')}
         ${linkField('tiktok', 'TikTok', 'https://tiktok.com/@…')}
         ${linkField('youtube', 'YouTube', 'https://youtube.com/@…')}
         ${linkField('website', 'Website', 'https://…')}
-        <div class="row" style="margin-top:12px"><button type="button" class="lk-edit ghost" hidden>Edit</button><button type="submit" class="lk-save">Save name, about &amp; links</button></div>
+        <div class="row" style="margin-top:12px"><button type="button" class="lk-edit ghost" hidden>Edit</button><button type="submit" class="lk-save">Save name, link, about &amp; links</button></div>
       </form>
       <h2 style="font-size:13px;letter-spacing:1px;text-transform:uppercase;margin:16px 0 6px">Photos</h2>
       <form method="post" action="/${d.kind}/${esc(d.id)}/photos" onsubmit="return hzPrep(this)">
@@ -1562,7 +1624,7 @@ export function renderCreatorEntry(d: { guest: boolean; hasAthlete?: boolean }):
   const claimHref = (kind: string) => d.guest ? `/signup?next=${encodeURIComponent('/onboarding/claim?kind=' + kind)}` : `/onboarding/claim?kind=${kind}`;
   const showAthlete = !d.hasAthlete;
   const athleteCard = showAthlete
-    ? `<div class="ccard"><h2>I’m an athlete</h2><p>Describe yourself in a sentence and we build your page — headline, cover, the lot. You own it instantly.</p><a class="btn" href="${athleteHref}">Create my page →</a> <a href="/about#features" style="margin-left:8px;font-size:13px;border-bottom:1px solid var(--b)">what you get →</a></div>`
+    ? `<div class="ccard"><h2>I’m an athlete</h2><p>Name it, say what you compete in, press Save. You own it instantly.</p><a class="btn" href="${athleteHref}">Create my page →</a> <a href="/about#features" style="margin-left:8px;font-size:13px;border-bottom:1px solid var(--b)">what you get →</a></div>`
     : '';
   const orgCard = (title: string, blurb: string, kind: string, cta: string) =>
     `<div class="ccard"><h2>${title}</h2><p>${blurb}</p><a class="btn" href="${claimHref(kind)}">${cta}</a> <a href="/about#features" style="margin-left:8px;font-size:13px;border-bottom:1px solid var(--b)">what you get →</a></div>`;
@@ -1635,56 +1697,45 @@ export function renderWelcome(d: { fanId: string; createHref?: string }): string
   `, { nav: { active: 'home', guest: false, fanId: d.fanId, createHref: d.createHref } });
 }
 
-// --- onboarding: AI-first. Describe yourself → we generate a polished page. ---
-export function renderAiPrompt(d: { title: string; lead: string; placeholder: string; generateAction: string; hidden?: string; back: string; altLink?: string }): string {
-  const ta = 'display:block;width:100%;margin-top:8px;background:var(--s);border:1px solid var(--b);border-radius:12px;color:var(--bone);padding:13px;font:inherit;min-height:150px;line-height:1.55';
-  const sel = 'display:block;width:100%;margin-top:5px;background:var(--s);border:1px solid var(--b);border-radius:10px;color:var(--bone);padding:9px;font:inherit';
-  return layout(d.title, `
-    <h1>${esc(d.title)}</h1>
-    <p class="mut">${esc(d.lead)}</p>
-    <form method="post" action="${esc(d.generateAction)}">${d.hidden ?? ''}
-      <textarea name="description" required placeholder="${esc(d.placeholder)}" style="${ta}"></textarea>
-      <div style="margin-top:14px;font-size:12px;letter-spacing:1px;text-transform:uppercase;color:var(--mut);font-weight:700">Creative direction <span style="text-transform:none;letter-spacing:0;font-weight:400">— optional, steers the tone</span></div>
-      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:8px">
-        <label class="mut" style="flex:1;min-width:120px;font-size:12px">Mood
-          <select name="mood" style="${sel}"><option value="">Auto</option><option value="dark, intense">Dark &amp; intense</option><option value="bright, fresh">Bright &amp; fresh</option><option value="bold, gritty">Bold &amp; gritty</option><option value="clean, minimal">Clean &amp; minimal</option><option value="playful, energetic">Playful</option></select></label>
-        <label class="mut" style="flex:1;min-width:120px;font-size:12px">Energy
-          <select name="energy" style="${sel}"><option value="">Auto</option><option value="calm and understated">Calm</option><option value="confident">Confident</option><option value="high-energy and loud">High-energy</option></select></label>
-        <label class="mut" style="flex:1;min-width:120px;font-size:12px">Voice
-          <select name="voice" style="${sel}"><option value="">Auto</option><option value="first person">First person (I…)</option><option value="third person">Third person</option></select></label>
-      </div>
-      <div class="row" style="margin-top:14px"><button type="submit">✦ Generate my page</button></div>
-    </form>
-    <p class="mut" style="margin-top:12px;font-size:12.5px">We turn your words into a bold, on-brand page — a cooler headline, a striking cover, the works. The creative direction shapes tone only; we never invent facts. You can tweak everything before it goes live.</p>
-    ${d.altLink ?? ''}`, { back: d.back });
-}
-
-export function renderProfilePreview(d: { kind: string; gen: { displayName: string; handle: string; headline: string; tagline: string; bio: string; cover: string; sport?: string; links?: Record<string, string> }; description: string; createAction: string; generateAction: string; hidden?: string; showHandle?: boolean }): string {
+// --- onboarding: create a page. One plain form, finished with Save. ---------
+// There is no generate step and no preview step: you type what the page is and
+// press Save, and the page exists. Two things are deliberately NOT here:
+//   * no handle field — every new page starts on its /kind/:id URL, and the
+//     owner picks a custom link afterwards, from the edit page, where the
+//     live availability check lives.
+//   * no photos — uploading is an edit-page job, and putting file inputs in
+//     front of "create" is what made this flow feel like a project.
+export function renderProfileCreate(d: {
+  kind: 'athlete' | 'club' | 'team' | 'association';
+  action: string; back: string; error?: string; altLink?: string;
+  clubs?: { id: string; name: string }[];
+}): string {
   const inp = 'display:block;width:100%;margin-top:6px;background:var(--s);border:1px solid var(--b);border-radius:10px;color:var(--bone);padding:11px;font:inherit';
-  const g = d.gen;
-  return layout('Your page — preview', `
-    <style>.pvcover{width:100%;border-radius:16px;border:1px solid var(--b);display:block;aspect-ratio:1200/420;object-fit:cover}.pvh{font-size:12px;letter-spacing:1.5px;text-transform:uppercase;color:var(--mut);font-weight:700;margin:18px 0 6px}</style>
-    <h1>Here’s your page ✦</h1>
-    <p class="mut">Generated from what you told us. Edit anything, regenerate, or publish.</p>
-    <img class="pvcover" src="${esc(g.cover)}" alt="generated cover">
-    <div class="pvh">Headline</div><div style="font-size:20px;font-weight:800">${esc(g.headline || g.displayName)}</div>
-    <form method="post" action="${esc(d.createAction)}">${d.hidden ?? ''}
-      <input type="hidden" name="cover" value="${esc(g.cover)}">
-      <input type="hidden" name="links" value="${esc(JSON.stringify(g.links ?? {}))}">
-      <div class="pvh">Sport</div>${sportSelect('sport', g.sport, inp)}
-      ${g.links && Object.keys(g.links).length ? `<div class="pvh">Links found</div><div class="mut" style="font-size:12.5px">${Object.keys(g.links).map(k => esc(k)).join(' · ')}</div>` : ''}
-      <div class="pvh">Profile picture</div>
-      <input type="file" accept="image/*" data-target="avatar" style="color:inherit;font:inherit"><input type="hidden" name="avatar">
-      <div class="pvh">Background photo <span class="mut" style="text-transform:none;letter-spacing:0;font-weight:400">— optional; replaces the generated cover</span></div>
-      <input type="file" accept="image/*" data-target="banner" style="color:inherit;font:inherit"><input type="hidden" name="banner">
-      <label class="mut" style="display:block;margin:14px 0 0">Name<input style="${inp}" name="name" value="${esc(g.displayName)}" required></label>
-      ${d.showHandle !== false ? `<label class="mut" style="display:block;margin:12px 0 0">Handle<input style="${inp}" name="handle" value="${esc(g.handle)}" required></label>` : ''}
-      <label class="mut" style="display:block;margin:12px 0 0">Tagline<input style="${inp}" name="tagline" value="${esc(g.tagline)}"></label>
-      <label class="mut" style="display:block;margin:12px 0 0">Bio / intro<textarea style="${inp};min-height:90px" name="bio">${esc(g.bio)}</textarea></label>
-      <div class="row" style="margin-top:14px"><button type="submit">Publish my page →</button></div>
+  const ta = 'display:block;width:100%;margin-top:6px;background:var(--s);border:1px solid var(--b);border-radius:12px;color:var(--bone);padding:12px;font:inherit;min-height:110px;line-height:1.55';
+  const noun = d.kind === 'athlete' ? 'athlete page' : d.kind === 'club' ? 'club' : d.kind === 'team' ? 'team' : 'federation';
+  const namePh = d.kind === 'athlete' ? 'Rico Vargas' : d.kind === 'club' ? 'FC Beispiel' : d.kind === 'team' ? 'First XI' : 'Berliner Fußball-Verband';
+  const aboutPh = d.kind === 'athlete' ? 'Southpaw welterweight out of Kreuzberg' : 'Grassroots football in Kreuzberg since 1924';
+  const descPh = d.kind === 'athlete'
+    ? 'The longer version — where you train, what you compete in, what people should know before they turn up.'
+    : `The longer version — who you are, what you run, who turns up. This is what a first-time visitor reads.`;
+  return layout(`Create your ${noun}`, `
+    <h1>Create your ${esc(noun)}</h1>
+    <p class="mut">Name it, say what it is, press Save. You can add photos, links and a custom URL straight after.</p>
+    ${d.error ? `<div class="card" style="border-color:#ff6b6b;margin:8px 0"><strong style="color:#ff6b6b">${esc(d.error)}</strong></div>` : ''}
+    <form method="post" action="${esc(d.action)}">
+      <label class="mut" style="display:block;margin:14px 0 0;font-size:13px">Name<input style="${inp}" name="name" placeholder="${esc(namePh)}" maxlength="80" required autofocus></label>
+      ${d.kind === 'team' && d.clubs?.length ? `<label class="mut" style="display:block;margin:12px 0 0;font-size:13px">Club it belongs to<select name="club_id" style="${inp}">${d.clubs.map(c => `<option value="${esc(c.id)}">${esc(c.name)}</option>`).join('')}</select></label>` : ''}
+      <label class="mut" style="display:block;margin:12px 0 0;font-size:13px">Sport${d.kind === 'athlete' ? ' <span style="font-size:11.5px">— optional</span>' : ''}${sportSelect('sport', null, inp)}</label>
+      <label class="mut" style="display:block;margin:12px 0 0;font-size:13px">One-line about
+        <input style="${inp}" name="tagline" maxlength="90" placeholder="${esc(aboutPh)}">
+        <span class="mut" style="font-size:11.5px">One line, shown next to the name. Max 90 characters.</span></label>
+      <label class="mut" style="display:block;margin:12px 0 0;font-size:13px">Description
+        <textarea style="${ta}" name="description" maxlength="2000" placeholder="${esc(descPh)}"></textarea>
+        <span class="mut" style="font-size:11.5px">The longer about, shown on the page itself.</span></label>
+      <p class="mut" style="margin:14px 0 0;font-size:12.5px">Your page gets a Horda link to start with. Once it exists you can claim a custom one — <span style="color:var(--bone)">joinhorda.com/yourname</span> — from the edit page.</p>
+      <div class="row" style="margin-top:14px"><button type="submit">Save</button></div>
     </form>
-    <form method="post" action="${esc(d.generateAction)}" style="margin-top:8px">${d.hidden ?? ''}<input type="hidden" name="description" value="${esc(d.description)}"><div class="row"><button class="ghost" type="submit">↻ Regenerate</button></div></form>
-    ${UPLOAD_SCRIPT}`, { back: '/' });
+    ${d.altLink ?? ''}`, { back: d.back });
 }
 
 // --- onboarding: find + claim an existing org page, or create one from scratch
@@ -1771,7 +1822,14 @@ export function renderOnboardClaim(d: { q: string; kind?: string; results: { kin
       <input type="hidden" name="kind" value="${esc(kind)}">
       <input type="hidden" name="name" id="createname" value="${esc(d.q)}">
       <p class="notice" id="notice"${d.exact ? '' : ' hidden'}>A ${esc(kindLabel)} named “<span id="noticename">${esc(d.q)}</span>” already exists on Horda — creating yours makes a separate page.</p>
-      <button type="submit" class="mini p" id="createbtn">＋ Create “<span id="createlabel">${esc(d.q) || 'your ' + kindLabel}</span>”</button>
+      <label class="mut" style="display:block;margin:10px 0 0;font-size:13px">One-line about
+        <input style="${inp};margin-top:6px" name="tagline" maxlength="90" placeholder="Grassroots football in Kreuzberg since 1924">
+        <span class="mut" style="font-size:11.5px">One line, shown next to the name. Max 90 characters.</span></label>
+      <label class="mut" style="display:block;margin:10px 0 0;font-size:13px">Description
+        <textarea style="${inp};margin-top:6px;min-height:96px;line-height:1.55" name="description" maxlength="2000" placeholder="The longer version — who you are, what you run, who turns up."></textarea>
+        <span class="mut" style="font-size:11.5px">The longer about, shown on the page itself.</span></label>
+      <p class="mut" style="margin:12px 0 0;font-size:12.5px">Your page gets a Horda link to start with. Once it exists you can claim a custom one — <span style="color:var(--bone)">joinhorda.com/yourname</span> — from the edit page.</p>
+      <div class="row" style="margin-top:12px"><button type="submit" class="p" id="createbtn">Save</button></div>
     </form>
     ${SCRIPT}`, { back: '/onboarding' });
 }

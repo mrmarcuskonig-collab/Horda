@@ -12,7 +12,8 @@ export interface AthleteProfile {
   athleteId: string;
   name: string;
   handle?: string | null;
-  tagline?: string | null;          // athlete-written one-liner
+  tagline?: string | null;          // athlete-written one-liner, sits beside the name
+  description?: string | null;      // athlete-written longer about
   avatarUrl?: string | null;        // athlete-uploaded
   bannerUrl?: string | null;        // athlete-uploaded
   links: Record<string, string>;    // {instagram,x,tiktok,youtube,website,...} — point OUT

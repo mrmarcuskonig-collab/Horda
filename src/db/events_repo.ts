@@ -162,7 +162,7 @@ export async function featureEvent(db: Database, kind: string, id: string, event
 }
 
 export async function getEventDetail(db: Database, eventIdOrSlug: string): Promise<EventDetail | null> {
-  // Accept a custom slug (Horda Plus URLs) as well as the uuid — resolve to the
+  // Accept a custom slug as well as the uuid — resolve to the
   // uuid first so a non-uuid param never hits the uuid-typed `id` column.
   const eventId = await resolveEventId(db, eventIdOrSlug);
   if (!eventId) return null;
@@ -230,7 +230,8 @@ export async function resolveEventId(db: Database, idOrSlug: string): Promise<st
 }
 
 // Set (or clear, with '') an event's custom slug. Returns an error string on a
-// bad/taken slug so the caller can surface it. Caller enforces the Plus gate.
+// bad/taken slug so the caller can surface it. Free on every plan — there is no
+// gate, and there never was one in any caller despite what this comment said.
 export async function setEventSlug(db: Database, eventId: string, raw: string): Promise<{ ok: boolean; slug: string | null; error?: string }> {
   const s = slugify(raw);
   if (raw.trim() === '') { await db.query(`UPDATE event SET slug=NULL WHERE id=$1`, [eventId]); return { ok: true, slug: null }; }

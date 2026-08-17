@@ -40,20 +40,27 @@ ok('the endpoint flags exact-name matches', (await (await fetch(base + '/onboard
 
 // --- the create POST actually creates a page (demo fallback account) ---
 const r = await fetch(base + '/onboarding/create', { method: 'POST', redirect: 'manual', headers: { 'content-type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ kind: 'club', name: 'Posted United' }) });
-ok('POST /onboarding/create redirects into branding', r.status === 303 && (r.headers.get('location') || '').startsWith('/onboarding/brand/club/'));
+ok('POST /onboarding/create lands in the editor (the AI setup screen is gone)', r.status === 303 && /^\/club\/[^/]+\/customize$/.test(r.headers.get('location') || ''));
 ok('POST /onboarding/create inserted the club', (await db.query<{ n: number }>(`SELECT count(*)::int n FROM club WHERE name='Posted United'`, [])).rows[0].n === 1);
+const withProse = await fetch(base + '/onboarding/create', { method: 'POST', redirect: 'manual', headers: { 'content-type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ kind: 'club', name: 'Prose Athletic', tagline: 'One line about us', description: 'The longer version of who we are.' }) });
+const proseId = (withProse.headers.get('location') || '').split('/')[2];
+const prose = (await db.query<{ tagline: string; description: string }>(`SELECT tagline, description FROM entity_branding WHERE entity_type='club' AND entity_id=$1`, [proseId])).rows[0];
+ok('the one-liner and description posted at creation are stored separately', prose?.tagline === 'One line about us' && prose?.description === 'The longer version of who we are.');
+ok('a new page starts with NO custom URL', (await db.query<{ handle: string | null }>(`SELECT handle FROM club WHERE id=$1`, [proseId])).rows[0].handle === null);
 // event organiser normalises to a club-type page
 const ro = await fetch(base + '/onboarding/create', { method: 'POST', redirect: 'manual', headers: { 'content-type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ kind: 'organizer', name: 'Ring Nights Promotions' }) });
-ok('an event organiser is created as a club-type page', (ro.headers.get('location') || '').startsWith('/onboarding/brand/club/'));
+ok('an event organiser is created as a club-type page', /^\/club\/[^/]+\/customize$/.test(ro.headers.get('location') || ''));
 // a federation normalises to an association page
 const rf = await fetch(base + '/onboarding/create', { method: 'POST', redirect: 'manual', headers: { 'content-type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ kind: 'federation', name: 'Regional League Board' }) });
-ok('a federation is created as an association page', (rf.headers.get('location') || '').startsWith('/onboarding/brand/association/'));
+ok('a federation is created as an association page', /^\/association\/[^/]+\/customize$/.test(rf.headers.get('location') || ''));
 
 // --- the page markup: live search + claim + create + notice ---
 const pg = renderOnboardClaim({ q: 'Rivertown', kind: 'club', results: found, exact: false });
 ok('page wires the live-search field to the search endpoint', pg.includes('id="q"') && pg.includes('/onboarding/claim/search'));
 ok('page offers a Claim button for a claimable result', pg.includes(`href="/claim/club/${uc}"`));
 ok('page offers a create-from-scratch form', pg.includes('action="/onboarding/create"') && pg.includes('name="name"'));
+ok('the create form is finished with Save, and carries the page prose', pg.includes('>Save</button>') && pg.includes('name="tagline"') && pg.includes('name="description"'));
+ok('the create form does not ask for a custom URL up front', !pg.includes('name="handle"'));
 const pgX = renderOnboardClaim({ q: 'Downtown FC', kind: 'club', results: f2, exact: true });
 ok('same-name notice shows on an exact match', pgX.includes('already exists on Horda') && !pgX.includes('id="notice" hidden'));
 ok('a claimed result shows "On Horda", not a Claim button', pgX.includes('On Horda'));

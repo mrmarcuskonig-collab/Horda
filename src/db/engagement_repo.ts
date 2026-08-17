@@ -7,6 +7,7 @@ import { computeStanding } from '../engines/index.ts';
 import { summarize } from '../engines/summarize.ts';
 import type { ResultRow, StandingDef } from '../engines/types.ts';
 import type { FanFeedItem, AthleteProfile, FanHome } from '../engagement/types.ts';
+import { handleAvailable, setEntityHandle } from './handles_repo.ts';
 
 const sqlList = (ids: string[]) => ids.length ? ids.map(i => `'${i}'`).join(',') : `'00000000-0000-0000-0000-000000000000'`;
 
@@ -19,11 +20,11 @@ export async function createAthlete(db: Database, name: string, handle?: string)
   return (await db.query<{ id: string }>(`INSERT INTO athlete (display_name,handle) VALUES ($1,$2) RETURNING id`, [name, handle ?? null])).rows[0].id;
 }
 // Athlete edits their own surface (the levers that make a profile stand out).
-export async function setAthleteProfile(db: Database, athleteId: string, p: { tagline?: string; avatarUrl?: string; bannerUrl?: string; links?: Record<string, string> }): Promise<void> {
+export async function setAthleteProfile(db: Database, athleteId: string, p: { tagline?: string; description?: string; avatarUrl?: string; bannerUrl?: string; links?: Record<string, string> }): Promise<void> {
   await db.query(
-    `UPDATE athlete SET tagline=COALESCE($2,tagline), avatar_url=COALESCE($3,avatar_url),
-            banner_url=COALESCE($4,banner_url), links=COALESCE($5::jsonb,links) WHERE id=$1`,
-    [athleteId, p.tagline ?? null, p.avatarUrl ?? null, p.bannerUrl ?? null, p.links ? JSON.stringify(p.links) : null]);
+    `UPDATE athlete SET tagline=COALESCE($2,tagline), description=COALESCE($3,description), avatar_url=COALESCE($4,avatar_url),
+            banner_url=COALESCE($5,banner_url), links=COALESCE($6::jsonb,links) WHERE id=$1`,
+    [athleteId, p.tagline ?? null, p.description ?? null, p.avatarUrl ?? null, p.bannerUrl ?? null, p.links ? JSON.stringify(p.links) : null]);
 }
 
 export async function followEntity(db: Database, fanId: string, targetType: 'club' | 'team' | 'athlete' | 'association', targetId: string, source: string = PRODUCT_SOURCE): Promise<void> {
@@ -121,7 +122,7 @@ export async function getFanFeed(db: Database, fanId: string): Promise<FanFeedIt
 }
 
 export async function getAthleteProfile(db: Database, athleteId: string): Promise<AthleteProfile> {
-  const a = (await db.query<any>(`SELECT display_name, handle, tagline, avatar_url, banner_url, links FROM athlete WHERE id=$1`, [athleteId])).rows[0];
+  const a = (await db.query<any>(`SELECT display_name, handle, tagline, description, avatar_url, banner_url, links FROM athlete WHERE id=$1`, [athleteId])).rows[0];
   const name = a.display_name;
   const res = (await db.query<any>(`SELECT e.id event_id, to_char(e.starts_at,'YYYY-MM-DD') date, r.outcome, r.headline FROM result r JOIN event e ON e.id=r.event_id WHERE r.participant_id=$1 ORDER BY e.starts_at DESC NULLS LAST`, [athleteId])).rows;
 
@@ -139,7 +140,7 @@ export async function getAthleteProfile(db: Database, athleteId: string): Promis
 
   return {
     athleteId, name,
-    handle: a.handle ?? null, tagline: a.tagline ?? null, avatarUrl: a.avatar_url ?? null, bannerUrl: a.banner_url ?? null,
+    handle: a.handle ?? null, tagline: a.tagline ?? null, description: a.description ?? null, avatarUrl: a.avatar_url ?? null, bannerUrl: a.banner_url ?? null,
     links: a.links ?? {},
     record: { wins: me?.wins ?? 0, losses: me?.losses ?? 0, draws: me?.draws ?? 0 },
     followers,
@@ -280,22 +281,24 @@ export async function updateFanHandle(db: Database, fanId: string, handle: strin
 }
 
 // --- athlete PAGE identity edits — the athlete page is edited with the same depth
-// as a personal account: display name, @handle (unique among athletes), and an
-// "about" tagline. Photos/sports/socials/sections live in the rest of the editor.
+// as a personal account: display name, custom link, a one-line about and a longer
+// description. Photos/sports/socials/sections live in the rest of the editor.
+//
+// The handle goes through setEntityHandle like every other page kind, so an
+// athlete gets the same rules a club gets: lowercase, 2–40, dots and dashes
+// allowed, reserved app routes refused, and uniqueness checked across the whole
+// vanity namespace rather than just the athlete table.
 export async function athleteHandleTaken(db: Database, handle: string, exceptId: string): Promise<boolean> {
-  const r = await db.query<{ n: number }>(`SELECT count(*)::int n FROM athlete WHERE lower(handle)=$1 AND id<>$2`, [handle.toLowerCase(), exceptId]);
-  return (r.rows[0]?.n ?? 0) > 0;
+  return !(await handleAvailable(db, handle, { kind: 'athlete', id: exceptId }));
 }
-export async function updateAthleteIdentity(db: Database, athleteId: string, p: { name?: string; handle?: string; tagline?: string }): Promise<{ ok: boolean; error?: string }> {
+export async function updateAthleteIdentity(db: Database, athleteId: string, p: { name?: string; handle?: string; tagline?: string; description?: string }): Promise<{ ok: boolean; error?: string }> {
   const name = (p.name ?? '').trim();
   if (name) await db.query(`UPDATE athlete SET display_name=$2 WHERE id=$1`, [athleteId, name.slice(0, 80)]);
-  if (p.tagline !== undefined) await db.query(`UPDATE athlete SET tagline=$2 WHERE id=$1`, [athleteId, (p.tagline || '').trim().slice(0, 280) || null]);
-  if (p.handle !== undefined && p.handle.trim()) {
-    const h = p.handle.trim().replace(/^@/, '').toLowerCase();
-    if (!/^[a-z0-9_]{2,30}$/.test(h)) return { ok: false, error: 'Handles are 2–30 letters, numbers or underscores.' };
-    if (await athleteHandleTaken(db, h, athleteId)) return { ok: false, error: 'That @handle is taken.' };
-    try { await db.query(`UPDATE athlete SET handle=$2 WHERE id=$1`, [athleteId, h]); }
-    catch { return { ok: false, error: 'That @handle is taken.' }; }
+  if (p.tagline !== undefined) await db.query(`UPDATE athlete SET tagline=$2 WHERE id=$1`, [athleteId, (p.tagline || '').trim().slice(0, 90) || null]);
+  if (p.description !== undefined) await db.query(`UPDATE athlete SET description=$2 WHERE id=$1`, [athleteId, (p.description || '').trim().slice(0, 2000) || null]);
+  if (p.handle !== undefined) {
+    const r = await setEntityHandle(db, 'athlete', athleteId, p.handle);
+    if (!r.ok) return { ok: false, error: r.error };
   }
   return { ok: true };
 }

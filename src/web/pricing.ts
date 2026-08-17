@@ -47,7 +47,6 @@ export type Entitlement =
   | 'waitlist'
   | 'approval'
   | 'wallet_pass'
-  | 'custom_url'
   | 'checkin_manager'
   | 'tax_collection'
   | 'extra_seats'
@@ -68,7 +67,6 @@ export const ENTITLEMENT_LABEL: Record<Entitlement, string> = {
   waitlist: 'Waitlists when you sell out',
   approval: 'Approval-gated registration',
   wallet_pass: 'Apple / Google Wallet passes',
-  custom_url: 'Custom event URL',
   checkin_manager: 'Check-in manager role (let staff scan)',
   tax_collection: 'Collect tax / VAT on tickets',
   extra_seats: 'Extra team & admin seats',
@@ -122,7 +120,7 @@ export const PLANS: Plan[] = [
     featured: true,
     entitlements: [
       'zero_fee', ...FREE_FEATURES,
-      'custom_url', 'checkin_manager', 'tax_collection',
+      'checkin_manager', 'tax_collection',
       'extra_seats', 'higher_sends', 'api', 'priority_support',
     ],
   },

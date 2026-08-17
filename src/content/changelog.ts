@@ -72,6 +72,22 @@ export const BUILDING: BuildingEntry[] = [
 // ---------------------------------------------------------------------------
 export const SHIPPED: ChangeEntry[] = [
   {
+    date: '2026-08-05',
+    title: 'Making a page is one form you finish with Save',
+    body: 'Creating a page — yours as an athlete, or a club, federation or organiser page — is now one plain form you finish with Save. Name it, add a one-line about and a longer description, done. The old "describe yourself and pick a mood" step is gone, and a new page now drops you straight into its editor to add photos, links and your custom URL.',
+    tag: 'better',
+  },
+  {
+    date: '2026-08-05',
+    title: 'Claim your custom link, and see straight away if it is free',
+    body: 'Every new page starts on a plain Horda link. When you are ready, pick your own — joinhorda.com/yourname — from Edit, and it tells you as you type whether it is taken and whether the spelling works. Once you set it, that is the link your page shows and shares everywhere; it used to keep showing the old one.',
+    tag: 'fixed',
+  },
+  {
+    date: '2026-08-05',
+    title: 'Custom event URLs are back, and free for everyone',
+    body: 'Give an event its own address — joinhorda.com/e/derby-2026 — from the event edit page, with the same live check for whether it is taken. It is free on every plan. Your promo links keep working exactly as before; the custom URL is the one for the poster.',
+    tag: 'new',
     date: '2026-08-04',
     title: 'Setting up a club now actually works — find it or create it as you type',
     body: 'Start typing your club, federation or organiser name and matches appear live. If your page already exists on Horda you see it with its logo; if it is there but unclaimed, a Claim button lets you take it over (after a quick check that you represent it). If it is not on Horda at all, one tap creates it and you own it instantly. Same name as an existing page? Allowed — we just tell you.',

@@ -22,7 +22,12 @@ export const RESERVED_HANDLES = new Set<string>([
 const norm = (raw: string | null | undefined) => (raw || '').trim().replace(/^@/, '').toLowerCase();
 // 2–40 chars: a letter/number/underscore first, then letters/numbers/_ . or -.
 const VALID = /^[a-z0-9_][a-z0-9_.-]{1,39}$/;
-const ENT_TABLE: Record<string, string> = { club: 'club', team: 'team', association: 'association' };
+// Athletes live in the same flat namespace as the other page kinds, so they go
+// through the same table map, the same VALID regex and the same reserved list —
+// there used to be a second, weaker athlete-only validator (no dots, no dashes,
+// no reserved words) which let an athlete take a handle like /settings.
+const ENT_TABLE: Record<string, string> = { athlete: 'athlete', club: 'club', team: 'team', association: 'association' };
+export type HandleKind = 'athlete' | 'club' | 'team' | 'association';
 
 export function isReservedHandle(raw: string): boolean { return RESERVED_HANDLES.has(norm(raw)); }
 export function isValidHandle(raw: string): boolean { const h = norm(raw); return VALID.test(h) && !RESERVED_HANDLES.has(h); }
@@ -52,9 +57,9 @@ export async function handleAvailable(db: Database, raw: string, except?: { kind
   return !!except && hit.kind === except.kind && hit.id === except.id;
 }
 
-/** Set (or clear, with '') a club/team/federation handle. Validates + global-unique. */
+/** Set (or clear, with '') a page handle. Validates + global-unique. */
 export async function setEntityHandle(
-  db: Database, kind: 'club' | 'team' | 'association', id: string, raw: string,
+  db: Database, kind: HandleKind, id: string, raw: string,
 ): Promise<{ ok: true; handle: string | null } | { ok: false; error: string }> {
   const tbl = ENT_TABLE[kind]; if (!tbl) return { ok: false, error: 'Unknown page type.' };
   const h = norm(raw);
@@ -66,8 +71,25 @@ export async function setEntityHandle(
   return { ok: true, handle: h };
 }
 
-/** The current handle for a club/team/federation (null if none set). */
-export async function getEntityHandle(db: Database, kind: 'club' | 'team' | 'association', id: string): Promise<string | null> {
+/** The current handle for a page (null if none set). */
+export async function getEntityHandle(db: Database, kind: HandleKind, id: string): Promise<string | null> {
   const tbl = ENT_TABLE[kind]; if (!tbl) return null;
   return (await db.query<{ handle: string | null }>(`SELECT handle FROM ${tbl} WHERE id=$1`, [id])).rows[0]?.handle ?? null;
+}
+
+// --- where a page actually lives ------------------------------------------
+// A new page starts on its /kind/:uuid path and stays reachable there forever.
+// Once its owner sets a handle, THAT is the link we show, share and put in
+// og:url — every caller goes through here so a custom link can never be half
+// applied (the page saying /club/<uuid> while the vanity URL also works).
+
+/** The path a page should be linked by: /<handle> if it has one, else /kind/:id. */
+export function publicPathFor(kind: string, id: string, handle?: string | null): string {
+  const h = norm(handle);
+  return h ? `/${h}` : `/${kind}/${id}`;
+}
+
+/** The same thing, absolute — for og:url, share sheets and "your link is …". */
+export function publicUrlFor(origin: string, kind: string, id: string, handle?: string | null): string {
+  return `${(origin || '').replace(/\/+$/, '')}${publicPathFor(kind, id, handle)}`;
 }
