@@ -23,7 +23,6 @@ import {
 import {
   getBranding, setBranding, updateEntityName, getClub, getTeamsOfClub, getTeam, getRoster,
   getAssociation, getAssociationLeagues, getAssociationClubs, getNextFixtureForTeam,
-  searchClaimTargets, createOwnedEntity,
 } from '../db/entity_repo.ts';
 import { renderEntityProfile, tableDark } from './shell.ts';
 import { FAVICON_SVG } from './brand.ts';
@@ -33,10 +32,10 @@ import { getTier, getTiers, setTier, joinMembership, cancelMembershipBySub, getM
 import { signup, verifyLogin, createSession, sessionAccount, deleteSession, deleteAllSessions, updateAccountPhone, getAccountPhone, deleteAccount, notifDisabled, setNotifPref, fanForAccount, owns, ownedEntities, grantOwnership, accountRole, setOnboarded, upsertOauthAccount, createPasswordReset, resetPassword, activateCreatorLayer, setBirthYear, accountFlags, isAdultYear, startLogin, consumeLogin, planForHost, getAccountPlan, setAccountPlan, clearPlanBySubscription, subscriptionForAccount } from '../db/auth_repo.ts';
 import { getDiscover, REGIONS, searchEntities } from '../db/discover_repo.ts';
 import { renderEventPage, renderCreateEvent, renderEditEvent, renderManage, renderCheckout, renderPayouts } from './events.ts';
-import { updateEventFields, cancelEvent, eventAudienceFans, setEventSlug, slugify } from '../db/events_repo.ts';
-import { resolveEntityHandle, setEntityHandle, getEntityHandle, isReservedHandle, isValidHandle, handleAvailable, publicUrlFor, RESERVED_HANDLES } from '../db/handles_repo.ts';
+import { updateEventFields, cancelEvent, eventAudienceFans, setEventSlug } from '../db/events_repo.ts';
+import { resolveEntityHandle, setEntityHandle, getEntityHandle, isReservedHandle, RESERVED_HANDLES } from '../db/handles_repo.ts';
 import { seedDemo, type DemoIds } from './seed.ts';
-import { renderIndex, renderDiscover, renderMap, renderAthletePage, renderCustomize, renderEntityEdit, renderCompose, renderFanHome, renderSignup, renderLogin, renderForgot, renderReset, renderSharePage, renderMemberWelcome, renderClaimPending, renderClaimQueue, renderOnboardFan, renderProfileCreate, renderOnboardClaim, renderCreatorEntry, renderClaimHandle, sportsLabel, SPORT_EN_LABELS, renderSettings, renderPros, renderCreatePicker, renderCreateAge, renderMagicSent, renderFollowing, renderWelcome, sportLabel } from './pages.ts';
+import { renderIndex, renderDiscover, renderMap, renderAthletePage, renderCustomize, renderEntityEdit, renderCompose, renderFanHome, renderSignup, renderLogin, renderForgot, renderReset, renderSharePage, renderMemberWelcome, renderClaimPending, renderClaimQueue, renderOnboardFan, renderAiPrompt, renderProfilePreview, renderOnboardClaim, renderCreatorEntry, renderClaimHandle, sportsLabel, SPORT_EN_LABELS, renderSettings, renderPros, renderCreatePicker, renderCreateAge, renderMagicSent, renderFollowing, renderWelcome, sportLabel } from './pages.ts';
 import { getEmailer, resetEmail, loginEmail } from './email.ts';
 // `esc` is required here: the event route builds a little HTML inline for the
 // Event Room CTA. It was used without being imported, which crashed /e/:id with
@@ -49,7 +48,7 @@ import { parseTheme, serializeTheme, autoContrast, bannerSvg, svgDataUri, THEME_
 import { listMedia, addMedia, deleteMedia, listSponsors, addSponsor, deleteSponsor, subscribeNewsletter, reserveHandle, getBannerStyle, setBannerStyle, listShopItems, addShopItem, deleteShopItem } from '../db/extras_repo.ts';
 import { track, conversionRate, metricCounts, defaultRoomLabel, roomState, setRoomConfig, setResult, getRoomConfig, listRoomMessages, postRoomMessage, canSeeLiveRoom, createGoal, listGoals, activeGoalProgress, getGoal, maybeGoalSignup, trackConversion, roomPresence } from '../db/hook_repo.ts';
 import { renderEventRoom, renderMediaStudio, renderInsights, goalBar } from './hook_web.ts';
-import { spotsInfo, formatSpots, getClaim, createClaim, getPass, verifyPass, fanRecord, recordCount, crowdStanding, grantConsent, feedDoors, recentPresence, attendingEvents, myClaimedIn } from '../db/claim_rail_repo.ts';
+import { spotsInfo, formatSpots, getClaim, createClaim, getPass, verifyPass, checkedInList, fanRecord, recordCount, crowdStanding, grantConsent, feedDoors, recentPresence, attendingEvents, myClaimedIn } from '../db/claim_rail_repo.ts';
 import { listFormats, addFormat, formatCounts, setClaimFormat, getFormat, formatAttendees } from '../db/event_format_repo.ts';
 import { listPromoCodes, createPromoCode, deletePromoCode, getPromoCode, applyPercent, recordPromoUse } from '../db/promo_code_repo.ts';
 import { notify, listNotifications, unreadCount, markAllRead } from '../db/notif_repo.ts';
@@ -57,13 +56,13 @@ import { parseSeasonLines, shiftDate } from '../db/events_repo.ts';
 import { renderNotifications, renderConnections, renderNotifPrefs, NOTIF_KEYS } from './pages.ts';
 import { formatPicker } from './claim_web.ts';
 import { requestLink, setLinkStatus, getLink, activeParents, parentsOf, childrenOf } from '../db/connection_repo.ts';
-import { renderPass, renderRecord, renderCheckin, claimCta } from './claim_web.ts';
+import { renderPass, renderRecord, renderCheckin, renderCheckedIn, claimCta } from './claim_web.ts';
 import { actionBar, shareButton } from './theme.ts';
 import { normLang } from './i18n.ts';
 import { resolveSportKey, cityAliases } from './localize.ts';
 import { generateEventAssets, eventGraphic, supporterCard } from './mediagen.ts';
 import { resolveLayout } from './sections.ts';
-import { getModel } from './profilegen.ts';
+import { generateProfile, getModel, coverDataUri } from './profilegen.ts';
 import { requestClaim, verifyByChannelCode, listClaimsForReviewer, decideClaim, officialDomain, isAdmin as accountIsAdmin, type ClaimKind } from '../db/claim_repo.ts';
 import { getPayments, verifyWebhook } from './payments.ts';
 import { getPayoutAccount, upsertPayoutAccount, setPayoutStatus, isPayoutsEnabled } from '../db/payouts_repo.ts';
@@ -124,6 +123,14 @@ const FOOTBALL_TABLE: StandingDef = { name: 'League table', unit: 'team', engine
 
 const html = (res: any, body: string, code = 200) => { res.writeHead(code, { 'content-type': 'text/html; charset=utf-8' }); res.end(body); };
 const redirect = (res: any, to: string) => { res.writeHead(303, { location: to }); res.end(); };
+// The check-in result, carried in a URL instead of in a POST response body.
+// It carries the PASS TOKEN, not the fan's name: the name is re-read server-side
+// so nothing a person typed is ever echoed back into the page, and a bad code
+// leaves no trace of what was typed in the organiser's history.
+const checkinResultQuery = (r: { ok: boolean; already?: boolean }, token: string): string =>
+  r.ok ? `r=${r.already ? 'dup' : 'ok'}&p=${encodeURIComponent(token.replace(/\s+/g, '').toLowerCase())}` : 'r=bad';
+const fanDisplayName = async (db: Database, fanId: string): Promise<string> =>
+  (await db.query<{ n: string }>(`SELECT display_name n FROM fan WHERE id=$1`, [fanId])).rows[0]?.n ?? 'A fan';
 // JSON for the in-app typeahead endpoints. no-store: suggestions reflect who
 // exists right now, and we never want a proxy holding a stale people list.
 const json = (res: any, body: unknown, code = 200) => {
@@ -146,6 +153,12 @@ async function parseForm(req: any): Promise<Record<string, string>> {
   const chunks: Buffer[] = [];
   for await (const c of req) chunks.push(c as Buffer);
   return Object.fromEntries(new URLSearchParams(Buffer.concat(chunks).toString()));
+}
+// Fold the optional creative-direction picks into the AI description. They steer
+// tone/design only — generateProfile is instructed to keep them out of the facts.
+function directedDescription(f: Record<string, string>): string {
+  const dir = [f.mood, f.energy, f.voice].filter(Boolean).join(', ');
+  return dir ? `${f.description || ''}\n\nCreative direction (tone & design only, never facts): ${dir}.` : (f.description || '');
 }
 // Raw body — needed for Stripe webhook signature verification (must be the exact bytes).
 async function readRaw(req: any): Promise<string> {
@@ -291,17 +304,21 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
         if (hasDiscord()) return html(res, renderWelcome({ fanId: viewer }));
         return redirect(res, `/fan/${viewer}`);
       }
-      // --- create a page: one plain form, finished with Save --------------
-      // No generate step, no preview, no handle chosen up front. A new page
-      // starts on its /kind/:id URL and its owner claims a custom link later,
-      // from the edit page — see /link-available and POST /:kind/:id/identity.
+      // AI-first athlete onboarding: describe → generate → preview → publish
       if (path === '/onboarding/athlete' && req.method !== 'POST') {
         if (!account) return redirect(res, '/signup');
-        return html(res, renderProfileCreate({
-          kind: 'athlete', action: '/onboarding/athlete', back: '/',
-          error: url.searchParams.get('err') || undefined,
-          altLink: `<p class="mut" style="margin-top:14px">A club or federation instead? <a href="/onboarding" style="border-bottom:1px solid var(--b)">Create or claim one</a>.</p>`,
+        return html(res, renderAiPrompt({
+          title: 'Create your athlete page', lead: 'Tell us, in your own words, what you do and the vibe you want. We’ll build it.',
+          placeholder: 'e.g. I’m Rico “The Raven” Vargas, a southpaw welterweight boxer out of Kreuzberg, Berlin. 2–0, all finishes.\nHere’s my site + socials: https://ricovargas.box · https://instagram.com/ricotheraven\nVibe: dark and intense, fight-week energy.',
+          generateAction: '/onboarding/athlete/generate', back: '/',
+          altLink: `<p class="mut" style="margin-top:14px">A club or federation instead? <a href="/onboarding/claim" style="border-bottom:1px solid var(--b)">Claim your page</a>.</p>`,
         }));
+      }
+      if (req.method === 'POST' && path === '/onboarding/athlete/generate') {
+        if (!account) return redirect(res, '/signup');
+        const f = await parseForm(req);
+        const gen = await generateProfile({ kind: 'athlete', description: directedDescription(f) }, getModel());
+        return html(res, renderProfilePreview({ kind: 'athlete', gen: { ...gen, cover: coverDataUri(gen.cover) }, description: f.description || '', createAction: '/onboarding/athlete', generateAction: '/onboarding/athlete/generate' }));
       }
       if (req.method === 'POST' && path === '/onboarding/athlete') {
         if (!account) return redirect(res, '/signup');
@@ -309,14 +326,17 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
         // No 18+ gate on making a page — see the note on /create. Youth sport is
         // a first-class use case, not an edge case to be walled off. Age only
         // matters at the payout boundary, which Stripe enforces itself.
-        const aId = await createAthlete(db, (f.name || '').trim().slice(0, 80) || 'Athlete');
+        const aId = await createAthlete(db, f.name || 'Athlete', (f.handle || '').replace(/^@/, '') || undefined);
         await db.query(`UPDATE athlete SET account_id=$1 WHERE id=$2`, [account.id, aId]);
         await grantOwnership(db, account.id, 'athlete', aId);
-        await setAthleteProfile(db, aId, {
-          tagline: (f.tagline || '').trim().slice(0, 90) || undefined,
-          description: (f.description || '').trim().slice(0, 2000) || undefined,
-        });
+        let aLinks: Record<string, string> = {}; try { aLinks = JSON.parse(f.links || '{}'); } catch { /* ignore */ }
+        const aAvatar = await storeImage(f.avatar, 'avatars');
+        // Only store an actually-uploaded banner photo; otherwise leave it empty
+        // so the §4a themed auto-banner is the default (wow, and customizable).
+        const aBanner = await storeImage(f.banner, 'banners');
+        await setAthleteProfile(db, aId, { tagline: f.tagline || undefined, avatarUrl: aAvatar || undefined, bannerUrl: aBanner || undefined, links: Object.keys(aLinks).length ? aLinks : undefined });
         if (f.sport) await setAthleteSport(db, aId, f.sport);   // drives sport-appropriate default sections
+        if (f.bio) await createPost(db, 'athlete', aId, f.bio);
         await setOnboarded(db, account.id);
         // `flags` used to be read for the (now-removed) age check; fetch it here
         // so the verified state still carries across when the page publishes.
@@ -324,46 +344,44 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
         await activateCreatorLayer(db, account.id, pubFlags.creatorVerified);   // publishing = you're a Creathor
         return redirect(res, `/athlete/${aId}`);
       }
-      // Create an org page FROM SCRATCH, owned instantly (vs. claiming an existing
-      // one, which still verifies). This is the path that was missing — "create a
-      // club" had nowhere to go. Same name as an existing page is allowed on
-      // purpose (names aren't unique; handles are); the UI shows a notice.
-      // Real-time typeahead for "find your page" — returns JSON the field calls
-      // as you type. Each hit says whether it's still CLAIMABLE (unclaimed + no
-      // owner) or already on Horda, and carries its logo for the "this exists" cue.
-      if (path === '/onboarding/claim/search') {
-        const q = (url.searchParams.get('q') || '').trim();
-        const items = q.length >= 2 ? await searchClaimTargets(db, q, 8) : [];
-        const exact = items.some(i => i.name.toLowerCase() === q.toLowerCase());
-        res.writeHead(200, { 'content-type': 'application/json; charset=utf-8' });
-        res.end(JSON.stringify({ items, exact }));
-        return;
-      }
-      // The form is finished with Save, and it carries the page's prose with it —
-      // a one-line about plus the longer description — so a page is never created
-      // empty. It lands in the editor, NOT in an AI setup screen (that flow is
-      // gone); the custom URL is claimed there, once the page exists.
-      if (req.method === 'POST' && path === '/onboarding/create') {
-        if (!account) return redirect(res, '/signup?next=/onboarding');
-        const f = await parseForm(req);
-        const name = (f.name || '').trim();
-        const rawKind = (f.kind || 'club').toLowerCase();
-        const kind: 'club' | 'association' = (rawKind === 'association' || rawKind === 'league' || rawKind === 'federation') ? 'association' : 'club';
-        if (!name) return redirect(res, `/onboarding/claim?kind=${encodeURIComponent(rawKind)}`);
-        const id = await createOwnedEntity(db, account.id, kind, name);
-        const tagline = (f.tagline || '').trim().slice(0, 90) || undefined;
-        const description = (f.description || '').trim().slice(0, 2000) || undefined;
-        if (tagline || description) await setBranding(db, kind, id, { tagline, description });
-        await setOnboarded(db, account.id);
-        return redirect(res, `/${kind}/${id}/customize`);
+      // AI-first branding for a claimed club/federation (owner only)
+      let brM;
+      if ((brM = path.match(/^\/onboarding\/brand\/(club|team|association)\/([^/]+)(\/generate)?$/))) {
+        if (!account) return redirect(res, '/signup');
+        const kind = brM[1], id = brM[2];
+        if (!(await owns(db, account.id, kind, id))) return redirect(res, `/${kind}/${id}`);
+        if (req.method === 'POST' && brM[3]) {
+          const f = await parseForm(req);
+          const gen = await generateProfile({ kind: 'club', description: directedDescription(f) }, getModel());
+          return html(res, renderProfilePreview({ kind: 'club', gen: { ...gen, cover: coverDataUri(gen.cover) }, description: f.description || '', createAction: `/onboarding/brand/${kind}/${id}`, generateAction: `/onboarding/brand/${kind}/${id}/generate`, showHandle: false }));
+        }
+        if (req.method === 'POST') {
+          const f = await parseForm(req);
+          const cur = await getBranding(db, kind, id);
+          let bLinks: Record<string, string> = {}; try { bLinks = JSON.parse(f.links || '{}'); } catch { /* ignore */ }
+          const bAvatar = await storeImage(f.avatar, 'avatars');
+          const bBanner = await storeImage(f.banner || f.cover, 'banners');
+          await setBranding(db, kind as any, id, { tagline: f.tagline || cur.tagline || undefined, links: { ...cur.links, ...bLinks }, avatarUrl: bAvatar || cur.avatarUrl || undefined, bannerUrl: bBanner || cur.bannerUrl || undefined });
+          if (f.bio) await createPost(db, kind, id, f.bio);
+          return redirect(res, `/${kind}/${id}`);
+        }
+        return html(res, renderAiPrompt({
+          title: 'Set up your page', lead: 'Describe your club or federation and the look you want. We’ll generate it.',
+          placeholder: 'e.g. FC Beispiel, a grassroots football club in Kreuzberg founded 1924, Kreisliga A. Proud, working-class, black-and-white. We want matchday energy.',
+          generateAction: `/onboarding/brand/${kind}/${id}/generate`, back: `/${kind}/${id}`,
+        }));
       }
       if (path === '/onboarding/claim') {
         if (!account) return redirect(res, '/signup');
         const q = (url.searchParams.get('q') || '').trim();
-        const kind = (url.searchParams.get('kind') || 'club').toLowerCase();
-        const results = q.length >= 2 ? await searchClaimTargets(db, q, 8) : [];
-        const exact = results.some(r => r.name.toLowerCase() === q.toLowerCase());
-        return html(res, renderOnboardClaim({ q, kind, results, exact }));
+        let results: { kind: string; id: string; name: string; region: string | null }[] = [];
+        if (q) {
+          const like = '%' + q.toLowerCase() + '%';
+          const clubs = (await db.query<any>(`SELECT id, name, region FROM club WHERE lower(name) LIKE $1 ORDER BY name LIMIT 10`, [like])).rows.map(r => ({ kind: 'club', id: r.id, name: r.name, region: r.region ?? null }));
+          const assoc = (await db.query<any>(`SELECT id, name FROM association WHERE lower(name) LIKE $1 ORDER BY name LIMIT 10`, [like])).rows.map(r => ({ kind: 'association', id: r.id, name: r.name, region: null }));
+          results = [...clubs, ...assoc];
+        }
+        return html(res, renderOnboardClaim({ q, results }));
       }
       if (req.method === 'POST' && path === '/login') {
         const f = await parseForm(req);
@@ -444,9 +462,7 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
         const kind = claimM[1] as ClaimKind, id = claimM[2];
         const entityHref = kind === 'athlete' ? `/athlete/${id}` : `/${kind}/${id}`;
         const r = await requestClaim(db, { id: account.id, email: account.email }, kind, id);
-        // Verified claim lands straight in the editor — name, about, description,
-        // custom link, photos — rather than in a separate AI setup screen.
-        if (r.status === 'verified') return redirect(res, kind === 'athlete' ? entityHref : `/${kind}/${id}/customize`);
+        if (r.status === 'verified') return redirect(res, kind === 'athlete' ? entityHref : `/onboarding/brand/${kind}/${id}`);
         const name = (await hostName(db, kind, id)) || 'this page';
         const site = await officialDomain(db, kind, id);
         return html(res, renderClaimPending({ kind, id, name, code: r.code || '', site, backHref: entityHref }));
@@ -1080,31 +1096,71 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
       // scan it with ANY phone camera app (no in-app QR decoder needed). Opening it as
       // the event owner checks the fan in; opening it as anyone else just shows the
       // pass (so a fan scanning their own QR can't self-check-in).
+      //
+      // It VERIFIES, then REDIRECTS to the check-in screen instead of rendering a
+      // page at the /scan/<token> URL. Two reasons, both from the door: the
+      // organiser's next action is always "scan the next person", which is the
+      // check-in screen; and a phone that reloads or restores this URL (iOS does
+      // both, aggressively) then re-runs a scan URL from history instead of
+      // showing a stale one-off result.
       if ((em = path.match(/^\/e\/([^/]+)\/scan\/([0-9a-fA-F]{8,})$/))) {
         const d = await getEventDetail(db, em[1]);
         if (!d) return html(res, 'Not found', 404);
         if (!await canEdit(d.hostKind ?? '', d.hostId ?? '')) return redirect(res, `/pass/${em[2]}`);
         const result = await verifyPass(db, em[2], account?.id ?? null, d.locationKind === 'online' ? 'online' : 'in_room');
-        if (result.ok && !result.already) await track(db, 'presence_verified', { ownerKind: d.hostKind ?? undefined, ownerId: d.hostId ?? undefined, eventId: em[1] });
-        const cap0 = (await db.query<{ capacity: number | null }>(`SELECT capacity FROM event WHERE id=$1`, [em[1]])).rows[0]?.capacity ?? null;
-        const spots0 = await spotsInfo(db, em[1], cap0);
-        const vc0 = (await db.query<{ n: number }>(`SELECT count(*)::int n FROM presence WHERE event_id=$1`, [em[1]])).rows[0].n;
-        return html(res, renderCheckin({ eventId: em[1], title: d.title, claimed: spots0.claimed, capacity: cap0, verifiedCount: vc0, result }));
+        if (result.ok && !result.already) await track(db, 'presence_verified', { ownerKind: d.hostKind ?? undefined, ownerId: d.hostId ?? undefined, eventId: d.id });
+        return redirect(res, `/e/${em[1]}/check-in?${checkinResultQuery(result, em[2])}`);
       }
       if ((em = path.match(/^\/e\/([^/]+)\/check-in$/))) {
         const d = await getEventDetail(db, em[1]);
         if (!d) return redirect(res, '/');
         if (!await canEdit(d.hostKind ?? '', d.hostId ?? '')) return redirect(res, `/e/${em[1]}`);
-        let result;
+        // `d.id` is the uuid; `em[1]` may be a custom slug (0052). Every query
+        // below is uuid-typed — passing the slug straight through used to throw
+        // 22P02 and take the WHOLE check-in surface down (page, code entry and
+        // QR scan) for any event with a custom URL. URLs keep em[1] so the
+        // organiser's pretty link stays in the address bar.
+        const eid = d.id;
+        // POST → verify → REDIRECT (never render the result of a POST). A rendered
+        // POST response is a dead end on a phone: reload re-submits, and iOS
+        // restores it from history as a blank page. After the redirect the result
+        // lives in the URL, so back, refresh and share all show the same screen.
         if (req.method === 'POST') {
           const f = await parseForm(req);
-          result = await verifyPass(db, (f.token || '').replace(/\s+/g, ''), account?.id ?? null, d.locationKind === 'online' ? 'online' : 'in_room');
-          if (result.ok && !result.already) await track(db, 'presence_verified', { ownerKind: d.hostKind ?? undefined, ownerId: d.hostId ?? undefined, eventId: em[1] });
+          const token = (f.token || '').replace(/\s+/g, '');
+          const r = await verifyPass(db, token, account?.id ?? null, d.locationKind === 'online' ? 'online' : 'in_room');
+          if (r.ok && !r.already) await track(db, 'presence_verified', { ownerKind: d.hostKind ?? undefined, ownerId: d.hostId ?? undefined, eventId: eid });
+          return redirect(res, `/e/${em[1]}/check-in?${checkinResultQuery(r, token)}`);
         }
-        const cap = (await db.query<{ capacity: number | null }>(`SELECT capacity FROM event WHERE id=$1`, [em[1]])).rows[0]?.capacity ?? null;
-        const spots = await spotsInfo(db, em[1], cap);
-        const vcount = (await db.query<{ n: number }>(`SELECT count(*)::int n FROM presence WHERE event_id=$1`, [em[1]])).rows[0].n;
+        // Re-derive the banner from ?r= + ?p= rather than reflecting a name from
+        // the query string — the organiser's screen never renders user-typed text.
+        const rq = url.searchParams.get('r');
+        let result: { ok: boolean; already?: boolean; fanName?: string } | undefined;
+        if (rq === 'bad') result = { ok: false };
+        else if (rq === 'ok' || rq === 'dup') {
+          const p = await getPass(db, url.searchParams.get('p') || '');
+          result = p && p.eventId === eid
+            ? { ok: true, already: rq === 'dup', fanName: await fanDisplayName(db, p.fanId) }
+            : undefined;
+        }
+        const cap = (await db.query<{ capacity: number | null }>(`SELECT capacity FROM event WHERE id=$1`, [eid])).rows[0]?.capacity ?? null;
+        const spots = await spotsInfo(db, eid, cap);
+        const vcount = (await db.query<{ n: number }>(`SELECT count(*)::int n FROM presence WHERE event_id=$1`, [eid])).rows[0].n;
         return html(res, renderCheckin({ eventId: em[1], title: d.title, claimed: spots.claimed, capacity: cap, verifiedCount: vcount, result }));
+      }
+      // "You say 14 checked in — which 14?" The count on the check-in screen and
+      // on /manage both link here. Owner-only: this is a list of real people who
+      // were in a room.
+      if ((em = path.match(/^\/e\/([^/]+)\/checked-in$/))) {
+        const d = await getEventDetail(db, em[1]);
+        if (!d) return redirect(res, '/');
+        if (!await canEdit(d.hostKind ?? '', d.hostId ?? '')) return redirect(res, `/e/${em[1]}`);
+        const cap = (await db.query<{ capacity: number | null }>(`SELECT capacity FROM event WHERE id=$1`, [d.id])).rows[0]?.capacity ?? null;
+        const spots = await spotsInfo(db, d.id, cap);
+        return html(res, renderCheckedIn({
+          eventId: em[1], title: d.title, claimed: spots.claimed,
+          rows: await checkedInList(db, d.id), fanId: viewerGuest ? null : viewer,
+        }));
       }
       if (path === '/record' || path === '/me/record') {
         if (viewerGuest) return redirect(res, '/signup?next=' + encodeURIComponent(path));
@@ -1483,7 +1539,7 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
         const d = await getEventDetail(db, em[1]);
         if (!d) return html(res, 'Not found', 404);
         if (!await canEdit(d.hostKind ?? '', d.hostId ?? '')) return redirect(res, `/e/${em[1]}`);
-        return html(res, renderEditEvent(d, viewerGuest ? null : viewer, { origin, error: url.searchParams.get('err') || undefined }));
+        return html(res, renderEditEvent(d, viewerGuest ? null : viewer, { canCustomUrl: true, origin, error: url.searchParams.get('err') || undefined }));
       }
       if ((em = path.match(/^\/e\/([^/]+)\/edit$/)) && req.method === 'POST') {
         const d = await getEventDetail(db, em[1]);
@@ -1521,7 +1577,8 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
         if (!d) return html(res, 'Not found', 404);
         if (!await canEdit(d.hostKind ?? '', d.hostId ?? '')) return redirect(res, `/e/${em[1]}`);  // guest list is owner-only
         const payoutAcct = (d.hostKind && d.hostId) ? await getPayoutAccount(db, d.hostKind, d.hostId) : null;
-        return html(res, renderManage(d, await getGuestList(db, em[1]), await formatCounts(db, em[1]), await shareAttribution(db, em[1]), await partyAttribution(db, em[1]), (d.hostKind && d.hostId) ? { hostKind: d.hostKind, hostId: d.hostId, connected: !!payoutAcct?.chargesEnabled } : undefined, viewerGuest ? null : viewer, await formatAttendees(db, em[1]), await listPromoCodes(db, em[1])));
+        const checkedIn = (await db.query<{ n: number }>(`SELECT count(*)::int n FROM presence WHERE event_id=$1`, [d.id])).rows[0].n;
+        return html(res, renderManage(d, await getGuestList(db, em[1]), await formatCounts(db, em[1]), await shareAttribution(db, em[1]), await partyAttribution(db, em[1]), (d.hostKind && d.hostId) ? { hostKind: d.hostKind, hostId: d.hostId, connected: !!payoutAcct?.chargesEnabled } : undefined, viewerGuest ? null : viewer, await formatAttendees(db, em[1]), await listPromoCodes(db, em[1]), checkedIn));
       }
       if ((em = path.match(/^\/host\/(athlete|club|team|association)\/([^/]+)\/new$/))) {
         const parentId = url.searchParams.get('parent');
@@ -1538,7 +1595,7 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
         if (!personas.some(p => p.kind === em[1] && p.id === em[2])) {
           personas = [{ kind: em[1], id: em[2], name: await hostName(db, em[1], em[2]) }, ...personas];
         }
-        return html(res, renderCreateEvent(em[1], em[2], await hostName(db, em[1], em[2]), parent, hostSport, viewerGuest ? null : viewer, { origin, personas }));
+        return html(res, renderCreateEvent(em[1], em[2], await hostName(db, em[1], em[2]), parent, hostSport, viewerGuest ? null : viewer, { canCustomUrl: true, origin, personas }));
       }
       // Multi-party: claim an unclaimed side/roster slot (the two-sided growth loop).
       // ORGANIZER invites the other side. The other side is NOT open to whoever
@@ -1753,10 +1810,7 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
       // The "run a full page" entrance (athlete / club / federation) — for people
       // who want a standing creator page, distinct from just hosting one event.
       if (path === '/onboarding') {
-        // Already have an athlete page? Then only the org options (club,
-        // federation, event organiser) — you get one personal athlete page.
-        const hasAthlete = (!viewerGuest && account) ? (await ownedEntities(db, account.id)).some(e => e.kind === 'athlete') : false;
-        return html(res, renderCreatorEntry({ guest: viewerGuest, hasAthlete }));
+        return html(res, renderCreatorEntry({ guest: viewerGuest }));
       }
       // Create an event — the events-first doctrine: any logged-in person can host.
       //
@@ -1815,33 +1869,6 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
         res.writeHead(200, { 'content-type': 'application/json', 'cache-control': 'no-store' });
         res.end(JSON.stringify({ valid, available, current }));
         return;
-      }
-      // Live "is this link free?" for the two custom-URL fields: a page handle
-      // (joinhorda.com/<v>) and an event slug (joinhorda.com/e/<v>). Same JSON
-      // shape as /account/username-available, so one inline script drives every
-      // one of them. Owner-gated: you can only probe a page/event you own.
-      if (path === '/link-available') {
-        const json = (o: any) => { res.writeHead(200, { 'content-type': 'application/json', 'cache-control': 'no-store' }); res.end(JSON.stringify(o)); };
-        if (viewerGuest || !account) return json({ valid: false });
-        const scope = url.searchParams.get('scope') || 'profile';
-        const lkKind = url.searchParams.get('kind') || '';
-        const lkId = url.searchParams.get('id') || '';
-        const v = (url.searchParams.get('v') || '').trim().replace(/^@/, '').toLowerCase();
-        if (scope === 'event') {
-          const ev = (await db.query<{ slug: string | null }>(`SELECT slug FROM event WHERE id=$1`, [lkId])).rows[0];
-          const evd = ev ? await getEventDetail(db, lkId) : null;
-          if (!evd || !(await canEdit(evd.hostKind ?? '', evd.hostId ?? ''))) return json({ valid: false });
-          const s = slugify(v);
-          const valid = s.length >= 3 && s === v;
-          const current = (ev.slug || '').toLowerCase() === s;
-          const taken = valid && !current && (await db.query(`SELECT 1 FROM event WHERE lower(slug)=$1 AND id<>$2`, [s, lkId])).rows.length > 0;
-          return json({ valid, available: valid && !taken, current });
-        }
-        if (!['athlete', 'club', 'team', 'association'].includes(lkKind)) return json({ valid: false });
-        if (!(await owns(db, account.id, lkKind, lkId))) return json({ valid: false });
-        const valid = isValidHandle(v);
-        const current = ((await getEntityHandle(db, lkKind as any, lkId)) || '').toLowerCase() === v;
-        return json({ valid, available: valid && (current || await handleAvailable(db, v, { kind: lkKind, id: lkId })), current, reserved: isReservedHandle(v) });
       }
       // Account edits (magic-link model: no passwords). Name + username live on the
       // fan; phone on the account; sessions are the "security" surface.
@@ -2040,13 +2067,13 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
         const cTheme = autoContrast(parseTheme(await getAthleteTheme(db, m[1]), cSports[0] ?? sport));
         const cThemeStudio = renderThemeStudio(m[1], prof.name, cTheme);
         const managed = ownedForNav.map(o => ({ kind: o.kind, id: o.id, name: o.name }));
-        return html(res, renderCustomize({ athleteId: m[1], fanId: viewer, name: prof.name, handle: prof.handle, tagline: prof.tagline, description: prof.description, origin, managed, error: url.searchParams.get('err') || undefined, sport, sports: cSports, sections, links: prof.links, tiers: cTiers, bannerUrl: prof.bannerUrl, banner: cBanner, media: cMedia, sponsors: cSponsors, shop: cShop, themeStudioHtml: cThemeStudio }));
+        return html(res, renderCustomize({ athleteId: m[1], fanId: viewer, name: prof.name, handle: prof.handle, tagline: prof.tagline, managed, error: url.searchParams.get('err') || undefined, sport, sports: cSports, sections, links: prof.links, tiers: cTiers, bannerUrl: prof.bannerUrl, banner: cBanner, media: cMedia, sponsors: cSponsors, shop: cShop, themeStudioHtml: cThemeStudio }));
       }
       // Save the athlete PAGE identity — name, @handle, about. Owner only.
       if (req.method === 'POST' && (m = path.match(/^\/athlete\/([^/]+)\/identity$/))) {
         if (!await canEdit('athlete', m[1])) return redirect(res, `/athlete/${m[1]}`);
         const f = await parseForm(req);
-        const r = await updateAthleteIdentity(db, m[1], { name: f.name, handle: f.handle, tagline: f.tagline, description: f.description });
+        const r = await updateAthleteIdentity(db, m[1], { name: f.name, handle: f.handle, tagline: f.tagline });
         return redirect(res, `/athlete/${m[1]}/customize${r.ok ? '' : '?err=' + encodeURIComponent(r.error || 'Could not save')}`);
       }
       // §4a theme save — preset base + accent/type/overlay/bg overrides (tokens only).
@@ -2210,7 +2237,7 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
       if (req.method === 'POST' && (m = path.match(/^\/entity\/(club|team|association)\/([^/]+)\/branding$/))) {
         const f = await parseForm(req);
         const cur = await getBranding(db, m[1], m[2]);
-        await setBranding(db, m[1] as any, m[2], { tagline: cur.tagline ?? undefined, description: cur.description ?? undefined, links: cur.links, avatarUrl: (await storeImage(f.avatar, 'avatars')) || cur.avatarUrl || undefined, bannerUrl: (await storeImage(f.banner, 'banners')) || cur.bannerUrl || undefined });
+        await setBranding(db, m[1] as any, m[2], { tagline: cur.tagline ?? undefined, links: cur.links, avatarUrl: (await storeImage(f.avatar, 'avatars')) || cur.avatarUrl || undefined, bannerUrl: (await storeImage(f.banner, 'banners')) || cur.bannerUrl || undefined });
         return redirect(res, `/${m[1]}/${m[2]}`);
       }
       if ((m = path.match(/^\/fan\/([^/]+)$/))) {
@@ -2282,7 +2309,7 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
         const athBanData = { name: profile.name, sport: athSportsArr[0] ?? null, club: athClub, city: (profile as any).region ?? null };
         const athThemedBanner = (profile.bannerUrl) ? undefined : svgDataUri(bannerSvg(athBanData, athTheme));
         const athRealPhoto = profile.bannerUrl && /^https?:\/\//.test(profile.bannerUrl) ? profile.bannerUrl : `${origin}/og/athlete/${m[1]}.svg`;
-        const athOg = ogMeta({ title: `${profile.name} on Horda`, description: profile.tagline || `Follow ${profile.name} on Horda — drops, events and superfan access.`, url: publicUrlFor(origin, 'athlete', m[1], profile.handle), image: athRealPhoto, type: 'profile' });
+        const athOg = ogMeta({ title: `${profile.name} on Horda`, description: profile.tagline || `Follow ${profile.name} on Horda — drops, events and superfan access.`, url: `${origin}/athlete/${m[1]}`, image: athRealPhoto, type: 'profile' });
         const athMedia = await listMedia(db, 'athlete', m[1]);
         const athSponsors = await listSponsors(db, 'athlete', m[1]);
         const athBanner = await getBannerStyle(db, m[1]);
@@ -2304,7 +2331,7 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
         if (!await canEdit(ek, eid)) return redirect(res, `/${ek}/${eid}`);
         const b = await getBranding(db, ek, eid);
         const managed = ownedForNav.map(o => ({ kind: o.kind, id: o.id, name: o.name }));
-        return html(res, renderEntityEdit({ kind: ek, id: eid, fanId: viewer, name: (await hostName(db, ek, eid)) || 'Your page', tagline: b.tagline, description: b.description, avatarUrl: b.avatarUrl, bannerUrl: b.bannerUrl, links: b.links, managed, handle: await getEntityHandle(db, ek, eid), origin, error: url.searchParams.get('err') || undefined }));
+        return html(res, renderEntityEdit({ kind: ek, id: eid, fanId: viewer, name: (await hostName(db, ek, eid)) || 'Your page', tagline: b.tagline, avatarUrl: b.avatarUrl, bannerUrl: b.bannerUrl, links: b.links, managed, handle: await getEntityHandle(db, ek, eid), origin, error: url.searchParams.get('err') || undefined }));
       }
       // Save a club/team/federation's name, about, vanity handle + social links (owner only).
       if (req.method === 'POST' && (entEdit = path.match(/^\/(club|team|association)\/([^/]+)\/identity$/))) {
@@ -2322,7 +2349,7 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
         const cur = await getBranding(db, ek, eid);
         const links: Record<string, string> = { ...cur.links };
         for (const k of ['instagram', 'x', 'tiktok', 'youtube', 'website']) links[k] = (f[k] || '').trim();
-        await setBranding(db, ek, eid, { tagline: (f.tagline || '').trim().slice(0, 90) || undefined, description: (f.description ?? cur.description ?? '').trim().slice(0, 2000) || undefined, links, avatarUrl: cur.avatarUrl || undefined, bannerUrl: cur.bannerUrl || undefined });
+        await setBranding(db, ek, eid, { tagline: (f.tagline || '').trim() || undefined, links, avatarUrl: cur.avatarUrl || undefined, bannerUrl: cur.bannerUrl || undefined });
         return redirect(res, `/${ek}/${eid}/customize${handleErr ? '?err=' + encodeURIComponent(handleErr) : ''}`);
       }
       // Save a club/team/federation's photos (owner only) — preserves name/about/links.
@@ -2331,7 +2358,7 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
         if (!await canEdit(ek, eid)) return redirect(res, `/${ek}/${eid}`);
         const f = await parseForm(req);
         const cur = await getBranding(db, ek, eid);
-        await setBranding(db, ek, eid, { tagline: cur.tagline ?? undefined, description: cur.description ?? undefined, links: cur.links, avatarUrl: (await storeImage(f.avatar, 'avatars')) || cur.avatarUrl || undefined, bannerUrl: (await storeImage(f.banner, 'banners')) || cur.bannerUrl || undefined });
+        await setBranding(db, ek, eid, { tagline: cur.tagline ?? undefined, links: cur.links, avatarUrl: (await storeImage(f.avatar, 'avatars')) || cur.avatarUrl || undefined, bannerUrl: (await storeImage(f.banner, 'banners')) || cur.bannerUrl || undefined });
         return redirect(res, `/${ek}/${eid}/customize`);
       }
       if ((m = path.match(/^\/club\/([^/]+)$/))) {
@@ -2353,11 +2380,11 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
         const cp = await getLatestPost(db, 'club', m[1]);
         return html(res, renderEntityProfile({
           kindLabel: 'Club', entityId: m[1], isFollowing: (guest ? false : await isFollowing(db, viewer, 'club', m[1])), guest, fanId: guest ? null : viewer, name: club.name, nickname: club.name,
-          tagline: brand.tagline, description: brand.description, avatarUrl: brand.avatarUrl, bannerUrl: brand.bannerUrl, links: brand.links,
+          tagline: brand.tagline, avatarUrl: brand.avatarUrl, bannerUrl: brand.bannerUrl, links: brand.links,
           tabs: [{ label: 'Highlight' }, { label: 'Squad' }, { label: 'Fixtures' }, { label: 'Shop', shop: true }],
           statLine, notice, post: cp ? { author: club.name, body: cp.body, date: cp.date } : undefined,
           upcoming, attendance, tableHtml, merch: true, backHref: '/', editAction: `/entity/club/${m[1]}/branding`, customizeHref: `/club/${m[1]}/customize`, canEdit: await canEdit('club', m[1]),
-          ogTags: ogMeta({ title: `${club.name} on Horda`, description: brand.tagline || `Follow ${club.name} on Horda — matchdays, members-only news and tickets.`, url: publicUrlFor(origin, 'club', m[1], club.handle), image: brand.bannerUrl || brand.avatarUrl, type: 'profile' }),
+          ogTags: ogMeta({ title: `${club.name} on Horda`, description: brand.tagline || `Follow ${club.name} on Horda — matchdays, members-only news and tickets.`, url: `${origin}/club/${m[1]}`, image: brand.bannerUrl || brand.avatarUrl, type: 'profile' }),
           activation: (await canEdit('club', m[1])) ? renderChecklist(await entityChecklist(db, 'club', m[1])) : '',
           events: await withMine(db, viewerGuest ? null : viewer, await listProfileEvents(db, 'club', m[1])), scheduleHref: `/host/club/${m[1]}/new`,
           members: { title: 'Teams', items: teams.map(t => ({ kind: 'team', label: t.name + (t.division ? ` · ${t.division}` : ''), href: `/team/${t.id}`, tag: t.gender || undefined })) },
@@ -2380,11 +2407,11 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
           kindLabel: 'Team', entityId: m[1], isFollowing: (guest ? false : await isFollowing(db, viewer, 'team', m[1])), guest, fanId: guest ? null : viewer, name: team.name,
           tagline: brand.tagline, avatarUrl: brand.avatarUrl, bannerUrl: brand.bannerUrl, links: brand.links,
           parent: { label: team.club_name, href: `/club/${team.club_id}` },
-          meta: `${team.sport} · ${[team.division, team.gender].filter(Boolean).join(' · ')}`, description: brand.description,
+          about: `${team.sport} · ${[team.division, team.gender].filter(Boolean).join(' · ')}`,
           tabs: [{ label: 'Highlight' }, { label: 'Squad' }, { label: 'Fixtures' }, { label: 'Shop', shop: true }],
           statLine, notice: nf ? `[Notice] Next match: ${team.name} vs ${nf.opp} — ${nf.date ?? 'soon'}.` : '',
           upcoming, attendance, tableHtml, merch: true, backHref: `/club/${team.club_id}`, editAction: `/entity/team/${m[1]}/branding`, customizeHref: `/team/${m[1]}/customize`, canEdit: await canEdit('team', m[1]),
-          ogTags: ogMeta({ title: `${team.name} on Horda`, description: brand.tagline || `Follow ${team.name} on Horda — matchdays, members-only news and tickets.`, url: publicUrlFor(origin, 'team', m[1], team.handle), image: brand.bannerUrl || brand.avatarUrl, type: 'profile' }),
+          ogTags: ogMeta({ title: `${team.name} on Horda`, description: brand.tagline || `Follow ${team.name} on Horda — matchdays, members-only news and tickets.`, url: `${origin}/team/${m[1]}`, image: brand.bannerUrl || brand.avatarUrl, type: 'profile' }),
           activation: (await canEdit('team', m[1])) ? renderChecklist(await entityChecklist(db, 'team', m[1])) : '',
           events: await withMine(db, viewerGuest ? null : viewer, await listProfileEvents(db, 'team', m[1])), scheduleHref: `/host/team/${m[1]}/new`,
           members: { title: 'Squad', items: roster.map(p => ({ kind: 'athlete', label: p.name, href: `/athlete/${p.id}`, tag: p.handle ? '@' + p.handle : undefined })) },
@@ -2400,12 +2427,12 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
         return html(res, renderEntityProfile({
           kindLabel: 'Association', entityId: m[1], isFollowing: (guest ? false : await isFollowing(db, viewer, 'association', m[1])), guest, fanId: guest ? null : viewer, name: assoc.name,
           tagline: brand.tagline, avatarUrl: brand.avatarUrl, bannerUrl: brand.bannerUrl, links: brand.links,
-          description: brand.description,
+          about: brand.tagline ?? undefined,
           tabs: [{ label: 'Highlight' }, { label: 'Members' }, { label: 'Competitions' }, { label: 'Notice' }],
           statLine: { label: 'MEMBER CLUBS', value: String(clubs.length), sub: 'in sanctioned leagues' },
           notice: `[Notice] ${assoc.name} sanctions ${leagues.length} competition(s).`,
           merch: false, backHref: '/', editAction: `/entity/association/${m[1]}/branding`, customizeHref: `/association/${m[1]}/customize`, canEdit: await canEdit('association', m[1]),
-          ogTags: ogMeta({ title: `${assoc.name} on Horda`, description: brand.tagline || `${assoc.name} on Horda — the home for its clubs, competitions and fans.`, url: publicUrlFor(origin, 'association', m[1], assoc.handle), image: brand.bannerUrl || brand.avatarUrl, type: 'profile' }),
+          ogTags: ogMeta({ title: `${assoc.name} on Horda`, description: brand.tagline || `${assoc.name} on Horda — the home for its clubs, competitions and fans.`, url: `${origin}/association/${m[1]}`, image: brand.bannerUrl || brand.avatarUrl, type: 'profile' }),
           activation: (await canEdit('association', m[1])) ? renderChecklist(await entityChecklist(db, 'association', m[1])) : '',
           events: await withMine(db, viewerGuest ? null : viewer, await listProfileEvents(db, 'association', m[1])), scheduleHref: `/host/association/${m[1]}/new`,
           members: { title: 'Member clubs', items: clubs.map(c => ({ kind: 'club', label: c.name, href: `/club/${c.id}` })) },

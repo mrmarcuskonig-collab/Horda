@@ -2,7 +2,6 @@
 // standing (earned access), and the fan Record. The atomic unit is the claim.
 import { randomBytes } from 'node:crypto';
 import type { Database } from './index.ts';
-import { PRODUCT_SOURCE } from './product.ts';
 
 export interface ClaimEvent {
   id: string; title: string; capacity: number | null; tier: string;
@@ -58,9 +57,6 @@ export async function formatSpots(db: Database, formatId: string, capacity: numb
 
 export async function createClaim(db: Database, o: {
   eventId: string; fanId: string; capacity: number | null; mode: string; partySize?: number; priceCents?: number | null; sourceEdge?: string;
-  /** Which PRODUCT produced this fact (ADR-0002). Defaults to Horda; a future
-   *  product passes its own so the shared graph can attribute/scope per product. */
-  source?: string;
   /** The way-in the fan chose. Drives per-format capacity + the max-per-person cap. */
   formatId?: string | null;
   /** Per-format ceiling on how many spots one person may take (organiser's choice). */
@@ -83,12 +79,11 @@ export async function createClaim(db: Database, o: {
     ? await formatSpots(db, o.formatId, o.capacity)
     : await spotsInfo(db, o.eventId, o.capacity);
   const status = info.full ? 'waitlisted' : (o.mode === 'approval' ? 'approved' : 'claimed');
-  const source = o.source ?? PRODUCT_SOURCE;
   const claim = (await db.query<{ id: string }>(
-    `INSERT INTO claim (event_id, fan_id, status, party_size, price_cents, source_edge, format_id, source) VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id`,
-    [o.eventId, o.fanId, status, party, o.priceCents ?? null, o.sourceEdge ?? null, o.formatId ?? null, source])).rows[0];
+    `INSERT INTO claim (event_id, fan_id, status, party_size, price_cents, source_edge, format_id) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id`,
+    [o.eventId, o.fanId, status, party, o.priceCents ?? null, o.sourceEdge ?? null, o.formatId ?? null])).rows[0];
   const token = randomBytes(16).toString('hex');
-  await db.query(`INSERT INTO pass (claim_id, fan_id, token, source) VALUES ($1,$2,$3,$4)`, [claim.id, o.fanId, token, source]);
+  await db.query(`INSERT INTO pass (claim_id, fan_id, token) VALUES ($1,$2,$3)`, [claim.id, o.fanId, token]);
   return { claimId: claim.id, passToken: token, status, partySize: party };
 }
 
@@ -100,7 +95,19 @@ export interface PassView {
   /** Venue zone — the ticket must state the time AT THE VENUE. */
   timezone: string | null;
 }
-export async function getPass(db: Database, token: string): Promise<PassView | null> {
+/**
+ * Normalise a pass code the way a human hands it over. The code is lowercase
+ * hex, but the pass page shows it in spaced groups of four and an organiser
+ * retyping it at the door produces "A1B2 C3D4 …" — which used to miss the exact
+ * `pa.token = $1` match and read back as "Not a valid pass" with a valid ticket
+ * in the fan's hand. Normalising the PARAMETER (not the column) keeps the index
+ * on pass.token usable.
+ */
+const normalizeToken = (t: string): string => (t || '').replace(/\s+/g, '').toLowerCase();
+
+export async function getPass(db: Database, tokenRaw: string): Promise<PassView | null> {
+  const token = normalizeToken(tokenRaw);
+  if (!token) return null;
   const r = (await db.query<any>(
     `SELECT pa.token, pa.claim_id, pa.fan_id, c.status, c.event_id, e.name event_title, e.starts_at, e.host_kind, e.host_id,
             e.access_mode, e.location, e.location_kind, e.timezone,
@@ -118,11 +125,7 @@ export async function verifyPass(db: Database, token: string, byAccount: string 
   if (!p) return { ok: false };
   const fanName = (await db.query<{ n: string }>(`SELECT display_name n FROM fan WHERE id=$1`, [p.fanId])).rows[0]?.n ?? 'A fan';
   if (p.verified) return { ok: true, already: true, fanName };
-  // Presence inherits the claim's product source (ADR-0002) — the proof-of-attendance
-  // fact belongs to whichever product the claim was made in.
-  await db.query(`INSERT INTO presence (claim_id, fan_id, event_id, fidelity, verified_by, source)
-     SELECT $1,$2,$3,$4,$5, COALESCE(c.source,'horda') FROM claim c WHERE c.id=$1
-     ON CONFLICT (claim_id) DO NOTHING`,
+  await db.query(`INSERT INTO presence (claim_id, fan_id, event_id, fidelity, verified_by) VALUES ($1,$2,$3,$4,$5) ON CONFLICT (claim_id) DO NOTHING`,
     [p.claimId, p.fanId, p.eventId, fidelity, byAccount]);
   await db.query(`UPDATE claim SET status='verified' WHERE id=$1`, [p.claimId]);
   if (p.hostKind && p.hostId) {
@@ -132,6 +135,44 @@ export async function verifyPass(db: Database, token: string, byAccount: string 
       [p.fanId, p.hostKind, p.hostId]);
   }
   return { ok: true, fanName };
+}
+
+/**
+ * Who actually came through the door — the organiser's answer to "you say 14
+ * checked in, WHICH 14?". Newest first, because at a live door the useful view
+ * is the last person scanned, not the first.
+ *
+ * The time is rendered in the VENUE's zone (same rule as every other timestamp
+ * in this app): an organiser reading a Berlin door log must not see UTC.
+ * Profile resolution mirrors formatAttendees — a fan who also owns an athlete
+ * or club page links to it, so the organiser recognises a face, not a string.
+ */
+export interface CheckedIn {
+  fanId: string; name: string; handle: string | null; partySize: number;
+  fidelity: string; at: string; profile: { kind: string; id: string } | null;
+}
+export async function checkedInList(db: Database, eventId: string): Promise<CheckedIn[]> {
+  const rows = (await db.query<any>(
+    `SELECT f.id fan_id, f.display_name name, f.handle, pr.fidelity,
+            COALESCE(c.party_size, 1) party_size,
+            to_char(pr.verified_at AT TIME ZONE COALESCE(e.timezone,'UTC'), 'DD Mon · HH24:MI') at,
+            o.owner_kind ekind, o.owner_id eid
+     FROM presence pr
+     JOIN fan f ON f.id = pr.fan_id
+     JOIN event e ON e.id = pr.event_id
+     LEFT JOIN claim c ON c.id = pr.claim_id
+     LEFT JOIN LATERAL (
+       SELECT owner_kind, owner_id FROM ownership ow
+       WHERE f.account_id IS NOT NULL AND ow.account_id = f.account_id
+       ORDER BY CASE owner_kind WHEN 'athlete' THEN 0 WHEN 'club' THEN 1 WHEN 'team' THEN 2 WHEN 'association' THEN 3 ELSE 4 END
+       LIMIT 1
+     ) o ON true
+     WHERE pr.event_id = $1
+     ORDER BY pr.verified_at DESC`, [eventId])).rows;
+  return rows.map(r => ({
+    fanId: r.fan_id, name: r.name, handle: r.handle ?? null, partySize: r.party_size ?? 1,
+    fidelity: r.fidelity, at: r.at ?? '', profile: r.eid ? { kind: r.ekind, id: r.eid } : null,
+  }));
 }
 
 // The fan Record — verified presence history (a passport of stamps).
