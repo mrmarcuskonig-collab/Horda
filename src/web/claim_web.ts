@@ -2,7 +2,7 @@
 // until native Wallet), the fan Record, and the organizer check-in gate.
 import { layout, esc } from './layout.ts';
 import { inZone, zoneLabel } from './tz.ts';
-import type { PassView, RecordRow } from '../db/claim_rail_repo.ts';
+import type { PassView, RecordRow, CheckedIn } from '../db/claim_rail_repo.ts';
 
 const CSS = `
   .pass{border:1px solid var(--b);border-radius:18px;overflow:hidden;background:var(--s);margin:16px 0}
@@ -121,10 +121,15 @@ export function renderCheckin(d: { eventId: string; title: string; claimed: numb
       .scanbox{border:1px solid var(--b);border-radius:14px;background:var(--s);padding:14px;margin:12px 0}
       #cam{width:100%;max-width:420px;border-radius:12px;background:#000;display:none}
       .scanbtn{display:inline-flex;align-items:center;gap:8px}
+      a.ckcount{display:flex;align-items:center;justify-content:space-between;gap:10px}
+      a.ckcount .ckmore{color:var(--acc);font-size:12.5px;font-weight:700;white-space:nowrap}
     </style>
     <h1>Check-in</h1>
     <p class="mut">${esc(d.title)}</p>
-    <div class="card"><b>${d.verifiedCount}</b> checked in · <b>${d.claimed}</b> registered${d.capacity ? ` · capacity ${d.capacity}` : ''}</div>
+    ${/* The count is the door's headline number, so it is also the way IN to the
+         names behind it — an organiser reading "14 checked in" immediately wants
+         to know WHICH 14. Tapping the card opens the list. */''}
+    <a class="card ckcount" href="/e/${d.eventId}/checked-in"><span><b>${d.verifiedCount}</b> checked in · <b>${d.claimed}</b> registered${d.capacity ? ` · capacity ${d.capacity}` : ''}</span><span class="ckmore">See who →</span></a>
     ${banner}
     <div class="scanbox">
       <button type="button" id="scanbtn" class="scanbtn" onclick="hzScan()">📷 Scan a QR ticket</button>
@@ -145,14 +150,28 @@ export function renderCheckin(d: { eventId: string; title: string; claimed: numb
       // check-in URL, a ?token= link, or a bare code. The /scan/ and /pass/ matches come
       // FIRST so we don't accidentally grab a hex run from the event UUID in the path.
       function extract(s){s=(s||'').trim();var u=s.match(/\\/scan\\/([0-9a-fA-F]{12,})/)||s.match(/\\/pass\\/([0-9a-fA-F]{12,})/)||s.match(/[?&]token=([0-9a-fA-F]{12,})/);if(u)return u[1];var m=s.match(/[0-9a-fA-F]{12,}/);return m?m[0]:s;}
+      // Tear the camera DOWN before navigating, not just the tracks. Stopping the
+      // tracks while the <video> still holds the stream leaves a live capture
+      // pipeline attached to a page that is being unloaded — iOS Safari renders
+      // that as a white screen. Detach, then submit on the next tick so WebKit
+      // has actually released it before navigation starts.
+      function teardown(){
+        if(stream){try{stream.getTracks().forEach(function(t){t.stop()});}catch(e){}}
+        stream=null;
+        var v=el('cam');
+        if(v){try{v.pause();}catch(e){} try{v.srcObject=null;}catch(e){} v.style.display='none';}
+      }
       function found(raw){
         if(!running)return; running=false;
         el('tokfield').value=extract(raw);
-        if(stream){stream.getTracks().forEach(function(t){t.stop()});}
+        teardown();
         el('scanmsg').textContent='Ticket read — checking in…';
-        el('checkform').submit();
+        setTimeout(function(){el('checkform').submit();},0);
       }
-      function stop(m){running=false;if(stream){stream.getTracks().forEach(function(t){t.stop()});}el('cam').style.display='none';el('scanbtn').style.display='';el('scanmsg').textContent=m;}
+      function stop(m){running=false;teardown();el('scanbtn').style.display='';el('scanmsg').textContent=m;}
+      // Leaving the page by any route (back, a tapped link, the form) must not
+      // leave the camera attached — same white-screen failure, different exit.
+      window.addEventListener('pagehide',teardown);
       window.hzScan=function(){
         var v=el('cam'),msg=el('scanmsg'),btn=el('scanbtn');
         if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia||!window.isSecureContext){
@@ -192,6 +211,45 @@ export function renderCheckin(d: { eventId: string; title: string; claimed: numb
       }
     })();</script>
   `, { back: `/e/${d.eventId}`, nav: { active: 'you', guest: false, fanId: null } });
+}
+
+/**
+ * Who came through the door. The organiser asked for this by name: seeing that
+ * "someone" checked in is a number, and a number does not tell you whether the
+ * fighter's mother made it or whether the guy who bought eight tickets showed up
+ * with one. Name, profile link where the fan has a page, handle, party size and
+ * the time they were scanned — newest first, because at a live door the top of
+ * the list is the person still standing in front of you.
+ */
+export function renderCheckedIn(d: { eventId: string; title: string; claimed: number; rows: CheckedIn[]; fanId: string | null }): string {
+  const row = (r: CheckedIn) => {
+    const nm = r.profile
+      ? `<a class="hl" href="${r.profile.kind === 'athlete' ? `/athlete/${r.profile.id}` : `/${r.profile.kind}/${r.profile.id}`}">${esc(r.name)}</a>`
+      : `<span>${esc(r.name)}</span>`;
+    const meta = [
+      r.handle ? '@' + esc(r.handle) : '',
+      r.partySize > 1 ? `+${r.partySize - 1} guest${r.partySize - 1 === 1 ? '' : 's'}` : '',
+      r.fidelity === 'online' ? 'online' : 'in the room',
+    ].filter(Boolean).join(' · ');
+    return `<li class="ckrow"><div class="ckn">${nm}<div class="ckm">${meta}</div></div><div class="ckt">${esc(r.at)}</div></li>`;
+  };
+  const heads = d.rows.reduce((a, r) => a + r.partySize, 0);
+  return layout(`Checked in · ${d.title}`, `
+    <style>${CSS}
+      .cklist{list-style:none;padding:0;margin:12px 0 0;border-top:1px solid var(--b)}
+      .ckrow{display:flex;align-items:baseline;justify-content:space-between;gap:10px;padding:11px 0;border-bottom:1px solid var(--b)}
+      .ckn{font-size:15px;font-weight:600}
+      .ckm{font-size:11.5px;color:var(--mut);font-weight:400;margin-top:2px}
+      .ckt{font-size:12px;color:var(--mut);font-variant-numeric:tabular-nums;white-space:nowrap}
+    </style>
+    <h1>Checked in</h1>
+    <p class="mut">${esc(d.title)}</p>
+    <div class="card"><b>${d.rows.length}</b> checked in${heads !== d.rows.length ? ` · <b>${heads}</b> heads with guests` : ''} · <b>${d.claimed}</b> registered</div>
+    ${d.rows.length
+      ? `<ul class="cklist">${d.rows.map(row).join('')}</ul>`
+      : `<p class="mut">Nobody has been checked in yet. Scan a ticket QR — or type a code — on the check-in screen and they'll appear here.</p>`}
+    <div class="row" style="margin-top:16px"><a class="btn" href="/e/${d.eventId}/check-in">← Back to check-in</a><a class="btn ghost" href="/manage/${d.eventId}">Manage event</a></div>
+  `, { back: `/e/${d.eventId}/check-in`, nav: { active: 'you', guest: false, fanId: d.fanId } });
 }
 
 // Multi-format attendance picker — one event, several ways to attend it, each

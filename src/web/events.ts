@@ -7,7 +7,7 @@ import { UPLOAD_SCRIPT } from './shell.ts';
 import { shareButton, followControl } from './theme.ts';
 import { mapsChooser } from './maps.ts';
 import { socialIcon } from './icons.ts';
-import { sportSelect, customLinkField } from './pages.ts';
+import { sportSelect } from './pages.ts';
 import { type EventDetail, type EventParty, type SubEvent, priceLabel } from '../db/events_repo.ts';
 import { TAKE_RATE_PCT } from './terms.ts';
 
@@ -432,14 +432,11 @@ export function renderCheckout(d: EventDetail, fanId: string, live = false): str
 
 // owner: EDIT a published event. Only safe fields — never the date. Changing the
 // date is cancel-and-recreate, because it re-triggers everyone's decision to come.
-export function renderEditEvent(d: EventDetail, viewerFanId: string | null, opt: { origin?: string; error?: string } = {}): string {
+export function renderEditEvent(d: EventDetail, viewerFanId: string | null, opt: { canCustomUrl?: boolean; origin?: string; error?: string } = {}): string {
   const fld = 'display:block;margin:12px 0;font-size:13px;color:var(--mut)';
   const inp = 'display:block;width:100%;margin-top:6px;background:var(--s);border:1px solid var(--b);border-radius:10px;color:var(--bone);padding:11px;font:inherit';
-  // Custom event URL. Free on every plan — it used to sit in the Horda Plus
-  // bundle while the backend applied a posted slug for anyone, and the field was
-  // shown to nobody at all. A slug is the URL you put on a poster; the promo
-  // links are still what measures who actually brought people. Different jobs.
-  const evHost = (opt.origin || 'joinhorda.com').replace(/^https?:\/\//, '');
+  // Custom event URLs are not offered right now (we use attributable promo
+  // links instead), so the edit form no longer shows the slug field.
   const isOnline = d.locationKind === 'online';
   const streamUrl = (d.streams && (d.streams as any).primary) || (typeof d.location === 'string' && /^https?:/i.test(d.location) ? d.location : '');
   const draft = `Hi everyone — sorry, but we've had to call off ${d.title}. ${d.priceCents ? 'If you bought a spot, you\'ll be refunded. ' : ''}Thanks for backing it — we'll be back with the next one.`;
@@ -458,8 +455,6 @@ export function renderEditEvent(d: EventDetail, viewerFanId: string | null, opt:
       ${isOnline
         ? `<label style="${fld}">Watch / stream link<input style="${inp}" name="stream_url" value="${esc(streamUrl)}" placeholder="https://youtube.com/… · twitch.tv/…"></label>`
         : `<div id="ev_addr_wrap"><label style="${fld}" id="ev_addr_lbl">Address<input style="${inp}" name="location" id="ev_loc" autocomplete="off" value="${esc(d.location ?? '')}" placeholder="Start typing a venue or address…"></label><div class="acbox" id="ev_loc_ac" hidden></div></div>`}
-
-      ${customLinkField({ scope: 'event', id: d.id, field: 'slug', value: d.slug ?? '', prefix: evHost + '/e/', label: 'Custom event URL', hint: 'Lowercase letters, numbers and dashes. Leave blank to keep the default link \u2014 that one keeps working either way.', inputStyle: inp })}
 
       <label style="${fld}">About this event<textarea style="${inp};min-height:90px" name="description">${esc(d.description ?? '')}</textarea></label>
 
@@ -507,7 +502,7 @@ export function renderEditEvent(d: EventDetail, viewerFanId: string | null, opt:
 
 // owner: schedule an event. `parent` set when adding a sub-event (bout / race).
 // `defaultSport` = the host's own sport, pre-selected (see the topsel comment).
-export function renderCreateEvent(hostKind: string, hostId: string, hostName: string, parent?: { id: string; title: string; location?: string | null }, defaultSport?: string | null, viewerFanId?: string | null, opt: { origin?: string; personas?: { kind: string; id: string; name: string }[] } = {}): string {
+export function renderCreateEvent(hostKind: string, hostId: string, hostName: string, parent?: { id: string; title: string; location?: string | null }, defaultSport?: string | null, viewerFanId?: string | null, opt: { canCustomUrl?: boolean; origin?: string; personas?: { kind: string; id: string; name: string }[] } = {}): string {
   const fld = 'display:block;margin:12px 0;font-size:13px;color:var(--mut)';
   const inp = 'display:block;width:100%;margin-top:6px;background:var(--s);border:1px solid var(--b);border-radius:10px;color:var(--bone);padding:10px;font:inherit';
   const kindLabel: Record<string, string> = { athlete: 'Athlete', club: 'Club', team: 'Team', association: 'League' };
@@ -539,10 +534,9 @@ export function renderCreateEvent(hostKind: string, hostId: string, hostName: st
     .hbchip i{color:var(--mut);font-style:normal;font-size:10.5px;text-transform:uppercase;letter-spacing:.05em}
     .hbcav{width:22px;height:22px;border-radius:6px;background:var(--ink);color:var(--bone);display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;flex:0 0 auto}
   </style>`;
-  // No custom URL at creation on purpose: a new event, like a new page, starts
-  // on its uuid link, and its organiser picks a custom one afterwards from the
-  // edit form, where the live availability check lives. Posting a `slug` here
-  // still works (server.ts applies it) — the form just doesn't ask for one.
+  // Custom event URLs are intentionally NOT offered at creation right now — we
+  // rely on attributable promo links instead. (setEventSlug still exists server-
+  // side for later, but nothing in the form sets it.)
   const body = `
   <h1>${parent ? 'Add a sub-event' : 'Schedule an event'}</h1>
   ${personaBar}
@@ -1092,7 +1086,8 @@ export function renderManage(d: EventDetail, guests: { response: string; status:
   promo?: { rows: { partyId: string; name: string; role: string; side: string | null; token: string; kind: string; status: string; clicks: number; identities: number; ticketBuyers: number; subEvent?: string }[]; total: { identities: number; ticketBuyers: number; clicks: number } },
   payout?: { hostKind: string; hostId: string; connected: boolean }, viewerFanId?: string | null,
   attendees: Record<string, { fanId: string; name: string; handle: string | null; partySize: number; profile: { kind: string; id: string } | null }[]> = {},
-  promoCodes: { id: string; code: string; percentOff: number; maxUses: number | null; uses: number }[] = []): string {
+  promoCodes: { id: string; code: string; percentOff: number; maxUses: number | null; uses: number }[] = [],
+  checkedInCount = 0): string {
   // Paid event → surface payout status: connect payouts (KYC) before selling.
   const payoutBanner = (d.admission === 'paid' && payout)
     ? (payout.connected
@@ -1165,9 +1160,9 @@ export function renderManage(d: EventDetail, guests: { response: string; status:
        </div>
        <style>.promos{display:flex;flex-direction:column;gap:8px;margin:8px 0}.promo{display:flex;align-items:center;justify-content:space-between;gap:10px;border:1px solid var(--b);border-radius:12px;padding:10px 12px}.promo .prole{font-size:11px;color:var(--mut);text-transform:uppercase;letter-spacing:.5px;margin-left:6px}.promo .pc{font-size:12.5px;color:var(--mut);margin-top:3px}.promo-new{border-style:dashed}.promo-new .pl{display:flex;flex-direction:column;gap:6px;flex:1}.promo-new .plabel{width:100%;max-width:260px;margin-top:2px;background:var(--s);border:1px solid var(--b);border-radius:10px;color:var(--bone);padding:9px}</style>`
     : '';
-  return renderManageInner(d, guests, payoutBanner + sharePanel + promoPanel + formatBreakdown + attributionBlock, viewerFanId ?? null);
+  return renderManageInner(d, guests, payoutBanner + sharePanel + promoPanel + formatBreakdown + attributionBlock, viewerFanId ?? null, checkedInCount);
 }
-function renderManageInner(d: EventDetail, guests: { response: string; status: string; fanId: string; name: string; handle: string | null }[], formatBreakdown: string, viewerFanId: string | null = null): string {
+function renderManageInner(d: EventDetail, guests: { response: string; status: string; fanId: string; name: string; handle: string | null }[], formatBreakdown: string, viewerFanId: string | null = null, checkedInCount = 0): string {
   const pending = guests.filter(g => g.response === 'going' && g.status === 'pending');
   const approveList = pending.length
     ? `<h2>${d.admission === 'paid' ? 'Awaiting payment' : 'Applications'} · ${pending.length}</h2><ul>${pending.map(g =>
@@ -1180,6 +1175,12 @@ function renderManageInner(d: EventDetail, guests: { response: string; status: s
   <h1>${esc(d.title)}</h1>
   <p class="mut">Host view · ${esc([d.date, d.time].filter(Boolean).join(' · ') || 'TBA')} · ${ADMISSION_LABEL[d.admission]}${d.admission === 'paid' ? ' · ' + priceLabel(d) : ''}</p>
   <div class="card"><b>${d.counts.going}</b> going · <b>${d.counts.pending}</b> ${d.admission === 'paid' ? 'awaiting payment' : 'pending'} · <b>${d.counts.interested}</b> interested · <b>${d.counts.not_going}</b> can't go${d.capacity ? ` · capacity ${d.capacity}` : ''}</div>
+  ${/* Attendance is who SAID they would come. Presence is who actually walked in.
+       Manage only ever showed the first, so once the doors closed there was no
+       route back to the door log at all. Same clickable count as the check-in
+       screen, same destination. */''}
+  <a class="card ckcount" href="/e/${d.id}/checked-in"><span><b>${checkedInCount}</b> checked in</span><span class="ckmore">${checkedInCount ? 'See who →' : 'Open check-in →'}</span></a>
+  <style>a.ckcount{display:flex;align-items:center;justify-content:space-between;gap:10px}a.ckcount .ckmore{color:var(--acc);font-size:12.5px;font-weight:700;white-space:nowrap}</style>
   ${formatBreakdown}
   ${approveList}
   ${group(g => g.response === 'going' && (g.status === 'confirmed' || g.status === 'paid'), 'Going')}
