@@ -151,6 +151,7 @@ export async function applySchema(db: Database, migrationsDir = 'db/migrations')
         '0054': () => colExists('event', 'banner_style'),
         '0055': () => colExists('club', 'handle'),
         '0056': () => colExists('claim', 'source'),
+        '0057': () => colExists('athlete', 'description'),
         '0058': () => relExists('public.verdict'),
       };
       for (const f of files) {

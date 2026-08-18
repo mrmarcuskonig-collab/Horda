@@ -7,7 +7,7 @@ import { UPLOAD_SCRIPT } from './shell.ts';
 import { shareButton, followControl } from './theme.ts';
 import { mapsChooser } from './maps.ts';
 import { socialIcon } from './icons.ts';
-import { sportSelect } from './pages.ts';
+import { sportSelect, customLinkField } from './pages.ts';
 import { type EventDetail, type EventParty, type SubEvent, priceLabel } from '../db/events_repo.ts';
 import { TAKE_RATE_PCT } from './terms.ts';
 
@@ -432,11 +432,14 @@ export function renderCheckout(d: EventDetail, fanId: string, live = false): str
 
 // owner: EDIT a published event. Only safe fields — never the date. Changing the
 // date is cancel-and-recreate, because it re-triggers everyone's decision to come.
-export function renderEditEvent(d: EventDetail, viewerFanId: string | null, opt: { canCustomUrl?: boolean; origin?: string; error?: string } = {}): string {
+export function renderEditEvent(d: EventDetail, viewerFanId: string | null, opt: { origin?: string; error?: string } = {}): string {
   const fld = 'display:block;margin:12px 0;font-size:13px;color:var(--mut)';
   const inp = 'display:block;width:100%;margin-top:6px;background:var(--s);border:1px solid var(--b);border-radius:10px;color:var(--bone);padding:11px;font:inherit';
-  // Custom event URLs are not offered right now (we use attributable promo
-  // links instead), so the edit form no longer shows the slug field.
+  // Custom event URL. Free on every plan — it used to sit in the Horda Plus
+  // bundle while the backend applied a posted slug for anyone, and the field was
+  // shown to nobody at all. A slug is the URL you put on a poster; the promo
+  // links are still what measures who actually brought people. Different jobs.
+  const evHost = (opt.origin || 'joinhorda.com').replace(/^https?:\/\//, '');
   const isOnline = d.locationKind === 'online';
   const streamUrl = (d.streams && (d.streams as any).primary) || (typeof d.location === 'string' && /^https?:/i.test(d.location) ? d.location : '');
   const draft = `Hi everyone — sorry, but we've had to call off ${d.title}. ${d.priceCents ? 'If you bought a spot, you\'ll be refunded. ' : ''}Thanks for backing it — we'll be back with the next one.`;
@@ -455,6 +458,8 @@ export function renderEditEvent(d: EventDetail, viewerFanId: string | null, opt:
       ${isOnline
         ? `<label style="${fld}">Watch / stream link<input style="${inp}" name="stream_url" value="${esc(streamUrl)}" placeholder="https://youtube.com/… · twitch.tv/…"></label>`
         : `<div id="ev_addr_wrap"><label style="${fld}" id="ev_addr_lbl">Address<input style="${inp}" name="location" id="ev_loc" autocomplete="off" value="${esc(d.location ?? '')}" placeholder="Start typing a venue or address…"></label><div class="acbox" id="ev_loc_ac" hidden></div></div>`}
+
+      ${customLinkField({ scope: 'event', id: d.id, field: 'slug', value: d.slug ?? '', prefix: evHost + '/e/', label: 'Custom event URL', hint: 'Lowercase letters, numbers and dashes. Leave blank to keep the default link \u2014 that one keeps working either way.', inputStyle: inp })}
 
       <label style="${fld}">About this event<textarea style="${inp};min-height:90px" name="description">${esc(d.description ?? '')}</textarea></label>
 
@@ -502,7 +507,7 @@ export function renderEditEvent(d: EventDetail, viewerFanId: string | null, opt:
 
 // owner: schedule an event. `parent` set when adding a sub-event (bout / race).
 // `defaultSport` = the host's own sport, pre-selected (see the topsel comment).
-export function renderCreateEvent(hostKind: string, hostId: string, hostName: string, parent?: { id: string; title: string; location?: string | null }, defaultSport?: string | null, viewerFanId?: string | null, opt: { canCustomUrl?: boolean; origin?: string; personas?: { kind: string; id: string; name: string }[] } = {}): string {
+export function renderCreateEvent(hostKind: string, hostId: string, hostName: string, parent?: { id: string; title: string; location?: string | null }, defaultSport?: string | null, viewerFanId?: string | null, opt: { origin?: string; personas?: { kind: string; id: string; name: string }[] } = {}): string {
   const fld = 'display:block;margin:12px 0;font-size:13px;color:var(--mut)';
   const inp = 'display:block;width:100%;margin-top:6px;background:var(--s);border:1px solid var(--b);border-radius:10px;color:var(--bone);padding:10px;font:inherit';
   const kindLabel: Record<string, string> = { athlete: 'Athlete', club: 'Club', team: 'Team', association: 'League' };
@@ -534,9 +539,10 @@ export function renderCreateEvent(hostKind: string, hostId: string, hostName: st
     .hbchip i{color:var(--mut);font-style:normal;font-size:10.5px;text-transform:uppercase;letter-spacing:.05em}
     .hbcav{width:22px;height:22px;border-radius:6px;background:var(--ink);color:var(--bone);display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;flex:0 0 auto}
   </style>`;
-  // Custom event URLs are intentionally NOT offered at creation right now — we
-  // rely on attributable promo links instead. (setEventSlug still exists server-
-  // side for later, but nothing in the form sets it.)
+  // No custom URL at creation on purpose: a new event, like a new page, starts
+  // on its uuid link, and its organiser picks a custom one afterwards from the
+  // edit form, where the live availability check lives. Posting a `slug` here
+  // still works (server.ts applies it) — the form just doesn't ask for one.
   const body = `
   <h1>${parent ? 'Add a sub-event' : 'Schedule an event'}</h1>
   ${personaBar}

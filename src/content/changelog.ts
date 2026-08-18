@@ -79,6 +79,24 @@ export const SHIPPED: ChangeEntry[] = [
   },
   {
     date: '2026-08-05',
+    title: 'Making a page is one form you finish with Save',
+    body: 'Creating a page — yours as an athlete, or a club, federation or organiser page — is now one plain form you finish with Save. Name it, add a one-line about and a longer description, done. The old "describe yourself and pick a mood" step is gone, and a new page now drops you straight into its editor to add photos, links and your custom URL.',
+    tag: 'better',
+  },
+  {
+    date: '2026-08-05',
+    title: 'Claim your custom link, and see straight away if it is free',
+    body: 'Every new page starts on a plain Horda link. When you are ready, pick your own — joinhorda.com/yourname — from Edit, and it tells you as you type whether it is taken and whether the spelling works. Once you set it, that is the link your page shows and shares everywhere; it used to keep showing the old one.',
+    tag: 'fixed',
+  },
+  {
+    date: '2026-08-05',
+    title: 'Custom event URLs are back, and free for everyone',
+    body: 'Give an event its own address — joinhorda.com/e/derby-2026 — from the event edit page, with the same live check for whether it is taken. It is free on every plan. Your promo links keep working exactly as before; the custom URL is the one for the poster.',
+    tag: 'new',
+  },
+  {
+    date: '2026-08-05',
     title: 'See exactly who walked through the door',
     body: 'Tap the "checked in" number — on the check-in screen or on Manage — and you get the names: who came, their page, and the minute they were scanned. Check-in itself is steadier too. The screen no longer goes blank after you scan or type a code, it survives a reload and the back button, and a code typed by hand now works in any case, spaces and all. Events on a custom link (joinhorda.com/yourname) can be checked in at as well — that had been failing outright.',
     tag: 'new',
