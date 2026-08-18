@@ -1087,7 +1087,7 @@ export function renderManage(d: EventDetail, guests: { response: string; status:
   payout?: { hostKind: string; hostId: string; connected: boolean }, viewerFanId?: string | null,
   attendees: Record<string, { fanId: string; name: string; handle: string | null; partySize: number; profile: { kind: string; id: string } | null }[]> = {},
   promoCodes: { id: string; code: string; percentOff: number; maxUses: number | null; uses: number }[] = [],
-  checkedInCount = 0): string {
+  checkedInCount = 0, verdictReport = ''): string {
   // Paid event → surface payout status: connect payouts (KYC) before selling.
   const payoutBanner = (d.admission === 'paid' && payout)
     ? (payout.connected
@@ -1160,9 +1160,9 @@ export function renderManage(d: EventDetail, guests: { response: string; status:
        </div>
        <style>.promos{display:flex;flex-direction:column;gap:8px;margin:8px 0}.promo{display:flex;align-items:center;justify-content:space-between;gap:10px;border:1px solid var(--b);border-radius:12px;padding:10px 12px}.promo .prole{font-size:11px;color:var(--mut);text-transform:uppercase;letter-spacing:.5px;margin-left:6px}.promo .pc{font-size:12.5px;color:var(--mut);margin-top:3px}.promo-new{border-style:dashed}.promo-new .pl{display:flex;flex-direction:column;gap:6px;flex:1}.promo-new .plabel{width:100%;max-width:260px;margin-top:2px;background:var(--s);border:1px solid var(--b);border-radius:10px;color:var(--bone);padding:9px}</style>`
     : '';
-  return renderManageInner(d, guests, payoutBanner + sharePanel + promoPanel + formatBreakdown + attributionBlock, viewerFanId ?? null, checkedInCount);
+  return renderManageInner(d, guests, payoutBanner + sharePanel + promoPanel + formatBreakdown + attributionBlock, viewerFanId ?? null, checkedInCount, verdictReport);
 }
-function renderManageInner(d: EventDetail, guests: { response: string; status: string; fanId: string; name: string; handle: string | null }[], formatBreakdown: string, viewerFanId: string | null = null, checkedInCount = 0): string {
+function renderManageInner(d: EventDetail, guests: { response: string; status: string; fanId: string; name: string; handle: string | null }[], formatBreakdown: string, viewerFanId: string | null = null, checkedInCount = 0, verdictReport = ''): string {
   const pending = guests.filter(g => g.response === 'going' && g.status === 'pending');
   const approveList = pending.length
     ? `<h2>${d.admission === 'paid' ? 'Awaiting payment' : 'Applications'} · ${pending.length}</h2><ul>${pending.map(g =>
@@ -1181,6 +1181,7 @@ function renderManageInner(d: EventDetail, guests: { response: string; status: s
        screen, same destination. */''}
   <a class="card ckcount" href="/e/${d.id}/checked-in"><span><b>${checkedInCount}</b> checked in</span><span class="ckmore">${checkedInCount ? 'See who →' : 'Open check-in →'}</span></a>
   <style>a.ckcount{display:flex;align-items:center;justify-content:space-between;gap:10px}a.ckcount .ckmore{color:var(--acc);font-size:12.5px;font-weight:700;white-space:nowrap}</style>
+  ${verdictReport}
   ${formatBreakdown}
   ${approveList}
   ${group(g => g.response === 'going' && (g.status === 'confirmed' || g.status === 'paid'), 'Going')}

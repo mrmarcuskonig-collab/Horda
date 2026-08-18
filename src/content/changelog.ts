@@ -72,6 +72,12 @@ export const BUILDING: BuildingEntry[] = [
 // ---------------------------------------------------------------------------
 export const SHIPPED: ChangeEntry[] = [
   {
+    date: '2026-08-18',
+    title: 'Rate the night — and see what the room really thought',
+    body: 'If you were scanned in at an event, you can now leave a three-tap verdict — atmosphere, was it worth it, and would you come back — plus a private note just for the organiser. Only people who were actually there can rate it, so the number means something. The organiser sees the full picture on Manage (response rate, no-shows, what people said), and once enough of the room has spoken, a public room score shows on the event.',
+    tag: 'new',
+  },
+  {
     date: '2026-08-05',
     title: 'See exactly who walked through the door',
     body: 'Tap the "checked in" number — on the check-in screen or on Manage — and you get the names: who came, their page, and the minute they were scanned. Check-in itself is steadier too. The screen no longer goes blank after you scan or type a code, it survives a reload and the back button, and a code typed by hand now works in any case, spaces and all. Events on a custom link (joinhorda.com/yourname) can be checked in at as well — that had been failing outright.',

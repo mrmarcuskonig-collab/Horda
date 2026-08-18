@@ -57,6 +57,8 @@ import { renderNotifications, renderConnections, renderNotifPrefs, NOTIF_KEYS } 
 import { formatPicker } from './claim_web.ts';
 import { requestLink, setLinkStatus, getLink, activeParents, parentsOf, childrenOf } from '../db/connection_repo.ts';
 import { renderPass, renderRecord, renderCheckin, renderCheckedIn, claimCta } from './claim_web.ts';
+import { createVerdict, verdictEligibility, roomScore, eventReport } from '../db/verdict_repo.ts';
+import { renderVerdictForm, renderVerdictDone, roomScoreBlock, verdictReportBlock } from './verdict.ts';
 import { actionBar, shareButton } from './theme.ts';
 import { normLang } from './i18n.ts';
 import { resolveSportKey, cityAliases } from './localize.ts';
@@ -1493,7 +1495,16 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
         // A cancelled event closes the door for everyone. Show why (the organiser's
         // message), and drop the claim rail entirely — nobody joins a cancelled event.
         const cancelledCard = `<div class="card" style="border-color:#e5484d"><strong style="color:#e5707a">This event was cancelled.</strong>${d.cancelMessage ? `<div class="mut" style="margin-top:6px">${esc(d.cancelMessage)}</div>` : ''}${isHost ? `<div class="row" style="margin-top:8px"><a class="btn ghost" href="/manage/${em[1]}">Manage</a></div>` : ''}</div>`;
-        const topBlock = d.cancelledAt ? cancelledCard : (ended ? pastCard + roomCta : claimBlock + roomCta);
+        // Rating platform, slice 1. The room's verdict (public, only above the floor)
+        // and a "you were there → rate it" prompt for a scanned-in fan who hasn't yet.
+        // Both ride the existing extraTop slot — no change to renderEventPage.
+        const rs = await roomScore(db, em[1]);
+        const roomBlock = rs ? roomScoreBlock(rs) : '';
+        const vElig = await verdictEligibility(db, em[1], guest ? null : viewer);
+        const verdictCta = vElig.canVerdict
+          ? `<div class="card" style="border-color:var(--acc)"><strong>You were in the room.</strong> <span class="mut">How was it? Three taps.</span><div class="row" style="margin-top:8px"><a class="btn" href="/e/${em[1]}/verdict">Rate this event →</a></div></div>`
+          : '';
+        const topBlock = (d.cancelledAt ? cancelledCard : (ended ? pastCard + roomCta : claimBlock + roomCta)) + verdictCta + roomBlock;
         const barBlock = (d.cancelledAt || ended) ? '' : stickyCta;
         // Who may see the watch/join link: host, a public event, or anyone who claimed.
         const hasAccess = isHost || d.accessMode === 'public' || !!mineClaim;
@@ -1533,6 +1544,30 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
         }
         const hostFollowing = (!guest && d.hostKind && d.hostId) ? await isFollowing(db, viewer, d.hostKind, d.hostId) : false;
         return html(res, renderEventPage(d, { guest, fanId: guest ? null : viewer, isFollowing: hostFollowing, myRsvp, isHost, isCoOrg, coOrg, myEntities, myTicket, listings, extraTop: topBlock, stickyCta: barBlock, hasAccess, shareRef, hostLinks, parties, subs, covered, subsMine, parentClaimed: !!parentClaim, parent, canClaim, origin, listable, going: spots.claimed, myPromoToken, myPromoDraw: myPromoDraw ? { identities: myPromoDraw.identities, ticketBuyers: myPromoDraw.ticketBuyers } : undefined }));
+      }
+      // Rating platform, slice 1 — leave the verdict for an event.
+      //   GET  the three-tap form, shown ONLY to a scanned-in fan who hasn't rated.
+      //   POST createVerdict derives event/fan from the presence row, so a fan who only
+      //        CLAIMED (never scanned in) cannot record one — not from the form, not by
+      //        hand-crafting the POST. Eligibility is structural (§2.2).
+      if ((em = path.match(/^\/e\/([^/]+)\/verdict$/))) {
+        const d = await getEventDetail(db, em[1]);
+        if (!d) return html(res, 'Not found', 404);
+        const notInRoom = layout('Not yet', `<h1>Only people who were there can rate it</h1><p class="mut">A verdict needs a real door scan — that's the whole point of the number.</p><div class="row" style="margin:14px 0"><a class="btn" href="/e/${em[1]}">Back to the event</a></div>`);
+        if (req.method === 'POST') {
+          if (viewerGuest || !account) return redirect(res, `/e/${em[1]}`);
+          const elig = await verdictEligibility(db, em[1], viewer);
+          if (!elig.presenceId) return html(res, notInRoom, 403);
+          const f = await parseForm(req);
+          const r = await createVerdict(db, { presenceId: elig.presenceId, atmosphere: Number(f.atmosphere), worthIt: Number(f.worth_it), returnIntent: f.return_intent === '1', note: f.note });
+          if (!r.ok && r.reason === 'no_presence') return html(res, notInRoom, 403);
+          return html(res, renderVerdictDone({ eventId: em[1], title: d.title, origin }));
+        }
+        if (viewerGuest || !account) return redirect(res, `/signup?next=/e/${em[1]}/verdict`);
+        const elig = await verdictEligibility(db, em[1], viewer);
+        if (!elig.presenceId) return html(res, notInRoom, 403);
+        if (elig.alreadyRated) return html(res, layout('Already rated', `<h1>You've already left your verdict ✓</h1><p class="mut">One per person — thanks for it.</p><div class="row" style="margin:14px 0"><a class="btn ghost" href="/e/${em[1]}">Back to the event</a></div>`));
+        return html(res, renderVerdictForm({ eventId: em[1], title: d.title }));
       }
       // Edit an event — owner-only, safe fields (never the date).
       if ((em = path.match(/^\/e\/([^/]+)\/edit$/)) && req.method !== 'POST') {
@@ -1578,7 +1613,7 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
         if (!await canEdit(d.hostKind ?? '', d.hostId ?? '')) return redirect(res, `/e/${em[1]}`);  // guest list is owner-only
         const payoutAcct = (d.hostKind && d.hostId) ? await getPayoutAccount(db, d.hostKind, d.hostId) : null;
         const checkedIn = (await db.query<{ n: number }>(`SELECT count(*)::int n FROM presence WHERE event_id=$1`, [d.id])).rows[0].n;
-        return html(res, renderManage(d, await getGuestList(db, em[1]), await formatCounts(db, em[1]), await shareAttribution(db, em[1]), await partyAttribution(db, em[1]), (d.hostKind && d.hostId) ? { hostKind: d.hostKind, hostId: d.hostId, connected: !!payoutAcct?.chargesEnabled } : undefined, viewerGuest ? null : viewer, await formatAttendees(db, em[1]), await listPromoCodes(db, em[1]), checkedIn));
+        return html(res, renderManage(d, await getGuestList(db, em[1]), await formatCounts(db, em[1]), await shareAttribution(db, em[1]), await partyAttribution(db, em[1]), (d.hostKind && d.hostId) ? { hostKind: d.hostKind, hostId: d.hostId, connected: !!payoutAcct?.chargesEnabled } : undefined, viewerGuest ? null : viewer, await formatAttendees(db, em[1]), await listPromoCodes(db, em[1]), checkedIn, verdictReportBlock(await eventReport(db, em[1]))));
       }
       if ((em = path.match(/^\/host\/(athlete|club|team|association)\/([^/]+)\/new$/))) {
         const parentId = url.searchParams.get('parent');

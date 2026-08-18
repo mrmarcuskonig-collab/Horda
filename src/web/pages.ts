@@ -2077,3 +2077,58 @@ export function renderClubBody(fanId: string, m: ClubPageModel): string {
     ${table}${form}${upcoming}
     <div class="prov">Auto-built from uploaded results & fixtures · system of record.</div>`, { back: `/fan/${fanId}` });
 }
+
+// --- RESTORED: renderAiPrompt + renderProfilePreview -------------------------
+// server.ts still imports these (AI-onboarding flow). Removed on main by the
+// same partial upload as generateProfile; re-added so main boots. Superseded
+// when the create-with-Save rework lands atomically.
+export function renderAiPrompt(d: { title: string; lead: string; placeholder: string; generateAction: string; hidden?: string; back: string; altLink?: string }): string {
+  const ta = 'display:block;width:100%;margin-top:8px;background:var(--s);border:1px solid var(--b);border-radius:12px;color:var(--bone);padding:13px;font:inherit;min-height:150px;line-height:1.55';
+  const sel = 'display:block;width:100%;margin-top:5px;background:var(--s);border:1px solid var(--b);border-radius:10px;color:var(--bone);padding:9px;font:inherit';
+  return layout(d.title, `
+    <h1>${esc(d.title)}</h1>
+    <p class="mut">${esc(d.lead)}</p>
+    <form method="post" action="${esc(d.generateAction)}">${d.hidden ?? ''}
+      <textarea name="description" required placeholder="${esc(d.placeholder)}" style="${ta}"></textarea>
+      <div style="margin-top:14px;font-size:12px;letter-spacing:1px;text-transform:uppercase;color:var(--mut);font-weight:700">Creative direction <span style="text-transform:none;letter-spacing:0;font-weight:400">— optional, steers the tone</span></div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:8px">
+        <label class="mut" style="flex:1;min-width:120px;font-size:12px">Mood
+          <select name="mood" style="${sel}"><option value="">Auto</option><option value="dark, intense">Dark &amp; intense</option><option value="bright, fresh">Bright &amp; fresh</option><option value="bold, gritty">Bold &amp; gritty</option><option value="clean, minimal">Clean &amp; minimal</option><option value="playful, energetic">Playful</option></select></label>
+        <label class="mut" style="flex:1;min-width:120px;font-size:12px">Energy
+          <select name="energy" style="${sel}"><option value="">Auto</option><option value="calm and understated">Calm</option><option value="confident">Confident</option><option value="high-energy and loud">High-energy</option></select></label>
+        <label class="mut" style="flex:1;min-width:120px;font-size:12px">Voice
+          <select name="voice" style="${sel}"><option value="">Auto</option><option value="first person">First person (I…)</option><option value="third person">Third person</option></select></label>
+      </div>
+      <div class="row" style="margin-top:14px"><button type="submit">✦ Generate my page</button></div>
+    </form>
+    <p class="mut" style="margin-top:12px;font-size:12.5px">We turn your words into a bold, on-brand page — a cooler headline, a striking cover, the works. The creative direction shapes tone only; we never invent facts. You can tweak everything before it goes live.</p>
+    ${d.altLink ?? ''}`, { back: d.back });
+}
+
+export function renderProfilePreview(d: { kind: string; gen: { displayName: string; handle: string; headline: string; tagline: string; bio: string; cover: string; sport?: string; links?: Record<string, string> }; description: string; createAction: string; generateAction: string; hidden?: string; showHandle?: boolean }): string {
+  const inp = 'display:block;width:100%;margin-top:6px;background:var(--s);border:1px solid var(--b);border-radius:10px;color:var(--bone);padding:11px;font:inherit';
+  const g = d.gen;
+  return layout('Your page — preview', `
+    <style>.pvcover{width:100%;border-radius:16px;border:1px solid var(--b);display:block;aspect-ratio:1200/420;object-fit:cover}.pvh{font-size:12px;letter-spacing:1.5px;text-transform:uppercase;color:var(--mut);font-weight:700;margin:18px 0 6px}</style>
+    <h1>Here’s your page ✦</h1>
+    <p class="mut">Generated from what you told us. Edit anything, regenerate, or publish.</p>
+    <img class="pvcover" src="${esc(g.cover)}" alt="generated cover">
+    <div class="pvh">Headline</div><div style="font-size:20px;font-weight:800">${esc(g.headline || g.displayName)}</div>
+    <form method="post" action="${esc(d.createAction)}">${d.hidden ?? ''}
+      <input type="hidden" name="cover" value="${esc(g.cover)}">
+      <input type="hidden" name="links" value="${esc(JSON.stringify(g.links ?? {}))}">
+      <div class="pvh">Sport</div>${sportSelect('sport', g.sport, inp)}
+      ${g.links && Object.keys(g.links).length ? `<div class="pvh">Links found</div><div class="mut" style="font-size:12.5px">${Object.keys(g.links).map(k => esc(k)).join(' · ')}</div>` : ''}
+      <div class="pvh">Profile picture</div>
+      <input type="file" accept="image/*" data-target="avatar" style="color:inherit;font:inherit"><input type="hidden" name="avatar">
+      <div class="pvh">Background photo <span class="mut" style="text-transform:none;letter-spacing:0;font-weight:400">— optional; replaces the generated cover</span></div>
+      <input type="file" accept="image/*" data-target="banner" style="color:inherit;font:inherit"><input type="hidden" name="banner">
+      <label class="mut" style="display:block;margin:14px 0 0">Name<input style="${inp}" name="name" value="${esc(g.displayName)}" required></label>
+      ${d.showHandle !== false ? `<label class="mut" style="display:block;margin:12px 0 0">Handle<input style="${inp}" name="handle" value="${esc(g.handle)}" required></label>` : ''}
+      <label class="mut" style="display:block;margin:12px 0 0">Tagline<input style="${inp}" name="tagline" value="${esc(g.tagline)}"></label>
+      <label class="mut" style="display:block;margin:12px 0 0">Bio / intro<textarea style="${inp};min-height:90px" name="bio">${esc(g.bio)}</textarea></label>
+      <div class="row" style="margin-top:14px"><button type="submit">Publish my page →</button></div>
+    </form>
+    <form method="post" action="${esc(d.generateAction)}" style="margin-top:8px">${d.hidden ?? ''}<input type="hidden" name="description" value="${esc(d.description)}"><div class="row"><button class="ghost" type="submit">↻ Regenerate</button></div></form>
+    ${UPLOAD_SCRIPT}`, { back: '/' });
+}
