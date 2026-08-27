@@ -1,7 +1,7 @@
 // persist-demo.ts — the persistent app, end to end:
 //   paste  ->  ingest  ->  COMMIT to Postgres  ->  read the page back OUT of the DB  ->  render.
 // Uses embedded Postgres (PGlite). Pass a dataDir to persist to disk across runs:
-//   const db = await PGliteDatabase.open('./.horda-data');   // durable
+//   const db = await PGliteDatabase.open('./.furia-data');   // durable
 // Here we use in-memory so it runs cleanly anywhere; the commit/read path is identical.
 import { writeFileSync } from 'node:fs';
 import { PGliteDatabase, applySchema } from '../src/db/index.ts';
@@ -43,6 +43,6 @@ const standing: StandingDef = { name: 'League table', unit: 'team', engine: 'poi
 const page = await getClubPage(db, ids['FC Beispiel'], standing);
 console.log(`read from DB -> ${page.clubName}: ${page.record.wins}W ${page.record.draws}D ${page.record.losses}L · top: ${page.table[0].team} (${page.table[0].points} pts)`);
 
-writeFileSync('horda-club-page.html', renderClubPage(page));
-console.log('rendered horda-club-page.html from the database.');
+writeFileSync('furia-club-page.html', renderClubPage(page));
+console.log('rendered furia-club-page.html from the database.');
 await db.close();

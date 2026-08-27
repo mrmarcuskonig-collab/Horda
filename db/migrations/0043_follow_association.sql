@@ -2,7 +2,7 @@
 --
 -- Make ASSOCIATIONS followable. The follow_target_type enum has carried only
 -- ('club','team','athlete') since 0001 — but the app renders association pages
--- with a "Join the Horda" / Follow button, and the follow-state sync added in
+-- with a "Join the Furia" / Follow button, and the follow-state sync added in
 -- this batch calls isFollowing(…, 'association', …). Both cast the string
 -- 'association' to the enum, which the enum rejects: a 500 on every association
 -- page for a logged-in fan, and a 500 on the follow POST.

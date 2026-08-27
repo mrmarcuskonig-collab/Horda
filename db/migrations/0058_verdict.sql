@@ -15,7 +15,7 @@ CREATE TABLE IF NOT EXISTS verdict (
   worth_it      int  NOT NULL CHECK (worth_it BETWEEN 1 AND 5),
   return_intent boolean NOT NULL,
   note          text,                                    -- organiser-visible ONLY (§2.1)
-  source        text NOT NULL DEFAULT 'horda',
+  source        text NOT NULL DEFAULT 'furia',
   created_at    timestamptz NOT NULL DEFAULT now(),
   UNIQUE (presence_id)
 );

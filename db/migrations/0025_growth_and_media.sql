@@ -41,7 +41,7 @@ CREATE TABLE IF NOT EXISTS sponsor (
 CREATE INDEX IF NOT EXISTS sponsor_owner_idx ON sponsor (owner_kind, owner_id, ord);
 
 -- Newsletter: fans opt in to a creator's updates (and a platform-wide list when
--- owner_kind = 'horda'). Send is handled by the existing email adapter.
+-- owner_kind = 'furia'). Send is handled by the existing email adapter.
 CREATE TABLE IF NOT EXISTS newsletter_subscriber (
   id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   owner_kind  text NOT NULL,

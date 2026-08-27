@@ -3,15 +3,15 @@
 -- Tag every BEHAVIORAL FACT with the product that produced it, so a shared fan
 -- graph across future products can attribute, scope, and consent per product
 -- without re-attributing millions of untagged rows after the fact. Cheap now,
--- irrecoverable if skipped. Existing rows are, by definition, Horda's → default.
+-- irrecoverable if skipped. Existing rows are, by definition, Furia's → default.
 --
 -- Facts, not state: claim (intent to attend), presence (proof of attendance —
 -- the "Record"), follow (the identity/interest edge), event_share (attribution).
-ALTER TABLE claim        ADD COLUMN IF NOT EXISTS source text NOT NULL DEFAULT 'horda';
-ALTER TABLE pass         ADD COLUMN IF NOT EXISTS source text NOT NULL DEFAULT 'horda';
-ALTER TABLE presence     ADD COLUMN IF NOT EXISTS source text NOT NULL DEFAULT 'horda';
-ALTER TABLE follow       ADD COLUMN IF NOT EXISTS source text NOT NULL DEFAULT 'horda';
-ALTER TABLE event_share  ADD COLUMN IF NOT EXISTS source text NOT NULL DEFAULT 'horda';
+ALTER TABLE claim        ADD COLUMN IF NOT EXISTS source text NOT NULL DEFAULT 'furia';
+ALTER TABLE pass         ADD COLUMN IF NOT EXISTS source text NOT NULL DEFAULT 'furia';
+ALTER TABLE presence     ADD COLUMN IF NOT EXISTS source text NOT NULL DEFAULT 'furia';
+ALTER TABLE follow       ADD COLUMN IF NOT EXISTS source text NOT NULL DEFAULT 'furia';
+ALTER TABLE event_share  ADD COLUMN IF NOT EXISTS source text NOT NULL DEFAULT 'furia';
 
 -- Indexed because per-product analytics/scoping will filter on it constantly.
 CREATE INDEX IF NOT EXISTS claim_source_idx       ON claim (source);

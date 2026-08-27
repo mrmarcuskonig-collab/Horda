@@ -1,5 +1,5 @@
--- 0052 — custom event URL (Horda Plus feature).
--- A Plus organiser can give an event a memorable slug, e.g. joinhorda.com/e/derby.
+-- 0052 — custom event URL (Furia Plus feature).
+-- A Plus organiser can give an event a memorable slug, e.g. joinfuria.com/e/derby.
 -- Null = no custom slug (the event is reached by its uuid, as before). Unique,
 -- case-insensitively, across events. Gating (who may set it) lives in the app via
 -- hasEntitlement(plan,'custom_url') — the column itself is plan-agnostic.

@@ -1,4 +1,4 @@
-# Horda — Founder Operating System
+# Furia — Founder Operating System
 
 **Purpose:** how one person runs product, engineering and go-to-market at the standard of an AI-native team, without a team.
 **Destination in repo:** `docs/operating-system.md`
@@ -31,7 +31,7 @@ The agent should clone, branch, test, and open a pull request itself. You review
 Two ways, pick one:
 
 - **Cloud:** the session clones from GitHub over HTTPS, works in its own sandbox, and pushes a branch. Nothing touches your Mac.
-- **Local:** connect the Horda folder in the desktop app and the session works in place.
+- **Local:** connect the Furia folder in the desktop app and the session works in place.
 
 Prefer the cloud path for engineering work. It is disposable, it cannot corrupt your working tree, and it makes parallel agents trivial.
 
@@ -45,7 +45,7 @@ Keep it imperative and under ~500 lines. "Use pnpm, not npm" beats "we prefer pn
 
 Sections, in this order:
 
-1. **What Horda is** — two paragraphs, no marketing voice. What it does, who the tenant is, who the end user is.
+1. **What Furia is** — two paragraphs, no marketing voice. What it does, who the tenant is, who the end user is.
 2. **Stack and pinned versions.**
 3. **Exact commands** — install, dev, test, lint, typecheck, build, deploy. Copy-pasteable. This is the highest-ROI section in the file; omitting it is the most common mistake teams make.
 4. **Architecture** — the folder logic and why it is that way. Name the canonical example file for each pattern rather than describing the pattern.
@@ -57,7 +57,7 @@ Sections, in this order:
 
 Create `docs/decisions/` and write your five resolved calls as one short file each: parent structure, no warm tenant, solo + AI-built, bootstrap, the four beachhead regions. Format: context, decision, consequences, date, status.
 
-Then move `horda-operating-doc.md` into `docs/`. And put this file at `docs/operating-system.md`.
+Then move `furia-operating-doc.md` into `docs/`. And put this file at `docs/operating-system.md`.
 
 **Why this matters more than it sounds:** agents have no memory between sessions. Right now that memory lives in your chat history and in your head, which means you are the bus. Once it lives in the repo, any session you open — today or in November — starts with the same ground truth, and you stop paying the re-explanation tax.
 
@@ -89,7 +89,7 @@ Keep the CEO session. Strategy genuinely benefits from continuity, and it is not
 
 You keep writing the same kind of brief by hand. Turn it into a skill so the format is consistent and you stop improvising under time pressure.
 
-A Horda engineering task brief should force you to state: the outcome in one sentence, the files and interfaces involved, **what is explicitly out of scope**, and the end-to-end verification step. The out-of-scope line is the one that saves you — it is what stops a 200-line task becoming a 2,000-line diff.
+A Furia engineering task brief should force you to state: the outcome in one sentence, the files and interfaces involved, **what is explicitly out of scope**, and the end-to-end verification step. The out-of-scope line is the one that saves you — it is what stops a 200-line task becoming a 2,000-line diff.
 
 ### Step 2.3 — Learn the parallel move
 
@@ -158,7 +158,7 @@ Now work backwards. If one in five serious conversations converts, one paying te
 
 Speed is table stakes now; everyone has the same models. Three things still differentiate.
 
-**Taste.** Agents produce plausible work by default, and plausible is the enemy of excellent. Your job is to be the person who says "this is fine and I don't want it." Your dark-theme call and the wordmark cut into the raven's angles are taste decisions — they do not come from the loop, they come from you, and they are most of what people will actually feel about Horda.
+**Taste.** Agents produce plausible work by default, and plausible is the enemy of excellent. Your job is to be the person who says "this is fine and I don't want it." Your dark-theme call and the wordmark cut into the raven's angles are taste decisions — they do not come from the loop, they come from you, and they are most of what people will actually feel about Furia.
 
 **Verification.** Plausible-looking code with no passing check is unverified, not done. You already have 160 tests; the discipline is never letting that erode when you are in a hurry. It is the only reason you get to walk away from an autonomous run.
 

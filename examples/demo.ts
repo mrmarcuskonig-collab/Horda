@@ -1,5 +1,5 @@
 // demo.ts — the whole product, end to end: a paste becomes a finished club page.
-// Run: node examples/demo.ts   ->  writes horda-club-page.html
+// Run: node examples/demo.ts   ->  writes furia-club-page.html
 import { writeFileSync } from 'node:fs';
 import { ingestUserUpload } from '../src/pipeline/index.ts';
 import type { KnownEntity } from '../src/pipeline/index.ts';
@@ -53,5 +53,5 @@ console.log(`form: ${model.form.map(f => f.headline).join('  |  ')}`);
 console.log(`upcoming: ${model.upcoming.map(u => `${u.venue.toUpperCase()} ${u.opponent} ${u.date ?? ''}`).join('  |  ')}`);
 
 const html = renderClubPage(model);
-writeFileSync('horda-club-page.html', html);
-console.log(`\nWrote horda-club-page.html (${html.length} bytes) — ${results.readyCount} results + ${fixtures.readyCount} fixtures ingested.`);
+writeFileSync('furia-club-page.html', html);
+console.log(`\nWrote furia-club-page.html (${html.length} bytes) — ${results.readyCount} results + ${fixtures.readyCount} fixtures ingested.`);

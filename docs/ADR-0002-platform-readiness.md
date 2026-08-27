@@ -20,7 +20,7 @@ If four products all write to and read from one fan identity + behavior graph, t
 who a fan is, who they follow, what they claimed, where they were scanned in (the "Record"),
 and who drove whom (attribution) — **is the durable asset**. Events, tickets, banners, and
 memberships are disposable product-specific scaffolding on top. Today the schema doesn't make
-this distinction: fan behavior lives in Horda's flat tables as if Horda owned it. The rulings
+this distinction: fan behavior lives in Furia's flat tables as if Furia owned it. The rulings
 below draw the line between *core graph* (protect, capture with rigor) and *product surface*
 (stay fast, keep disposable) — without splitting anything yet.
 
@@ -35,7 +35,7 @@ Everything else is a future refactor → **defer**.
 
 ### 1. Product-neutral identity — **DISCIPLINE NOW (≈ free)**
 One `account` = one human, stable UUID (already true). Nothing product-specific ever lands on
-the `account`/identity tables — Horda concepts belong on `athlete`/entity rows, not on the
+the `account`/identity tables — Furia concepts belong on `athlete`/entity rows, not on the
 person. This is the single highest-leverage boundary: it's what lets product #2 reuse the same
 login and the same human with zero migration. Cost is a code-review rule, not a build.
 
@@ -46,7 +46,7 @@ and (b) carry a **`source`/`product`** discriminator. Adding the column today is
 adding it after three products have written millions of untagged rows is a data-archaeology
 project with no clean answer. **This is the one thing to do before launch** under the
 platform lens. *(Implementation: a `0056_source_tagging` migration defaulting existing rows to
-`'horda'`; deferred build, cheap capture.)*
+`'furia'`; deferred build, cheap capture.)*
 
 ### 3. Consent becomes purpose/product-scoped — **EXTEND the dormant consent model (0044)**
 A behavior graph shared across *separate businesses* is precisely what GDPR/DSGVO
@@ -59,7 +59,7 @@ This is a trust asset as much as a legal one.
 ### 4. The repo layer is the contract; group core vs. product — **DISCIPLINE NOW**
 The ~20 `src/db/*_repo.ts` modules are already the only path to the database. Keep that rule
 absolute, and start grouping them explicitly: **core graph** (`auth`, `claim_rail`, `connection`,
-engagement/follows, consent) vs. **Horda product** (`events`, `membership`, `promo_code`,
+engagement/follows, consent) vs. **Furia product** (`events`, `membership`, `promo_code`,
 `payouts`, `event_format`). Nothing splits — but a clean function-call seam is trivially
 convertible to a network boundary later, and a tangled one is not. A folder or naming convention
 is enough to signal it.

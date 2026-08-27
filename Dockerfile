@@ -1,4 +1,4 @@
-# Horda — SSR app on Node 22 (native TypeScript, embedded Postgres via PGlite).
+# Furia — SSR app on Node 22 (native TypeScript, embedded Postgres via PGlite).
 FROM node:22-slim
 WORKDIR /app
 # Fonts for the matchday-card rasteriser (src/web/raster.ts). node:22-slim ships
@@ -13,12 +13,12 @@ COPY package*.json ./
 RUN npm ci --omit=dev || npm install --omit=dev
 COPY . .
 # persist the embedded DB across restarts (mount a volume at /data)
-# HORDA_DEMO defaults to 0 (production-safe: no demo fallback account, and a fresh
-# DB comes up EMPTY rather than seeded with sample clubs). Set HORDA_DEMO=1 for a
+# FURIA_DEMO defaults to 0 (production-safe: no demo fallback account, and a fresh
+# DB comes up EMPTY rather than seeded with sample clubs). Set FURIA_DEMO=1 for a
 # local/demo instance that should show the seeded sample content.
 ENV PORT=8787
-ENV HORDA_DATA=/data
-ENV HORDA_DEMO=0
+ENV FURIA_DATA=/data
+ENV FURIA_DEMO=0
 EXPOSE 8787
 VOLUME ["/data"]
 CMD ["node", "src/web/server.ts"]

@@ -1,4 +1,4 @@
--- 0036_multi_party.sql — the multi-party events spine (Horda_Multi_Party_Events_Architecture.md).
+-- 0036_multi_party.sql — the multi-party events spine (Furia_Multi_Party_Events_Architecture.md).
 -- An event is not a single-owner object: many entities attach to one event, each
 -- with a role and an auto promo link. Sub-events nest via parent_event_id and roll
 -- attribution up. Measurement only at launch — no money movement.
@@ -9,7 +9,7 @@ ALTER TABLE event ADD COLUMN IF NOT EXISTS archetype text NOT NULL DEFAULT 'sing
 CREATE INDEX IF NOT EXISTS event_parent_idx ON event (parent_event_id);
 
 -- event_party: the join between an event and a participant (or an unclaimed
--- placeholder for a rival who hasn't joined Horda yet). Every party carries a
+-- placeholder for a rival who hasn't joined Furia yet). Every party carries a
 -- ready-to-share promo link; claims/tickets that arrive via it are attributed here.
 CREATE TABLE IF NOT EXISTS event_party (
   id           uuid PRIMARY KEY DEFAULT gen_random_uuid(),

@@ -3,5 +3,5 @@
 -- promos, A/B pricing experiments) without an all-or-nothing switch. The plan id
 -- is resolved against pricing.ts (PLANS); the platform fee and feature
 -- entitlements follow from it. Default 'free' — nobody is charged differently
--- until Horda Plus billing is wired.
+-- until Furia Plus billing is wired.
 ALTER TABLE account ADD COLUMN IF NOT EXISTS plan text NOT NULL DEFAULT 'free';

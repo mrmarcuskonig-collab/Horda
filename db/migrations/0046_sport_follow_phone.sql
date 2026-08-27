@@ -8,7 +8,7 @@
 --    not a uuid — so they get their own tiny join table. A fan can now follow a
 --    whole sport, and its events flow into their feed like any other follow.
 --
--- 2) OPTIONAL PHONE on the account — used only for event reminders (Horda stays
+-- 2) OPTIONAL PHONE on the account — used only for event reminders (Furia stays
 --    magic-link, passwordless; phone is never required and never a login factor).
 CREATE TABLE IF NOT EXISTS sport_follow (
   fan_id     uuid NOT NULL,

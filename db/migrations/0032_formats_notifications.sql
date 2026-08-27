@@ -1,9 +1,9 @@
 -- 0032: multi-format attendance + notifications + a live window.
 --
 -- One event, several ways to attend it — e.g. a German championship a fan can
--- (a) attend in person (ticketed on Horda), (b) watch on TikTok Live, or
+-- (a) attend in person (ticketed on Furia), (b) watch on TikTok Live, or
 -- (c) watch on a sport-specific media provider. Attendance for EVERY format is
--- confirmed on Horda, so the organizer sees exactly what to expect per channel
+-- confirmed on Furia, so the organizer sees exactly what to expect per channel
 -- and optimises supply (seats vs streams) from one invite+ticketing surface.
 --
 -- A claim carries the single format the fan committed to (they can switch),
@@ -18,7 +18,7 @@ CREATE TABLE IF NOT EXISTS event_format (
   kind            text NOT NULL DEFAULT 'in_person',   -- in_person | stream
   label           text NOT NULL,                        -- "In person", "TikTok Live", "Sportdeutschland.TV"
   channel_url     text,                                 -- where to watch (stream formats)
-  requires_ticket boolean NOT NULL DEFAULT false,       -- tickets sold on Horda
+  requires_ticket boolean NOT NULL DEFAULT false,       -- tickets sold on Furia
   price_cents     int,                                  -- if ticketed
   capacity        int,                                  -- optional per-format cap
   sort            int NOT NULL DEFAULT 0,

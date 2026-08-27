@@ -1,6 +1,6 @@
 -- 0038_payout_account.sql — Stripe Connect payout accounts (Build Order item 4).
 -- Paid tickets are gated behind the ORGANIZER connecting a Stripe account (KYC is
--- handled by Stripe's onboarding). Horda charges the buyer, takes its 10% via an
+-- handled by Stripe's onboarding). Furia charges the buyer, takes its 10% via an
 -- application fee, and routes the rest to the connected account. Web-first (never
 -- the native app stores). One payout account per host entity.
 CREATE TABLE IF NOT EXISTS payout_account (

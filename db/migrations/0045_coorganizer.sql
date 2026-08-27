@@ -6,7 +6,7 @@
 --
 -- AFTER: only the organizer can invite the other side, via a unique link meant
 -- for a specific person (a manager/responsible person of the rival club/athlete
--- who may not be on Horda yet). They open the link, connect name + email (which
+-- who may not be on Furia yet). They open the link, connect name + email (which
 -- creates a personal account the normal magic-link way), and become a
 -- CO-ORGANIZER of the event — either as a private person or through a page/club
 -- they manage. A co-organizer CANNOT edit the main event, but can manage their

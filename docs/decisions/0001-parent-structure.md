@@ -5,10 +5,10 @@
 - **Supersedes:** —
 
 ## Context
-Horda needs a corporate structure that can hold the brand and any future ventures without complicating the public story.
+Furia needs a corporate structure that can hold the brand and any future ventures without complicating the public story.
 
 ## Decision
-A parent holding company exists, but is internal-only and kept out of all public-facing copy. Horda is the only public brand.
+A parent holding company exists, but is internal-only and kept out of all public-facing copy. Furia is the only public brand.
 
 ## Consequences
 - No mention of the parent entity in the app, website, decks, socials or press.

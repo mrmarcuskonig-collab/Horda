@@ -1,5 +1,5 @@
 -- 0055 — vanity handles for clubs / teams / federations, so a page is reachable
--- at joinhorda.com/<handle> (athletes already have athlete.handle). Null = no
+-- at joinfuria.com/<handle> (athletes already have athlete.handle). Null = no
 -- vanity URL yet (the page is still reachable by its /kind/:id path). Unique,
 -- case-insensitively, per table; global uniqueness across entity kinds is
 -- enforced in the app (handles_repo) so one /<handle> is never ambiguous.

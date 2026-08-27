@@ -1,7 +1,7 @@
 -- 0044_rights_grants.sql
 --
 -- THE RIGHTS SLATE. This is the "consent is not retrofittable" migration: the
--- structure that lets Horda's content corpus be born rights-clear. It is the
+-- structure that lets Furia's content corpus be born rights-clear. It is the
 -- single piece of the four data-foundation asks that captures something we lose
 -- forever if we don't ship it with the registration flow — everything else on
 -- the roadmap (identity graph, ledger, event bus) is compute we can build later

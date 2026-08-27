@@ -1,4 +1,4 @@
--- 0051 — Horda Plus subscription link on the account.
+-- 0051 — Furia Plus subscription link on the account.
 -- account.plan (0050) says which plan an organiser is on; this stores the Stripe
 -- subscription that put them there, so a cancellation webhook can find the
 -- account and downgrade it back to 'free'. Null = no active Plus subscription.

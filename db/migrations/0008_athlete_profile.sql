@@ -1,7 +1,7 @@
 -- 0008_athlete_profile.sql
 -- Athlete-controlled identity: the levers a fighter uses to make the profile
 -- theirs and stand out (FURIA/Weverse direction). All athlete-owned.
--- Social links point OUT (Instagram/X/TikTok/YouTube/site) — Horda is the home
+-- Social links point OUT (Instagram/X/TikTok/YouTube/site) — Furia is the home
 -- that routes to the social layer, it doesn't try to be it (spec §9).
 ALTER TABLE athlete
   ADD COLUMN tagline    text,

@@ -1,6 +1,6 @@
 # Consent / rights grant model — for legal review
 
-**Purpose:** Horda wants its grassroots-sport content corpus to be *born rights-clear* —
+**Purpose:** Furia wants its grassroots-sport content corpus to be *born rights-clear* —
 every athlete's likeness/commercial/AI-licensing permission captured as structured, versioned
 data at the moment of registration or ticket purchase, so we can later answer programmatically
 "may X be used for purpose Y." This document asks counsel to design the **grant taxonomy and

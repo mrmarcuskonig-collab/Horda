@@ -33,6 +33,6 @@ outcome: interested   # no-answer | rejected | interested | trialling | paying
 next_step: demo on 12 Aug
 ```
 
-Sections: What they run · What hurts · What they said about Horda · Objection · Verbatim · What this changes.
+Sections: What they run · What hurts · What they said about Furia · Objection · Verbatim · What this changes.
 
 The `evidence-log` skill writes these for you and reads them back for patterns.
