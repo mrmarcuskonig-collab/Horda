@@ -7,7 +7,7 @@
 //
 // Provider-agnostic and env-gated, matching the Discord/Slack webhook pattern
 // already in the app. Set ONE of:
-//   HORDA_ERROR_WEBHOOK  — any URL; we POST a compact JSON error. Works with a
+//   FURIA_ERROR_WEBHOOK  — any URL; we POST a compact JSON error. Works with a
 //                          Slack/Discord incoming webhook or your own endpoint.
 //   SENTRY_DSN           — if you prefer Sentry; we POST to its store API.
 // Neither set → errors are logged to stderr only (Render captures those logs).
@@ -15,9 +15,9 @@
 
 // Read env at call-time, not module-load: the sink can be configured after this
 // module is first imported, and capturing it once would silently miss it.
-const webhook = () => (process.env.HORDA_ERROR_WEBHOOK || '').trim();
+const webhook = () => (process.env.FURIA_ERROR_WEBHOOK || '').trim();
 const sentryDsn = () => (process.env.SENTRY_DSN || '').trim();
-const release = () => (process.env.HORDA_RELEASE || 'dev').trim();
+const release = () => (process.env.FURIA_RELEASE || 'dev').trim();
 
 // De-dupe a hot loop: don't fire the same error signature more than once every 60s.
 const lastSeen = new Map<string, number>();
@@ -48,14 +48,14 @@ export function reportError(err: unknown, ctx: ErrContext = {}): void {
       // Discord caps `content` at 2000 chars and 400s if you exceed it, so build
       // the message and hard-cap it (leave room for the ``` fence). The header is
       // always kept; the stack is what gets truncated.
-      const head = `🔴 **Horda error** (${RELEASE})\n${ctx.method || ''} ${ctx.path || ctx.where || ''}\n${message}`;
+      const head = `🔴 **Furia error** (${RELEASE})\n${ctx.method || ''} ${ctx.path || ctx.where || ''}\n${message}`;
       const room = Math.max(0, 1900 - head.length - 8);
       const text = `${head}\n\`\`\`${stack.slice(0, room)}\`\`\``.slice(0, 1990);
       void fetch(WEBHOOK, {
         method: 'POST', headers: { 'content-type': 'application/json' },
         // `content` + `username` are Discord's fields (Slack reads `text`); a
         // custom endpoint can still read `message`/`stack`/`path`.
-        body: JSON.stringify({ username: 'Horda Alerts', content: text, text, message, stack, release: RELEASE, ...ctx }),
+        body: JSON.stringify({ username: 'Furia Alerts', content: text, text, message, stack, release: RELEASE, ...ctx }),
       }).catch(() => {});
     } else if (SENTRY_DSN) {
       void sendSentry(message, stack, ctx).catch(() => {});
@@ -83,11 +83,11 @@ async function sendSentry(message: string, stack: string, ctx: ErrContext): Prom
 
 /** A calm, on-brand 500 page — never a raw stack trace in front of a user. */
 export function errorPage(): string {
-  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Something went wrong — Horda</title>
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Something went wrong — Furia</title>
   <style>body{margin:0;background:#151312;color:#EDE9DF;font-family:Inter,system-ui,sans-serif;display:flex;min-height:100vh;align-items:center;justify-content:center;text-align:center}
   .box{max-width:420px;padding:24px}h1{font-size:22px;font-weight:900;letter-spacing:-.01em;margin:0 0 8px}p{color:#a49e97;line-height:1.55;margin:0 0 18px}
   a{display:inline-block;background:#E15A40;color:#fff;text-decoration:none;border-radius:10px;padding:11px 18px;font-weight:800}</style></head>
-  <body><div class="box"><h1>That one's on us.</h1><p>Something broke while loading this page. We've been notified. Try again, or head back home.</p><a href="/">Back to Horda</a></div></body></html>`;
+  <body><div class="box"><h1>That one's on us.</h1><p>Something broke while loading this page. We've been notified. Try again, or head back home.</p><a href="/">Back to Furia</a></div></body></html>`;
 }
 
 /**

@@ -147,10 +147,10 @@ export async function getDiscover(db: Database, filter: { sport?: string; region
 
 // --- entity typeahead -------------------------------------------------------
 // Powers the rival / roster pickers on the create-event form, and the search on
-// /following. One function so "who exists on Horda" always means the same thing.
+// /following. One function so "who exists on Furia" always means the same thing.
 //
 // Why this matters beyond convenience: an event that names a rival as free text
-// creates an unclaimed placeholder. If the rival is ALREADY on Horda and the
+// creates an unclaimed placeholder. If the rival is ALREADY on Furia and the
 // organiser types their name slightly differently ("FC Rival" vs "1. FC Rival"),
 // we mint a duplicate placeholder instead of linking the real entity — and the
 // attribution for that side goes nowhere. Recommending real entities first is

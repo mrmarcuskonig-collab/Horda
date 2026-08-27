@@ -68,7 +68,7 @@ export function googleWalletUrl(p: PassData): string | null {
   const key = (process.env.GOOGLE_WALLET_SA_KEY || '').replace(/\\n/g, '\n');
   if (!issuer || !email || !key) return null;
 
-  const classId = `${issuer}.horda_event`;
+  const classId = `${issuer}.furia_event`;
   const objectId = `${issuer}.${p.token}`;
   const payload = {
     iss: email,
@@ -89,7 +89,7 @@ export function googleWalletUrl(p: PassData): string | null {
         eventName: { defaultValue: { language: 'en-US', value: p.eventTitle } },
         venue: p.location ? { name: { defaultValue: { language: 'en-US', value: p.location } } } : undefined,
         dateTime: p.startsAt ? { start: p.startsAt } : undefined,
-        linksModuleData: { uris: [{ uri: p.eventUrl, description: 'Event on Horda' }] },
+        linksModuleData: { uris: [{ uri: p.eventUrl, description: 'Event on Furia' }] },
       }],
     },
   };
@@ -114,14 +114,14 @@ export function passJson(p: PassData): string {
     formatVersion: 1,
     passTypeIdentifier: process.env.APPLE_PASS_TYPE_ID,
     teamIdentifier: process.env.APPLE_TEAM_ID,
-    organizationName: 'Horda',
+    organizationName: 'Furia',
     serialNumber: p.token,
-    description: `${p.eventTitle} — Horda ticket`,
+    description: `${p.eventTitle} — Furia ticket`,
     // Brand: the arena theme, so the pass in the lock screen is unmistakably ours.
     backgroundColor: 'rgb(35,32,32)',
     foregroundColor: 'rgb(237,233,223)',
     labelColor: 'rgb(225,90,64)',
-    logoText: 'Horda',
+    logoText: 'Furia',
     ...relevant,
     barcodes: [{ format: 'PKBARCODE_FORMAT_QR', message: p.token, messageEncoding: 'iso-8859-1', altText: p.token.slice(0, 8).toUpperCase() }],
     eventTicket: {

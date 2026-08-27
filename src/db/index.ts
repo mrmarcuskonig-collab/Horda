@@ -81,11 +81,11 @@ export class PostgresDatabase implements Database {
 // --- factory: pick the adapter from the environment ------------------------
 // DATABASE_URL set  → real Postgres server (production).
 // otherwise         → embedded PGlite (local dev + tests), persisting to
-//                     HORDA_DATA if provided.
+//                     FURIA_DATA if provided.
 export async function openDatabase(): Promise<Database> {
   const url = process.env.DATABASE_URL;
   if (url) return PostgresDatabase.open(url);
-  return PGliteDatabase.open(process.env.HORDA_DATA || undefined);
+  return PGliteDatabase.open(process.env.FURIA_DATA || undefined);
 }
 
 // --- schema + seed runners (operate on the real db/ SQL files) -------------
@@ -153,6 +153,9 @@ export async function applySchema(db: Database, migrationsDir = 'db/migrations')
         '0056': () => colExists('claim', 'source'),
         '0057': () => colExists('athlete', 'description'),
         '0058': () => relExists('public.verdict'),
+        '0059': () => colExists('verdict', 'attendance'),
+
+        '0060': async () => false,  // data-only rebrand; must run on legacy DBs
       };
       for (const f of files) {
         const probe = present[f.slice(0, 4)];

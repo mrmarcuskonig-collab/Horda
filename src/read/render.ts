@@ -1,5 +1,5 @@
 // render.ts — render a ClubPageModel to a self-contained, monochrome club page.
-// Strictly Ink (#0B0B0C) + Bone (#EDE9DF), per the brand. The HORDA wordmark is
+// Strictly Ink (#0B0B0C) + Bone (#EDE9DF), per the brand. The FURIA wordmark is
 // still placeholder type (open brand item) — set in plain caps until it's cut.
 import type { ClubPageModel } from './types.ts';
 import { ravenMark } from '../web/brand.ts';
@@ -36,7 +36,7 @@ export function renderClubPage(m: ClubPageModel): string {
 
   return `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>${esc(m.clubName)} — Horda</title><link rel="icon" href="/favicon.svg">
+<title>${esc(m.clubName)} — Furia</title><link rel="icon" href="/favicon.svg">
 <style>
   :root{color-scheme:dark;--ink:#0B0B0C;--bone:#EDE9DF;--b:rgba(237,233,223,.16);--mut:rgba(237,233,223,.6)}
   *{margin:0;box-sizing:border-box}

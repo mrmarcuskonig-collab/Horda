@@ -9,7 +9,7 @@
 // the form is plain radios, so there's nothing to break on a phone at a noisy door.
 import { layout, esc } from './layout.ts';
 import { shareButton } from './theme.ts';
-import type { EventReport } from '../db/verdict_repo.ts';
+import type { EventReport, Attendance } from '../db/verdict_repo.ts';
 
 const CSS = `
   .vq{margin:22px 0 6px}
@@ -42,12 +42,16 @@ function scale(name: string, label: string, sub: string, low: string, high: stri
     <div class="qs" style="display:flex;justify-content:space-between;margin-top:5px">${esc(low)}<span>${esc(high)}</span></div></div>`;
 }
 
-// The three-tap ask. Reached only by a scanned-in attendee who hasn't rated yet
-// (the route enforces eligibility; this just draws it).
-export function renderVerdictForm(d: { eventId: string; title: string; back?: string }): string {
+// The three-tap ask. Open to any logged-in fan; the route decides eligibility. The
+// intro adapts to how they experienced it (their tier is derived server-side, not
+// chosen here — so nobody can self-upgrade to "in the room").
+export function renderVerdictForm(d: { eventId: string; title: string; attendance?: Attendance; back?: string }): string {
+  const lead = d.attendance === 'in_room' ? "You were there — that's why we're asking. Three taps."
+    : d.attendance === 'online' ? 'You watched it live. Three taps.'
+    : "You followed this one — your take counts too. The organiser sees it as wider-audience feedback. Three taps.";
   return layout('How was it?', `<style>${CSS}</style>
     <h1>How was it?</h1>
-    <p class="mut">You were there — that's why we're asking. Three taps.</p>
+    <p class="mut">${lead}</p>
     <form method="post" action="/e/${esc(d.eventId)}/verdict">
       ${scale('atmosphere', 'Atmosphere', '', 'Flat', 'Electric')}
       ${scale('worth_it', 'Worth it', '', 'Not really', 'Absolutely')}
@@ -64,14 +68,18 @@ export function renderVerdictForm(d: { eventId: string; title: string; back?: st
 
 // Confirmation + a shareable card. We share the fact of being there and the room —
 // never the private note.
-export function renderVerdictDone(d: { eventId: string; title: string; origin?: string }): string {
+export function renderVerdictDone(d: { eventId: string; title: string; origin?: string; attendance?: Attendance }): string {
   const url = `${d.origin ?? ''}/e/${d.eventId}`;
+  const line = d.attendance === 'in_room' ? 'You were in the room, and you said your piece.'
+    : d.attendance === 'online' ? 'You watched it live, and you said your piece.'
+    : 'Your take is in — logged as wider-audience feedback for the organiser.';
+  const shareLabel = d.attendance === 'off_platform' ? 'Share your take' : 'Share that you were there';
   return layout('Verdict in', `<style>${CSS}</style>
     <h1>Verdict in ✓</h1>
     <p class="mut">Thanks — that's what makes the next one better. Only the organiser sees your note.</p>
     <div class="card"><strong>${esc(d.title)}</strong>
-      <p class="mut" style="font-size:13px;margin:6px 0 12px">You were in the room, and you said your piece.</p>
-      <div class="row">${shareButton({ title: d.title, label: 'Share that you were there', url, cls: 'btn' })}</div>
+      <p class="mut" style="font-size:13px;margin:6px 0 12px">${line}</p>
+      <div class="row">${shareButton({ title: d.title, label: shareLabel, url, cls: 'btn' })}</div>
     </div>
     <div class="row" style="margin-top:10px"><a class="btn ghost" href="/e/${esc(d.eventId)}">Back to the event</a></div>`,
     { back: `/e/${d.eventId}` });
@@ -92,17 +100,26 @@ export function roomScoreBlock(d: { score: number; verdicts: number }): string {
 export function verdictReportBlock(r: EventReport): string {
   const pct = (x: number) => `${Math.round(x * 100)}%`;
   const num = (x: number | null) => x == null ? '—' : x.toFixed(1);
+  const tierLabel: Record<Attendance, string> = { in_room: 'in the room', online: 'stream', off_platform: 'wider' };
   const notes = r.notes.length
     ? `<div class="vnotes"><div class="h3">What they told you</div>${r.notes.map(n =>
-        `<div class="vnitem"><div class="vm">atmosphere ${n.atmosphere} · worth-it ${n.worthIt}</div>${esc(n.note)}</div>`).join('')}</div>`
+        `<div class="vnitem"><div class="vm">${esc(tierLabel[n.attendance])} · atmosphere ${n.atmosphere} · worth-it ${n.worthIt}</div>${esc(n.note)}</div>`).join('')}</div>`
+    : '';
+  // The wider (off_platform) block is ORGANISER-ONLY and never blended into the public score.
+  const wider = r.widerVerdicts
+    ? `<div class="card" style="border-style:dashed"><div class="h3" style="margin-top:0">Wider audience <span class="rsub">— not in your public score</span></div>
+        <div class="vrow"><span>Ratings from people who didn't attend</span><b>${r.widerVerdicts}</b></div>
+        <div class="vrow"><span>Atmosphere · worth-it</span><b>${num(r.wider.atmosphere)} · ${num(r.wider.worthIt)}</b></div>
+        <div class="vrow"><span>Would come</span><b>${r.wider.wouldReturnPct == null ? '—' : r.wider.wouldReturnPct + '%'}</b></div></div>`
     : '';
   return `<style>${CSS}</style><div class="card">
     <div class="h3" style="margin-top:0">Verdict &amp; attendance</div>
     <div class="vrow"><span>Checked in (in the room)</span><b>${r.presences}</b></div>
-    <div class="vrow"><span>Verdicts left</span><b>${r.verdicts} · ${pct(r.responseRate)} response</b></div>
+    <div class="vrow"><span>Verified verdicts</span><b>${r.verifiedVerdicts} · ${pct(r.responseRate)} response</b></div>
+    <div class="vrow"><span>· from the stands / the stream</span><b>${r.inRoom.count} · ${r.online.count}</b></div>
     <div class="vrow"><span>No-show rate</span><b>${pct(r.noShowRate)}</b></div>
-    <div class="vrow"><span>Atmosphere · worth-it</span><b>${num(r.atmosphere)} · ${num(r.worthIt)}</b></div>
-    <div class="vrow"><span>Would come back</span><b>${r.wouldReturnPct == null ? '—' : r.wouldReturnPct + '%'}</b></div>
-    <div class="rsub" style="margin-top:8px">${r.aboveFloor ? 'A public room score is showing on the event page.' : `The public score stays hidden until ${5} verdicts and 20% of the room have spoken.`}</div>
-    ${notes}</div>`;
+    <div class="vrow"><span>Atmosphere · worth-it (verified)</span><b>${num(r.verified.atmosphere)} · ${num(r.verified.worthIt)}</b></div>
+    <div class="vrow"><span>Would come back</span><b>${r.verified.wouldReturnPct == null ? '—' : r.verified.wouldReturnPct + '%'}</b></div>
+    <div class="rsub" style="margin-top:8px">${r.aboveFloor ? 'A public room score is showing on the event page.' : 'The public score stays hidden until 5 verified verdicts and 20% of the room have spoken.'}</div>
+    </div>${wider}${notes ? `<div class="card">${notes}</div>` : ''}`;
 }

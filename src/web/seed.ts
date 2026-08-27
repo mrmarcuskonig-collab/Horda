@@ -101,7 +101,7 @@ Sa 28.06. 15:00 FC Beispiel – TSV Musterstadt
   await setBranding(db, 'association', bfv, { tagline: 'Governing body for Berlin football.', links: { website: 'https://berlinerfv.de', x: 'https://x.com/berlinerfv' } });
 
   // a club broadcast (the hub speaks — author is the club, never a fan)
-  await createPost(db, 'club', cid['FC Beispiel'], 'Dauerkarten für die Rückrunde sind da. Auf geht’s, Horda! 🖤');
+  await createPost(db, 'club', cid['FC Beispiel'], 'Dauerkarten für die Rückrunde sind da. Auf geht’s, Furia! 🖤');
 
   // ---- the fan ("You") follows the idol + the club ----
   const fanId = await createFan(db, 'you', 'You');
@@ -111,11 +111,11 @@ Sa 28.06. 15:00 FC Beispiel – TSV Musterstadt
   const boutDate = at(24, 20);
   await createPost(db, 'athlete', rico, `Camp is done. ${prose(boutDate)} I take the belt. 🐦‍⬛`);
   const nextBout = await createBout(db, boxing, bout, rico, max, boutDate, names[rico], names[max]);
-  await setEventSpectator(db, nextBout, 'free', 'https://tickets.joinhorda.com/rico-max', 'https://stream.joinhorda.com/rico-max');
+  await setEventSpectator(db, nextBout, 'free', 'https://tickets.joinfuria.com/rico-max', 'https://stream.joinfuria.com/rico-max');
 
   // matchday: offer ticket + stream on FC Beispiel's next fixture too
   const nf = await getNextFixtureForTeam(db, tid['FC Beispiel']);
-  if (nf) await setEventSpectator(db, nf.eventId, 'free', 'https://tickets.joinhorda.com/fcb', 'https://stream.joinhorda.com/fcb');
+  if (nf) await setEventSpectator(db, nf.eventId, 'free', 'https://tickets.joinfuria.com/fcb', 'https://stream.joinfuria.com/fcb');
 
   // scheduled (Luma-style) events — one per admission type, across hosts
   const ev1 = await createScheduledEvent(db, { hostKind: 'athlete', hostId: rico, title: 'Open sparring & meet — Kreuzberg BC', startsAt: at(21, 18), location: 'Kreuzberg Boxing Club, Berlin', description: 'Watch the final session before fight night, then stick around for photos. Open to all.', admission: 'open', streams: { youtube: 'https://youtube.com/@ricotheraven/live', twitch: 'https://twitch.tv/ricotheraven' }, capacity: 60 });
@@ -149,8 +149,8 @@ Sa 28.06. 15:00 FC Beispiel – TSV Musterstadt
   await db.query(`UPDATE athlete SET region='Bavaria' WHERE id=$1`, [otto]);
 
   // demo account: the "You" fan + owner of the seeded entities. Keeps the app
-  // usable without login (HORDA_DEMO); real signups get their own scoped identity.
-  const demoAccountId = (await db.query<{ id: string }>(`INSERT INTO account (email,display_name,is_admin) VALUES ('demo@horda.app','You',true) RETURNING id`)).rows[0].id;
+  // usable without login (FURIA_DEMO); real signups get their own scoped identity.
+  const demoAccountId = (await db.query<{ id: string }>(`INSERT INTO account (email,display_name,is_admin) VALUES ('demo@furia.app','You',true) RETURNING id`)).rows[0].id;
   await db.query(`UPDATE fan SET account_id=$1 WHERE id=$2`, [demoAccountId, fanId]);
   await db.query(`UPDATE athlete SET account_id=$1 WHERE id=$2`, [demoAccountId, rico]);
   await grantOwnership(db, demoAccountId, 'athlete', rico);

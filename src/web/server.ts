@@ -83,7 +83,7 @@ import type { PassView } from '../db/claim_rail_repo.ts';
 async function passDataFor(db: Database, p: PassView, origin: string): Promise<PassData> {
   const fanName = (await db.query<{ n: string }>(`SELECT display_name n FROM fan WHERE id=$1`, [p.fanId])).rows[0]?.n ?? 'Guest';
   return {
-    token: p.token, eventTitle: p.eventTitle, hostName: p.hostKind ? await hostName(db, p.hostKind, p.hostId!) : 'Horda',
+    token: p.token, eventTitle: p.eventTitle, hostName: p.hostKind ? await hostName(db, p.hostKind, p.hostId!) : 'Furia',
     startsAt: p.startsAt, timezone: p.timezone,
     // A wallet pass surfaces on the lock screen BY LOCATION — an online event's
     // "location" is a URL, and handing that to the OS would geolocate nonsense.
@@ -102,7 +102,7 @@ async function withMine<T extends { id: string }>(db: Database, fanId: string | 
 const payments = getPayments();
 // The platform fee is derived per-organiser from their plan (see pricing.ts) — NOT
 // a hardcoded constant — so pricing experiments are pure config. Today every
-// organiser is on the Free plan; when Horda Plus billing lands, resolve the event
+// organiser is on the Free plan; when Furia Plus billing lands, resolve the event
 // owner's account.plan and pass it here to charge 0% for Plus.
 const organiserFeePct = (planId: string = DEFAULT_PLAN_ID) => feePctForPlan(planId);
 
@@ -118,7 +118,7 @@ function defaultLangFor(headers: import('node:http').IncomingHttpHeaders): 'en' 
 }
 const emailer = getEmailer();
 
-const DEMO_FALLBACK = process.env.HORDA_DEMO !== '0';  // default on: usable without login
+const DEMO_FALLBACK = process.env.FURIA_DEMO !== '0';  // default on: usable without login
 const parseCookies = (h?: string): Record<string, string> => Object.fromEntries((h ?? '').split(';').map(c => c.trim().split('=')).filter(p => p[0]).map(([k, ...v]) => [k, decodeURIComponent(v.join('='))]));
 import type { StandingDef } from '../engines/types.ts';
 
@@ -180,7 +180,7 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
       }
       // Vanity handle → public entity page, KEEPING the pretty URL. A single,
       // non-reserved segment like /fcrival is resolved to the canonical entity
-      // route INTERNALLY (no redirect), so joinhorda.com/<handle> stays in the
+      // route INTERNALLY (no redirect), so joinfuria.com/<handle> stays in the
       // address bar while the club/athlete page (with all its events) renders.
       if (req.method === 'GET' && path.length > 1 && path.indexOf('/', 1) === -1) {
         const seg = path.slice(1);
@@ -197,7 +197,7 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
       // hz_lang cookie or Accept-Language header. (German still works in SEARCH —
       // that's handled in the discover/map routes via localize.ts, not here.)
       const lang = 'en' as const;
-      const account = (await sessionAccount(db, cookies.hz_session)) ?? (DEMO_FALLBACK ? { id: ids.demoAccountId, email: 'demo@horda.app', displayName: 'You' } : null);
+      const account = (await sessionAccount(db, cookies.hz_session)) ?? (DEMO_FALLBACK ? { id: ids.demoAccountId, email: 'demo@furia.app', displayName: 'You' } : null);
       const viewer = (account ? await fanForAccount(db, account.id) : null) ?? ids.fanId;
       const viewerGuest = !account || url.searchParams.get('guest') === '1';
       // Creators (people who own a page) get the "+" create entry in the nav;
@@ -208,7 +208,7 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
       const canEdit = (kind: string, id: string) => viewerGuest ? Promise.resolve(false) : owns(db, account?.id ?? null, kind, id);
       const adminFlag = !!account && (account.id === ids.demoAccountId ? true : await accountIsAdmin(db, account.id));
       const fwdProto = (req.headers['x-forwarded-proto'] as string | undefined)?.split(',')[0];
-      const origin = process.env.HORDA_URL || `${fwdProto || 'https'}://${req.headers['x-forwarded-host'] || req.headers.host || 'localhost'}`;
+      const origin = process.env.FURIA_URL || `${fwdProto || 'https'}://${req.headers['x-forwarded-host'] || req.headers.host || 'localhost'}`;
       // Persistent login: 90-day cookie (not session-scoped) + Secure on https, so
       // logging in actually sticks across browser restarts. HttpOnly + Lax as before.
       const secure = origin.startsWith('https://');
@@ -340,7 +340,7 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
       // purpose (names aren't unique; handles are); the UI shows a notice.
       // Real-time typeahead for "find your page" — returns JSON the field calls
       // as you type. Each hit says whether it's still CLAIMABLE (unclaimed + no
-      // owner) or already on Horda, and carries its logo for the "this exists" cue.
+      // owner) or already on Furia, and carries its logo for the "this exists" cue.
       if (path === '/onboarding/claim/search') {
         const q = (url.searchParams.get('q') || '').trim();
         const items = q.length >= 2 ? await searchClaimTargets(db, q, 8) : [];
@@ -776,12 +776,12 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
         return redirect(res, f.room_enabled === '1' ? `/e/${id}/room` : parentId ? `/e/${parentId}` : `/e/${id}`);
       }
       // REMOVED (28 Jul 2026): the fan → athlete paid-subscription system
-      // (Supporter/Clubhouse tiers, Superfan status). Horda's one monetization
-      // model is now: free to run events, Horda Plus for organisers (0% fee).
+      // (Supporter/Clubhouse tiers, Superfan status). Furia's one monetization
+      // model is now: free to run events, Furia Plus for organisers (0% fee).
       // The /join, /member and /athlete/:id/tiers routes are gone; the DB tables
       // (membership, membership_tier, loyalty_event) are left dormant, unused.
       if (req.method === 'POST' && path === '/join') {
-        return html(res, '<p>Fan memberships have been retired. <a href="/">Back to Horda</a></p>', 410);
+        return html(res, '<p>Fan memberships have been retired. <a href="/">Back to Furia</a></p>', 410);
       }
       // /ticket/gift · /ticket/list · /ticket/buy — REMOVED, not hidden.
       //
@@ -800,7 +800,7 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
       // resale is a decision rather than an accident, wire THAT — don't restore
       // these.
       if (req.method === 'POST' && /^\/ticket\/(gift|list|buy)$/.test(path)) {
-        return html(res, '<p>Tickets on Horda are personal and non-transferable. <a href="/agb">Why</a></p>', 404);
+        return html(res, '<p>Tickets on Furia are personal and non-transferable. <a href="/agb">Why</a></p>', 404);
       }
       let mm;
       // /member/... retired with the fan-membership system → send them to the page.
@@ -888,7 +888,7 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
             else if (m.kind === 'plus' && m.account_id) { await setAccountPlan(db, m.account_id, 'plus', subId); }
           } else if (event.type === 'customer.subscription.deleted') {
             const sub = event.data?.object ?? {};
-            // The only subscription Horda sells now is Horda Plus — downgrade to Free.
+            // The only subscription Furia sells now is Furia Plus — downgrade to Free.
             if (sub.id) await clearPlanBySubscription(db, sub.id);
           }
         } catch { /* never 500 to Stripe — it would retry forever; we logged-and-acked */ }
@@ -906,7 +906,7 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
         }
         return redirect(res, '/');
       }
-      // --- Horda Plus subscription (organiser upgrade → 0% platform fee) --------
+      // --- Furia Plus subscription (organiser upgrade → 0% platform fee) --------
       if (req.method === 'POST' && path === '/plus/subscribe') {
         if (!account?.id) return redirect(res, '/signup?next=/about/pricing');
         const plus = getPlan('plus');
@@ -917,7 +917,7 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
         if (payments.enabled) {
           const { url } = await payments.createCheckout({
             mode: 'subscription', amountCents, currency: plus.currency, interval: annual ? 'year' : 'month',
-            productName: 'Horda Plus', successUrl: `${origin}/checkout/success?session_id={CHECKOUT_SESSION_ID}`,
+            productName: 'Furia Plus', successUrl: `${origin}/checkout/success?session_id={CHECKOUT_SESSION_ID}`,
             cancelUrl: `${origin}/about/pricing`, metadata: { kind: 'plus', account_id: account.id },
           });
           return redirect(res, url);
@@ -952,7 +952,7 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
       if ((em = path.match(/^\/e\/([^/]+)\/ics$/))) {
         const d = await getEventDetail(db, em[1]);
         if (!d) return html(res, 'Not found', 404);
-        res.writeHead(200, { 'content-type': 'text/calendar; charset=utf-8', 'content-disposition': 'attachment; filename="horda-event.ics"' });
+        res.writeHead(200, { 'content-type': 'text/calendar; charset=utf-8', 'content-disposition': 'attachment; filename="furia-event.ics"' });
         res.end(icsFor(d)); return;
       }
       // --- the claim rail (the pivot) ---------------------------------------
@@ -995,7 +995,7 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
         });
         // One ticket covers the whole event: claiming a SUB-event also enrols you in
         // the MAIN event (free — you already paid for the sub), so BOTH show on your
-        // Horda page. Claiming the MAIN grants implicit access to every sub (no sub
+        // Furia page. Claiming the MAIN grants implicit access to every sub (no sub
         // claims created), so only the main shows on your feed. Idempotent.
         if (d.parentEventId) {
           await createClaim(db, { eventId: d.parentEventId, fanId: claimFan, capacity: null, mode: 'open', priceCents: 0, sourceEdge: 'included:sub', formatId: null, partySize: 1, maxPerPerson: 1 }).catch(() => {});
@@ -1071,7 +1071,7 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
         // needed: a wallet pass built from a token you hold is your own ticket.
         const buf = await buildPkpass(await passDataFor(db, p, origin));
         if (!buf) return html(res, 'Apple Wallet is not configured yet.', 404);
-        res.writeHead(200, { 'content-type': 'application/vnd.apple.pkpass', 'content-disposition': `attachment; filename="horda-ticket.pkpass"` });
+        res.writeHead(200, { 'content-type': 'application/vnd.apple.pkpass', 'content-disposition': `attachment; filename="furia-ticket.pkpass"` });
         res.end(buf);
         return;
       }
@@ -1491,14 +1491,18 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
         // A cancelled event closes the door for everyone. Show why (the organiser's
         // message), and drop the claim rail entirely — nobody joins a cancelled event.
         const cancelledCard = `<div class="card" style="border-color:#e5484d"><strong style="color:#e5707a">This event was cancelled.</strong>${d.cancelMessage ? `<div class="mut" style="margin-top:6px">${esc(d.cancelMessage)}</div>` : ''}${isHost ? `<div class="row" style="margin-top:8px"><a class="btn ghost" href="/manage/${em[1]}">Manage</a></div>` : ''}</div>`;
-        // Rating platform, slice 1. The room's verdict (public, only above the floor)
-        // and a "you were there → rate it" prompt for a scanned-in fan who hasn't yet.
+        // Rating platform. The room's verdict (public, VERIFIED tiers only, above the
+        // floor) plus a "rate it" prompt. Verified attendees (scan/stream) can rate
+        // anytime; everyone else once the event has ended. Copy adapts to the tier.
         // Both ride the existing extraTop slot — no change to renderEventPage.
         const rs = await roomScore(db, em[1]);
         const roomBlock = rs ? roomScoreBlock(rs) : '';
-        const vElig = await verdictEligibility(db, em[1], guest ? null : viewer);
+        const vElig = await verdictEligibility(db, em[1], guest ? null : viewer, ended);
+        const vLead = vElig.attendance === 'in_room' ? 'You were in the room.'
+          : vElig.attendance === 'online' ? 'You watched it live.'
+          : 'Were you following this one?';
         const verdictCta = vElig.canVerdict
-          ? `<div class="card" style="border-color:var(--acc)"><strong>You were in the room.</strong> <span class="mut">How was it? Three taps.</span><div class="row" style="margin-top:8px"><a class="btn" href="/e/${em[1]}/verdict">Rate this event →</a></div></div>`
+          ? `<div class="card" style="border-color:var(--acc)"><strong>${vLead}</strong> <span class="mut">How was it? Three taps.</span><div class="row" style="margin-top:8px"><a class="btn" href="/e/${em[1]}/verdict">Rate this event →</a></div></div>`
           : '';
         const topBlock = (d.cancelledAt ? cancelledCard : (ended ? pastCard + roomCta : claimBlock + roomCta)) + verdictCta + roomBlock;
         const barBlock = (d.cancelledAt || ended) ? '' : stickyCta;
@@ -1541,29 +1545,30 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
         const hostFollowing = (!guest && d.hostKind && d.hostId) ? await isFollowing(db, viewer, d.hostKind, d.hostId) : false;
         return html(res, renderEventPage(d, { guest, fanId: guest ? null : viewer, isFollowing: hostFollowing, myRsvp, isHost, isCoOrg, coOrg, myEntities, myTicket, listings, extraTop: topBlock, stickyCta: barBlock, hasAccess, shareRef, hostLinks, parties, subs, covered, subsMine, parentClaimed: !!parentClaim, parent, canClaim, origin, listable, going: spots.claimed, myPromoToken, myPromoDraw: myPromoDraw ? { identities: myPromoDraw.identities, ticketBuyers: myPromoDraw.ticketBuyers } : undefined }));
       }
-      // Rating platform, slice 1 — leave the verdict for an event.
-      //   GET  the three-tap form, shown ONLY to a scanned-in fan who hasn't rated.
-      //   POST createVerdict derives event/fan from the presence row, so a fan who only
-      //        CLAIMED (never scanned in) cannot record one — not from the form, not by
-      //        hand-crafting the POST. Eligibility is structural (§2.2).
+      // Rating platform (provenance amendment) — leave the verdict for an event.
+      //   GET  the three-tap form; open to any logged-in fan. Copy adapts to their tier.
+      //   POST createVerdict DERIVES the tier from the core graph (a scan = in_room, a
+      //        stream check-in = online, nothing = off_platform self-declared). A fan
+      //        can't claim "in_room" without a scan. off_platform is allowed only after
+      //        the event has ended; verified attendees can rate as soon as they're in.
       if ((em = path.match(/^\/e\/([^/]+)\/verdict$/))) {
         const d = await getEventDetail(db, em[1]);
         if (!d) return html(res, 'Not found', 404);
-        const notInRoom = layout('Not yet', `<h1>Only people who were there can rate it</h1><p class="mut">A verdict needs a real door scan — that's the whole point of the number.</p><div class="row" style="margin:14px 0"><a class="btn" href="/e/${em[1]}">Back to the event</a></div>`);
+        const ended = !!d.startsAt && Date.now() >= new Date(d.startsAt).getTime() + 3 * 3600 * 1000;
+        const notYet = layout('Not yet', `<h1>Rating opens once the event has happened</h1><p class="mut">If you were scanned in you can rate it straight away; otherwise it opens after the final whistle.</p><div class="row" style="margin:14px 0"><a class="btn" href="/e/${em[1]}">Back to the event</a></div>`);
+        const rated = layout('Already rated', `<h1>You've already left your verdict ✓</h1><p class="mut">One per person — thanks for it.</p><div class="row" style="margin:14px 0"><a class="btn ghost" href="/e/${em[1]}">Back to the event</a></div>`);
         if (req.method === 'POST') {
           if (viewerGuest || !account) return redirect(res, `/e/${em[1]}`);
-          const elig = await verdictEligibility(db, em[1], viewer);
-          if (!elig.presenceId) return html(res, notInRoom, 403);
           const f = await parseForm(req);
-          const r = await createVerdict(db, { presenceId: elig.presenceId, atmosphere: Number(f.atmosphere), worthIt: Number(f.worth_it), returnIntent: f.return_intent === '1', note: f.note });
-          if (!r.ok && r.reason === 'no_presence') return html(res, notInRoom, 403);
-          return html(res, renderVerdictDone({ eventId: em[1], title: d.title, origin }));
+          const r = await createVerdict(db, { eventId: em[1], fanId: viewer, atmosphere: Number(f.atmosphere), worthIt: Number(f.worth_it), returnIntent: f.return_intent === '1', note: f.note, ended });
+          if (!r.ok) return html(res, r.reason === 'already' ? rated : notYet, r.reason === 'already' ? 200 : 403);
+          return html(res, renderVerdictDone({ eventId: em[1], title: d.title, origin, attendance: r.attendance }));
         }
         if (viewerGuest || !account) return redirect(res, `/signup?next=/e/${em[1]}/verdict`);
-        const elig = await verdictEligibility(db, em[1], viewer);
-        if (!elig.presenceId) return html(res, notInRoom, 403);
-        if (elig.alreadyRated) return html(res, layout('Already rated', `<h1>You've already left your verdict ✓</h1><p class="mut">One per person — thanks for it.</p><div class="row" style="margin:14px 0"><a class="btn ghost" href="/e/${em[1]}">Back to the event</a></div>`));
-        return html(res, renderVerdictForm({ eventId: em[1], title: d.title }));
+        const elig = await verdictEligibility(db, em[1], viewer, ended);
+        if (elig.alreadyRated) return html(res, rated);
+        if (!elig.canVerdict) return html(res, notYet, 403);
+        return html(res, renderVerdictForm({ eventId: em[1], title: d.title, attendance: elig.attendance }));
       }
       // Edit an event — owner-only, safe fields (never the date).
       if ((em = path.match(/^\/e\/([^/]+)\/edit$/)) && req.method !== 'POST') {
@@ -1764,7 +1769,7 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
       if (path === '/privacy') return redirect(res, '/datenschutz');
       if (path === '/legal') return redirect(res, '/impressum');
 
-      // joinhorda.com/discord → the live invite. One indirection so the invite
+      // joinfuria.com/discord → the live invite. One indirection so the invite
       // can be rotated in env without touching a single published link.
       if (path === '/discord') {
         const inv = discordUrl();
@@ -1882,8 +1887,8 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
         const phone = account ? await getAccountPhone(db, account.id) : null;
         const ownsCount = account ? (await ownedEntities(db, account.id)).length : 0;
         const plan = await getAccountPlan(db, account?.id ?? null);
-        const flash = url.searchParams.get('upgraded') ? 'Welcome to Horda Plus — your paid tickets are now 0% fee.'
-          : url.searchParams.get('downgraded') ? 'Horda Plus cancelled. You’re back on the Free plan.'
+        const flash = url.searchParams.get('upgraded') ? 'Welcome to Furia Plus — your paid tickets are now 0% fee.'
+          : url.searchParams.get('downgraded') ? 'Furia Plus cancelled. You’re back on the Free plan.'
           : url.searchParams.get('ok') || undefined;
         // Only NON-personal pages here (clubs / teams / federations / organisers).
         // The athlete page is the personal account's own creator page, not a peer.
@@ -1902,7 +1907,7 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
         return;
       }
       // Live "is this link free?" for the two custom-URL fields: a page handle
-      // (joinhorda.com/<v>) and an event slug (joinhorda.com/e/<v>). Same JSON
+      // (joinfuria.com/<v>) and an event slug (joinfuria.com/e/<v>). Same JSON
       // shape as /account/username-available, so one inline script drives every
       // one of them. Owner-gated: you can only probe a page/event you own.
       if (path === '/link-available') {
@@ -2225,7 +2230,7 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
           : supporterCard({ athleteName: nm, sport, label: defaultRoomLabel(sport), title: nm, opponent: null }, { backing: true });
         await track(db, 'artifact_share', { ownerKind: sm[1], ownerId: sm[2], props: { kind: 'supporter_card' } });
         const ogImg = `${origin}/share/supporter/${sm[1]}/${sm[2]}.svg`;
-        return html(res, renderSharePage({ title: `Backing ${nm}`, card, body: `I'm backing ${nm} on Horda. Get closer to the athletes you love.`, shareText: `I'm backing ${nm} on Horda — joinhorda.com` }, sm[1] === 'athlete' ? `/athlete/${sm[2]}` : `/${sm[1]}/${sm[2]}`, { guest: viewerGuest, fanId: viewerGuest ? null : viewer }));
+        return html(res, renderSharePage({ title: `Backing ${nm}`, card, body: `I'm backing ${nm} on Furia. Get closer to the athletes you love.`, shareText: `I'm backing ${nm} on Furia — joinfuria.com` }, sm[1] === 'athlete' ? `/athlete/${sm[2]}` : `/${sm[1]}/${sm[2]}`, { guest: viewerGuest, fanId: viewerGuest ? null : viewer }));
       }
       // save a membership tier (Supporter/Clubhouse) — owner only; wired to Stripe
       // Fan tier editor retired with the membership system → back to the page.
@@ -2274,11 +2279,11 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
         void notifyWebhook(`💡 **Feature request**${f.sport ? ` [${f.sport}]` : ''}\n> ${(f.body || '').slice(0, 400)}\n_Triage → if we build it, add it to src/content/changelog.ts and credit the asker._`);
         return redirect(res, req.headers.referer ?? '/');
       }
-      // newsletter opt-in (public). Owner_kind 'horda' = platform-wide list.
+      // newsletter opt-in (public). Owner_kind 'furia' = platform-wide list.
       if (req.method === 'POST' && path === '/newsletter') {
         const f = await parseForm(req);
-        const added = await subscribeNewsletter(db, f.owner_kind || 'horda', f.owner_id || 'horda', f.email || '');
-        if (added) await notifyWebhook(`📰 New newsletter subscriber for ${f.owner_kind || 'horda'}:${f.owner_id || 'horda'}`);
+        const added = await subscribeNewsletter(db, f.owner_kind || 'furia', f.owner_id || 'furia', f.email || '');
+        if (added) await notifyWebhook(`📰 New newsletter subscriber for ${f.owner_kind || 'furia'}:${f.owner_id || 'furia'}`);
         const back = f.owner_kind === 'athlete' && f.owner_id ? `/athlete/${f.owner_id}` : (req.headers.referer ?? '/');
         return redirect(res, back + (back.includes('?') ? '&' : '?') + 'subscribed=1');
       }
@@ -2367,7 +2372,7 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
         const athBanData = { name: profile.name, sport: athSportsArr[0] ?? null, club: athClub, city: (profile as any).region ?? null };
         const athThemedBanner = (profile.bannerUrl) ? undefined : svgDataUri(bannerSvg(athBanData, athTheme));
         const athRealPhoto = profile.bannerUrl && /^https?:\/\//.test(profile.bannerUrl) ? profile.bannerUrl : `${origin}/og/athlete/${m[1]}.svg`;
-        const athOg = ogMeta({ title: `${profile.name} on Horda`, description: profile.tagline || `Follow ${profile.name} on Horda — drops, events and superfan access.`, url: publicUrlFor(origin, 'athlete', m[1], profile.handle), image: athRealPhoto, type: 'profile' });
+        const athOg = ogMeta({ title: `${profile.name} on Furia`, description: profile.tagline || `Follow ${profile.name} on Furia — drops, events and superfan access.`, url: publicUrlFor(origin, 'athlete', m[1], profile.handle), image: athRealPhoto, type: 'profile' });
         const athMedia = await listMedia(db, 'athlete', m[1]);
         const athSponsors = await listSponsors(db, 'athlete', m[1]);
         const athBanner = await getBannerStyle(db, m[1]);
@@ -2397,7 +2402,7 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
         if (!await canEdit(ek, eid)) return redirect(res, `/${ek}/${eid}`);
         const f = await parseForm(req);
         if ((f.name || '').trim()) await updateEntityName(db, ek, eid, f.name);
-        // Vanity handle → joinhorda.com/<handle>. A taken/invalid one is reported,
+        // Vanity handle → joinfuria.com/<handle>. A taken/invalid one is reported,
         // the rest of the edit still saves.
         let handleErr = '';
         if (typeof f.handle === 'string') {
@@ -2442,7 +2447,7 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
           tabs: [{ label: 'Highlight' }, { label: 'Squad' }, { label: 'Fixtures' }, { label: 'Shop', shop: true }],
           statLine, notice, post: cp ? { author: club.name, body: cp.body, date: cp.date } : undefined,
           upcoming, attendance, tableHtml, merch: true, backHref: '/', editAction: `/entity/club/${m[1]}/branding`, customizeHref: `/club/${m[1]}/customize`, canEdit: await canEdit('club', m[1]),
-          ogTags: ogMeta({ title: `${club.name} on Horda`, description: brand.tagline || `Follow ${club.name} on Horda — matchdays, members-only news and tickets.`, url: publicUrlFor(origin, 'club', m[1], club.handle), image: brand.bannerUrl || brand.avatarUrl, type: 'profile' }),
+          ogTags: ogMeta({ title: `${club.name} on Furia`, description: brand.tagline || `Follow ${club.name} on Furia — matchdays, members-only news and tickets.`, url: publicUrlFor(origin, 'club', m[1], club.handle), image: brand.bannerUrl || brand.avatarUrl, type: 'profile' }),
           activation: (await canEdit('club', m[1])) ? renderChecklist(await entityChecklist(db, 'club', m[1])) : '',
           events: await withMine(db, viewerGuest ? null : viewer, await listProfileEvents(db, 'club', m[1])), scheduleHref: `/host/club/${m[1]}/new`,
           members: { title: 'Teams', items: teams.map(t => ({ kind: 'team', label: t.name + (t.division ? ` · ${t.division}` : ''), href: `/team/${t.id}`, tag: t.gender || undefined })) },
@@ -2469,7 +2474,7 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
           tabs: [{ label: 'Highlight' }, { label: 'Squad' }, { label: 'Fixtures' }, { label: 'Shop', shop: true }],
           statLine, notice: nf ? `[Notice] Next match: ${team.name} vs ${nf.opp} — ${nf.date ?? 'soon'}.` : '',
           upcoming, attendance, tableHtml, merch: true, backHref: `/club/${team.club_id}`, editAction: `/entity/team/${m[1]}/branding`, customizeHref: `/team/${m[1]}/customize`, canEdit: await canEdit('team', m[1]),
-          ogTags: ogMeta({ title: `${team.name} on Horda`, description: brand.tagline || `Follow ${team.name} on Horda — matchdays, members-only news and tickets.`, url: publicUrlFor(origin, 'team', m[1], team.handle), image: brand.bannerUrl || brand.avatarUrl, type: 'profile' }),
+          ogTags: ogMeta({ title: `${team.name} on Furia`, description: brand.tagline || `Follow ${team.name} on Furia — matchdays, members-only news and tickets.`, url: publicUrlFor(origin, 'team', m[1], team.handle), image: brand.bannerUrl || brand.avatarUrl, type: 'profile' }),
           activation: (await canEdit('team', m[1])) ? renderChecklist(await entityChecklist(db, 'team', m[1])) : '',
           events: await withMine(db, viewerGuest ? null : viewer, await listProfileEvents(db, 'team', m[1])), scheduleHref: `/host/team/${m[1]}/new`,
           members: { title: 'Squad', items: roster.map(p => ({ kind: 'athlete', label: p.name, href: `/athlete/${p.id}`, tag: p.handle ? '@' + p.handle : undefined })) },
@@ -2490,7 +2495,7 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
           statLine: { label: 'MEMBER CLUBS', value: String(clubs.length), sub: 'in sanctioned leagues' },
           notice: `[Notice] ${assoc.name} sanctions ${leagues.length} competition(s).`,
           merch: false, backHref: '/', editAction: `/entity/association/${m[1]}/branding`, customizeHref: `/association/${m[1]}/customize`, canEdit: await canEdit('association', m[1]),
-          ogTags: ogMeta({ title: `${assoc.name} on Horda`, description: brand.tagline || `${assoc.name} on Horda — the home for its clubs, competitions and fans.`, url: publicUrlFor(origin, 'association', m[1], assoc.handle), image: brand.bannerUrl || brand.avatarUrl, type: 'profile' }),
+          ogTags: ogMeta({ title: `${assoc.name} on Furia`, description: brand.tagline || `${assoc.name} on Furia — the home for its clubs, competitions and fans.`, url: publicUrlFor(origin, 'association', m[1], assoc.handle), image: brand.bannerUrl || brand.avatarUrl, type: 'profile' }),
           activation: (await canEdit('association', m[1])) ? renderChecklist(await entityChecklist(db, 'association', m[1])) : '',
           events: await withMine(db, viewerGuest ? null : viewer, await listProfileEvents(db, 'association', m[1])), scheduleHref: `/host/association/${m[1]}/new`,
           members: { title: 'Member clubs', items: clubs.map(c => ({ kind: 'club', label: c.name, href: `/club/${c.id}` })) },
@@ -2512,7 +2517,7 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
 async function loadDemoIds(db: Database): Promise<DemoIds> {
   const one = async (s: string, p: any[] = []) => (await db.query<any>(s, p)).rows[0];
   const many = async (s: string, p: any[] = []) => (await db.query<any>(s, p)).rows;
-  const demoAccountId = (await one(`SELECT id FROM account WHERE email='demo@horda.app'`))?.id;
+  const demoAccountId = (await one(`SELECT id FROM account WHERE email='demo@furia.app'`))?.id;
   const fanId = (await one(`SELECT id FROM fan WHERE account_id=$1 LIMIT 1`, [demoAccountId]))?.id;
   const athletes = (await many(`SELECT id, display_name name FROM athlete ORDER BY created_at LIMIT 2`)).map(a => ({ id: a.id, name: a.name }));
   const clubs = (await many(`SELECT id, name FROM club ORDER BY created_at LIMIT 1`)).map(c => ({ id: c.id, name: c.name }));
@@ -2528,16 +2533,16 @@ export async function startServer(port = Number(process.env.PORT ?? 8787)): Prom
   // drop) crash the whole web process and blank every page. Log loudly instead.
   process.on('unhandledRejection', (r) => reportError(r, { where: 'unhandledRejection' }));
   process.on('uncaughtException', (e) => reportError(e, { where: 'uncaughtException' }));
-  const db = await openDatabase();   // DATABASE_URL → server Postgres (prod); else embedded PGlite (HORDA_DATA persists)
+  const db = await openDatabase();   // DATABASE_URL → server Postgres (prod); else embedded PGlite (FURIA_DATA persists)
   const fresh = (await db.query<{ r: string | null }>(`SELECT to_regclass('public.account')::text r`)).rows[0].r === null;
   const pending = await applySchema(db);   // ALWAYS apply pending migrations (new + existing DBs alike)
   if (pending.length) console.log(`[migrations] applied: ${pending.join(', ')}`);
   // Seed the demo content ONLY when the demo fallback is on. In production
-  // (HORDA_DEMO=0) a fresh database must come up EMPTY — otherwise wiping the DB
+  // (FURIA_DEMO=0) a fresh database must come up EMPTY — otherwise wiping the DB
   // to clear seed data just re-creates the fake clubs on the next boot, which is
-  // exactly the trap we hit on joinhorda.com. Tests don't set HORDA_DEMO, so they
+  // exactly the trap we hit on joinfuria.com. Tests don't set FURIA_DEMO, so they
   // still seed as before.
-  const demoOn = process.env.HORDA_DEMO !== '0';
+  const demoOn = process.env.FURIA_DEMO !== '0';
   const ids = (fresh && demoOn) ? await seedDemo(db) : await loadDemoIds(db);   // seed once; reuse on restart
   const server = await buildApp(db, ids);
   await new Promise<void>(r => server.listen(port, r));
@@ -2548,9 +2553,9 @@ export async function startServer(port = Number(process.env.PORT ?? 8787)): Prom
 
 if (import.meta.url === `file://${process.argv[1]}`) {
   const { port, ids } = await startServer();
-  console.log(`Horda running → http://localhost:${port}`);
+  console.log(`Furia running → http://localhost:${port}`);
   console.log(`  /                     home`);
-  // These demo deep-links only exist when seeded (HORDA_DEMO!=0). On an empty
+  // These demo deep-links only exist when seeded (FURIA_DEMO!=0). On an empty
   // production DB there is no demo content, so guard every deref — a fresh,
   // demo-off boot must start cleanly, not crash on ids.athletes[0].
   if (ids.fanId) console.log(`  /fan/${ids.fanId}     your feed`);

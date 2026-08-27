@@ -27,7 +27,7 @@ export interface UpcomingView { eventId: string; opponentId: string | null; oppo
 export function renderIndex(d: { fan: { id: string; name: string }; athletes: { id: string; name: string }[]; clubs: { id: string; name: string }[]; teams: { id: string; name: string }[]; association: { id: string; name: string } }): string {
   const row = (href: string, label: string, tag: string) => `<li><span class="hl"><a href="${href}">${esc(label)} →</a></span><span class="tag mutd">${tag}</span></li>`;
   return layout('Home', `
-  <h1>This is the Horda.</h1>
+  <h1>This is the Furia.</h1>
   <p class="mut">Closeness to what you follow. Pick someone to back.</p>
   <h2>Your home</h2>
   <ul>${row(`/fan/${d.fan.id}`, `${d.fan.name}'s feed`, 'fan')}</ul>
@@ -130,7 +130,7 @@ export function renderDiscover(d: {
     `<span class="est" title="${esc(tr('followers'))}">${ICN.heart}${num(e.followers ?? 0)}</span>` +
     `<span class="est" title="${esc(tr('shares'))}">${ICN.share}${num(e.shares ?? 0)}</span></div>`;
 
-  // featured — the lead content: big, photo-forward PUBLIC EVENT cards (Horda is
+  // featured — the lead content: big, photo-forward PUBLIC EVENT cards (Furia is
   // an identity-capture + events + ticketing product; events lead everywhere).
   const admLabel = (a: string) => a === 'paid' ? 'Ticketed' : a === 'apply' ? 'Apply' : 'Free';
   type UpEv = (typeof d.data.upcoming)[number];
@@ -171,7 +171,7 @@ export function renderDiscover(d: {
   const clubs = d.data.clubs.length ? `<h2>${esc(tr('clubs_head'))}</h2><div class="dlist">${
     d.data.clubs.map(c => card(`/club/${c.id}`, c.name, [c.sport, c.region].filter(Boolean).join(' · ') || 'club', 'club', c.verified)).join('')
   }</div>` : '';
-  // Results intentionally omitted: Horda is a superfan platform (drops, exclusive
+  // Results intentionally omitted: Furia is a superfan platform (drops, exclusive
   // access, tiers, events) — not a scores/standings product. We lead with events.
   // An empty filter is the single best moment to ask someone to create an event:
   // they've just told us the exact sport and city they care about, and we've just
@@ -206,7 +206,7 @@ export function renderDiscover(d: {
   // The shared desktop rail (identical to every other page).
   const deskRailHtml = deskRail({ guest: d.guest, fanId: d.fanId, lang, unread: d.unread ?? 0, active: 'explore', region: d.region, sport: d.sport });
 
-  return `<!DOCTYPE html><html lang="${lang}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><link rel="icon" href="/favicon.svg"><title>Horda</title>${THEME_BOOT}
+  return `<!DOCTYPE html><html lang="${lang}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><link rel="icon" href="/favicon.svg"><title>Furia</title>${THEME_BOOT}
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
@@ -344,7 +344,7 @@ export function renderMap(d: { guest: boolean; fanId: string | null; createHref?
   // the moment you clicked "Open the map". Carry the chosen language through.
   const lang: Lang = d.lang ?? 'en';
   const pointsJson = JSON.stringify(d.points).replace(/</g, '\\u003c');
-  return `<!DOCTYPE html><html lang="${lang}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><link rel="icon" href="/favicon.svg"><title>${esc(t(lang, 'event_map'))} — Horda</title>${THEME_BOOT}
+  return `<!DOCTYPE html><html lang="${lang}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><link rel="icon" href="/favicon.svg"><title>${esc(t(lang, 'event_map'))} — Furia</title>${THEME_BOOT}
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
@@ -664,7 +664,7 @@ export function renderAthletePage(d: {
     ? `<div class="gatebar"><span><strong>Only members can see the content in full.</strong> You're browsing as a guest.</span><a class="btn" href="/signup">Log in to continue ›</a></div>`
     : '';
 
-  return `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><link rel="icon" href="/favicon.svg"><title>${esc(p.name)} — Horda</title>${d.ogTags ?? ''}${THEME_BOOT}
+  return `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><link rel="icon" href="/favicon.svg"><title>${esc(p.name)} — Furia</title>${d.ogTags ?? ''}${THEME_BOOT}
 <style>
   ${THEME_VARS}
   ${THM_CSS}
@@ -799,7 +799,7 @@ const SPORTS: [string, string][] = [
   ['motorsport', 'Motorsport'], ['karting', 'Karting'], ['motocross', 'Motocross'], ['rally', 'Rally'],
   ['equestrian', 'Equestrian'], ['archery', 'Archery'], ['shooting', 'Shooting'], ['darts', 'Darts'], ['bowling', 'Bowling'], ['pool', 'Pool / billiards'],
   // Competitive gaming + digitally‑mediated sport (sim racing, virtual cycling
-  // like Zwift, virtual rowing). A real and growing category on Horda.
+  // like Zwift, virtual rowing). A real and growing category on Furia.
   ['esports', 'Esports'], ['digital_sports', 'Digital sports'], ['sim_racing', 'Sim racing'], ['chess', 'Chess'], ['cheerleading', 'Cheerleading'], ['dance', 'Dance'],
   // Hybrid racing — its own category, not a flavour of running or CrossFit.
   // This is where the mass-participation events actually are right now.
@@ -889,7 +889,7 @@ export function profileSwitcher(d: { personalActive: boolean; personalName?: str
 
 // --- the custom-link field, with a live "is it free / is it valid" check ----
 // One component behind every custom URL in the product: a page's handle
-// (joinhorda.com/<v>) and an event's slug (joinhorda.com/e/<v>). It mirrors the
+// (joinfuria.com/<v>) and an event's slug (joinfuria.com/e/<v>). It mirrors the
 // username field in Settings — 280ms debounce, a stale-response guard so a slow
 // answer can't overwrite a newer one, and a data-current attribute so "no
 // change" says nothing. Typing is forced lowercase, which is also the rule.
@@ -916,14 +916,14 @@ export function customLinkField(d: {
       function val(){return i.value.trim().replace(/^@/,'').toLowerCase();}
       function check(){
         var v=val();
-        if(!v){set('','Leave blank to keep the default Horda link.');return;}
+        if(!v){set('','Leave blank to keep the default Furia link.');return;}
         if(v===(i.getAttribute('data-current')||'')){set('','This is your link right now.');return;}
         if(!RE.test(v)){set('bad',${JSON.stringify(rule)});return;}
         set('','Checking availability…');
         fetch(${JSON.stringify(q)}+encodeURIComponent(v),{headers:{accept:'application/json'}})
           .then(function(r){return r.json()})
           .then(function(d){ if(v!==val())return;
-            if(d && d.reserved){set('bad','✗ /'+v+' is reserved by Horda');}
+            if(d && d.reserved){set('bad','✗ /'+v+' is reserved by Furia');}
             else if(!d||!d.valid){set('bad',${JSON.stringify(rule)});}
             else if(d.available){set('ok','✓ '+v+' is free');}
             else{set('bad','✗ '+v+' is already taken');} })
@@ -941,7 +941,7 @@ export function renderCustomize(d: { athleteId: string; fanId: string | null; sp
   const inp = 'display:block;width:100%;margin-top:6px;background:var(--s);border:1px solid var(--b);border-radius:10px;color:var(--bone);padding:10px;font:inherit';
   // The link we show the owner is the one the page actually answers on — the
   // custom handle the moment it exists, the /athlete/:id path until then.
-  const host = (d.origin || 'joinhorda.com').replace(/^https?:\/\//, '');
+  const host = (d.origin || 'joinfuria.com').replace(/^https?:\/\//, '');
   const livePath = publicPathFor('athlete', d.athleteId, d.handle);
   const liveUrl = host + livePath, liveHref = livePath;
   const L = d.links ?? {};
@@ -995,7 +995,7 @@ export function renderCustomize(d: { athleteId: string; fanId: string | null; sp
       <form method="post" action="/athlete/${esc(d.athleteId)}/identity" data-lockedit style="margin-bottom:14px;border-bottom:1px solid var(--b);padding-bottom:12px">
         <p class="mut" style="font-size:12px;margin:0 0 8px">Locked to avoid accidental changes — tap <b style="color:var(--bone)">Edit</b> to change your name or link.</p>
         <label class="mut" style="display:block;font-size:13px">Name<input style="${inp}" name="name" value="${esc(d.name ?? '')}" placeholder="Rico Ravens" required></label>
-        ${customLinkField({ scope: 'profile', kind: 'athlete', id: d.athleteId, field: 'handle', value: (d.handle ?? '').replace(/^@/, ''), prefix: host + '/', label: 'Your link', hint: 'Lowercase letters, numbers, and _ . \u2014 this replaces the Horda link everywhere.', inputStyle: inp })}
+        ${customLinkField({ scope: 'profile', kind: 'athlete', id: d.athleteId, field: 'handle', value: (d.handle ?? '').replace(/^@/, ''), prefix: host + '/', label: 'Your link', hint: 'Lowercase letters, numbers, and _ . \u2014 this replaces the Furia link everywhere.', inputStyle: inp })}
         <label class="mut" style="display:block;margin:8px 0 0;font-size:13px">One-line about<input style="${inp}" name="tagline" maxlength="90" value="${esc(d.tagline ?? '')}" placeholder="Southpaw welterweight out of Kreuzberg">
           <span class="mut" style="font-size:11.5px">One line, shown next to your name. Max 90 characters.</span></label>
         <label class="mut" style="display:block;margin:8px 0 0;font-size:13px">Description<textarea style="${ta}" name="description" maxlength="2000" placeholder="The longer version — what you compete in, where you train, what fans should know.">${esc(d.description ?? '')}</textarea></label>
@@ -1029,7 +1029,7 @@ export function renderCustomize(d: { athleteId: string; fanId: string | null; sp
       <div class="row"><button type="submit">Save layout</button><a class="btn ghost" href="/athlete/${esc(d.athleteId)}">Cancel</a></div>
     </form>
     ${d.themeStudioHtml ? `<div class="card" style="margin-top:16px">
-      <h2 style="font-size:13px;letter-spacing:1px;text-transform:uppercase;margin-bottom:6px">Banner &amp; theme — your corner of Horda</h2>
+      <h2 style="font-size:13px;letter-spacing:1px;text-transform:uppercase;margin-bottom:6px">Banner &amp; theme — your corner of Furia</h2>
       <p class="mut" style="font-size:12.5px">Your page starts with an auto-generated banner. Pick a look, set your accent, or pull colors from a photo — it also skins your OG share cards.</p>
       ${d.themeStudioHtml}
     </div>` : ''}
@@ -1101,7 +1101,7 @@ export function renderCustomize(d: { athleteId: string; fanId: string | null; sp
 // editors: name, about, photos and links, with the profile switcher on top so it's
 // clear which page you're editing.
 export function renderEntityEdit(d: { kind: 'club' | 'team' | 'association'; id: string; fanId: string | null; name: string; tagline?: string | null; description?: string | null; avatarUrl?: string | null; bannerUrl?: string | null; links?: Record<string, string>; managed?: { kind: string; id: string; name: string }[]; handle?: string | null; origin?: string; error?: string }): string {
-  const host = (d.origin || 'joinhorda.com').replace(/^https?:\/\//, '');
+  const host = (d.origin || 'joinfuria.com').replace(/^https?:\/\//, '');
   const livePath = publicPathFor(d.kind, d.id, d.handle);
   const liveUrl = host + livePath;
   const inp = 'display:block;width:100%;margin-top:6px;background:var(--s);border:1px solid var(--b);border-radius:10px;color:var(--bone);padding:10px;font:inherit';
@@ -1121,7 +1121,7 @@ export function renderEntityEdit(d: { kind: 'club' | 'team' | 'association'; id:
       <form method="post" action="/${d.kind}/${esc(d.id)}/identity" data-lockedit>
         <p class="mut" style="font-size:12px;margin:0 0 8px">Locked to avoid accidental changes — tap <b style="color:var(--bone)">Edit</b> to change your name or link.</p>
         <label class="mut" style="display:block;font-size:13px">Name<input style="${inp}" name="name" value="${esc(d.name)}" required></label>
-        ${customLinkField({ scope: 'profile', kind: d.kind, id: d.id, field: 'handle', value: d.handle ?? '', prefix: host + '/', label: 'Your link \u00b7 share this, not a Horda link', hint: 'Lowercase letters, numbers, and _ . - \u2014 this replaces the Horda link everywhere. Leave blank to keep the default.', inputStyle: inp })}
+        ${customLinkField({ scope: 'profile', kind: d.kind, id: d.id, field: 'handle', value: d.handle ?? '', prefix: host + '/', label: 'Your link \u00b7 share this, not a Furia link', hint: 'Lowercase letters, numbers, and _ . - \u2014 this replaces the Furia link everywhere. Leave blank to keep the default.', inputStyle: inp })}
         <label class="mut" style="display:block;margin:8px 0 0;font-size:13px">One-line about<input style="${inp}" name="tagline" maxlength="90" value="${esc(d.tagline ?? '')}" placeholder="Grassroots football in Kreuzberg since 1924">
           <span class="mut" style="font-size:11.5px">One line, shown next to the name. Max 90 characters.</span></label>
         <label class="mut" style="display:block;margin:8px 0 0;font-size:13px">Description<textarea style="${ta}" name="description" maxlength="2000" placeholder="The longer version — who you are, what you run, who turns up.">${esc(d.description ?? '')}</textarea></label>
@@ -1148,7 +1148,7 @@ export function renderEntityEdit(d: { kind: 'club' | 'team' | 'association'; id:
 // --- /pros — the athlete acquisition door (§1b, §10). Sells the back office. --
 export function renderPros(d: { guest: boolean; fanId: string | null }): string {
   const cta = d.guest ? '/signup?next=/onboarding/athlete&intent=pro' : '/onboarding/athlete';
-  return layout('Horda for athletes', `
+  return layout('Furia for athletes', `
     <style>
       .prohero{padding:26px 0 8px}
       .prohero h1{font-size:34px;line-height:1.05;margin:8px 0}
@@ -1158,9 +1158,9 @@ export function renderPros(d: { guest: boolean; fanId: string | null }): string 
       .steps span{font-size:12px;border:1px solid var(--b);border-radius:999px;padding:5px 11px;color:var(--mut)}
     </style>
     <div class="prohero">
-      <div class="mut" style="font-size:12px;letter-spacing:2px;text-transform:uppercase;font-weight:800">Horda for athletes</div>
+      <div class="mut" style="font-size:12px;letter-spacing:2px;text-transform:uppercase;font-weight:800">Furia for athletes</div>
       <h1>Your fights, your fans, your revenue.</h1>
-      <p class="mut" style="max-width:52ch">Post a result in one line — Horda writes the recap, makes the share cards, and updates your page. Run your events, sell tickets, and see exactly who you brought to the door. Built for boxers and footballers who train more than they post.</p>
+      <p class="mut" style="max-width:52ch">Post a result in one line — Furia writes the recap, makes the share cards, and updates your page. Run your events, sell tickets, and see exactly who you brought to the door. Built for boxers and footballers who train more than they post.</p>
       <div class="row"><a class="btn" href="${cta}">Create your page →</a><a class="btn ghost" href="${cta}">Publish your first event</a></div>
       <div class="steps"><span>1 · Sign up</span><span>2 · Photo + sport</span><span>3 · Connect socials</span><span>4 · Create your page</span><span>5 · First event</span></div>
       <p class="mut" style="font-size:12px">Under 5 minutes to your first event page. You keep your audience — export anytime.</p>
@@ -1266,7 +1266,7 @@ export function renderSettings(d: { fanId: string; fanName: string; handle?: str
       </form>
       <div class="setcard">
         <h4>Sign-in &amp; security</h4>
-        <p class="fh">Horda is passwordless — you sign in with a magic link by email, so there’s no password to manage. Signed out of a shared device?</p>
+        <p class="fh">Furia is passwordless — you sign in with a magic link by email, so there’s no password to manage. Signed out of a shared device?</p>
         <form method="post" action="/account/signout-all"><button class="btn ghost" type="submit">Log out on all devices</button></form>
       </div>
       <details class="setcard" style="border-color:rgba(229,72,77,.4)">
@@ -1279,24 +1279,24 @@ export function renderSettings(d: { fanId: string; fanName: string; handle?: str
     <div class="setgroup"><div class="seth">Billing</div>
       ${d.plan === 'plus'
         ? `<form class="setcard" method="post" action="/plus/cancel">
-             <h4>Horda Plus · <span style="color:var(--acc)">Active</span></h4>
+             <h4>Furia Plus · <span style="color:var(--acc)">Active</span></h4>
              <p class="fh">0% platform fee on your paid tickets, plus the Plus tools. Cancel any time — you keep Plus until the period ends, then drop back to Free (${d.platformFeePct ?? 5}% fee).</p>
-             <button class="btn ghost" type="submit">Cancel Horda Plus</button>
+             <button class="btn ghost" type="submit">Cancel Furia Plus</button>
            </form>`
         : `<div class="setcard">
-             <h4>Horda Free</h4>
-             <p class="fh">You pay a ${d.platformFeePct ?? 5}% platform fee on paid tickets. ${d.plusLive ? 'Upgrade to Horda Plus for 0% fee and scale tools.' : 'Horda Plus (0% fee) is coming soon.'}</p>
-             <a class="btn${d.plusLive ? '' : ' ghost'}" href="/about/pricing">${d.plusLive ? 'Upgrade to Horda Plus' : 'See pricing'}</a>
+             <h4>Furia Free</h4>
+             <p class="fh">You pay a ${d.platformFeePct ?? 5}% platform fee on paid tickets. ${d.plusLive ? 'Upgrade to Furia Plus for 0% fee and scale tools.' : 'Furia Plus (0% fee) is coming soon.'}</p>
+             <a class="btn${d.plusLive ? '' : ' ghost'}" href="/about/pricing">${d.plusLive ? 'Upgrade to Furia Plus' : 'See pricing'}</a>
            </div>`}
     </div>
 
-    ${group('Support', row('About Horda', '/about')
+    ${group('Support', row('About Furia', '/about')
       + row('Changelog — what we just shipped', '/changelog', 'And what we’re building next')
       + (hasDiscord() ? row('Join our Discord ↗', discordUrl(), 'Ask for a feature, argue with our decisions') : ''))}
     <div class="setgroup">
       <a class="setrow danger" href="/logout"><span>Log out</span></a>
     </div>
-    <div class="prov">Horda — the events home for sports and competitive culture.</div>
+    <div class="prov">Furia — the events home for sports and competitive culture.</div>
   `, { back: `/fan/${d.fanId}`, nav: { active: 'you', guest: false, fanId: d.fanId, createHref: d.createHref } });
 }
 
@@ -1347,7 +1347,7 @@ export const NOTIF_GROUPS: { group: string; items: { key: string; label: string;
   { group: 'Pages you manage', items: [
     { key: 'new_members', label: 'New followers', desc: 'When someone follows a page you run' },
   ]},
-  { group: 'Horda', items: [
+  { group: 'Furia', items: [
     { key: 'product_updates', label: 'Product updates', desc: 'What we ship, occasionally' },
   ]},
 ];
@@ -1430,7 +1430,7 @@ export function renderClaimHandle(d: { guest: boolean; fanId: string | null; res
   }
   return layout('Claim your handle', `
     <h1>Claim your @handle</h1>
-    <p class="mut" style="max-width:46ch">Lock in your name on Horda before someone else does. Reserve it now — build the page when you're ready. Free, takes ten seconds.</p>
+    <p class="mut" style="max-width:46ch">Lock in your name on Furia before someone else does. Reserve it now — build the page when you're ready. Free, takes ten seconds.</p>
     ${banner}
     <form method="post" action="/claim-handle" style="margin-top:14px;max-width:420px">
       <label class="mut" style="display:block;font-size:13px">Your handle
@@ -1450,7 +1450,7 @@ export function renderCompose(d: { athleteId: string; fanId: string | null; hasP
   const ta = 'display:block;width:100%;margin-top:8px;background:var(--s);border:1px solid var(--b);border-radius:12px;color:var(--bone);padding:13px;font:inherit;min-height:120px;line-height:1.55';
   return layout('Create', `
     <h1>Create an event</h1>
-    <p class="mut">On Horda you create <strong>events people claim</strong> — a match, a race, a run, a watch party, a session. Capacity, ticket types, waitlists and entry control are all set on the event itself.</p>
+    <p class="mut">On Furia you create <strong>events people claim</strong> — a match, a race, a run, a watch party, a session. Capacity, ticket types, waitlists and entry control are all set on the event itself.</p>
     <div class="card"><p class="mut" style="font-size:13.5px;margin-bottom:10px">Everything is one flow now — pick who can get in and how right on the event.</p><a class="btn" href="/host/athlete/${esc(d.athleteId)}/new">Create an event →</a></div>
   `, { back: `/athlete/${d.athleteId}`, nav: { active: 'you', guest: false, fanId: d.fanId, createHref: `/athlete/${d.athleteId}/compose` } });
 }
@@ -1461,15 +1461,15 @@ export function renderSharePage(a: { title: string; card: string; body: string; 
   const enc = encodeURIComponent(a.shareText);
   return layout(a.title, `
     <style>.sc svg{width:100%;height:auto;display:block;border-radius:14px}</style>
-    <p class="mut" style="margin-top:18px">Shared from the Horda</p>
+    <p class="mut" style="margin-top:18px">Shared from the Furia</p>
     <div class="sc" style="max-width:360px;margin:10px 0">${a.card}</div>
     <p style="white-space:pre-wrap;font-size:15px;margin:12px 0">${esc(a.body)}</p>
     <div class="row">
       <a class="tag" href="https://twitter.com/intent/tweet?text=${enc}" target="_blank" rel="noopener">Share on X</a>
       <a class="tag" href="https://wa.me/?text=${enc}" target="_blank" rel="noopener">WhatsApp</a>
-      <a class="tag" href="data:image/svg+xml;utf8,${encodeURIComponent(a.card)}" download="horda-card.svg">Download card</a>
+      <a class="tag" href="data:image/svg+xml;utf8,${encodeURIComponent(a.card)}" download="furia-card.svg">Download card</a>
     </div>
-    <div class="card" style="margin-top:20px"><strong>This is the Horda.</strong> The home for superfans of sports and competitive culture.
+    <div class="card" style="margin-top:20px"><strong>This is the Furia.</strong> The home for superfans of sports and competitive culture.
       <div class="row"><a href="${esc(joinHref)}"><button>Join free</button></a></div></div>`,
     // Public acquisition surface — but a logged-in viewer must still see their own
     // rail, not "Log in / Join free". Defaults to guest when the route doesn't say.
@@ -1478,7 +1478,7 @@ export function renderSharePage(a: { title: string; card: string; body: string; 
 
 // the "founding member" moment — celebratory + shareable (FOMO spread).
 export function renderMemberWelcome(d: { name: string; tierName: string; memberNo: number; href: string }): string {
-  const shareText = encodeURIComponent(`I just became a founding member of ${d.name} on Horda. Get closer: joinhorda.com`);
+  const shareText = encodeURIComponent(`I just became a founding member of ${d.name} on Furia. Get closer: joinfuria.com`);
   return layout(`Member of ${d.name}`, `
     <div class="card" style="text-align:center;padding:28px 18px">
       <div style="font-size:13px;letter-spacing:2px;text-transform:uppercase;color:var(--mut);font-weight:800">${esc(d.tierName)}</div>
@@ -1630,7 +1630,7 @@ export function renderCreatorEntry(d: { guest: boolean; hasAthlete?: boolean }):
     `<div class="ccard"><h2>${title}</h2><p>${blurb}</p><a class="btn" href="${claimHref(kind)}">${cta}</a> <a href="/about#features" style="margin-left:8px;font-size:13px;border-bottom:1px solid var(--b)">what you get →</a></div>`;
   const heading = showAthlete ? 'Create a page' : 'Create a club, federation or event organiser page';
   const lead = showAthlete
-    ? 'Run your own page on Horda — for you as an athlete, or for a club, federation or event you organise.'
+    ? 'Run your own page on Furia — for you as an athlete, or for a club, federation or event you organise.'
     : 'You already have your athlete page. Add a page for a club, federation or event you organise.';
   return layout('Set up your page', `
     <style>.cgrid{display:grid;gap:12px;margin-top:16px}.ccard{border:1px solid var(--b);border-radius:14px;padding:16px 18px}.ccard h2{margin:0 0 4px;font-size:17px;border:none;padding:0;text-transform:none;letter-spacing:0}.ccard p{color:var(--mut);font-size:13.5px;margin:0 0 12px}</style>
@@ -1663,7 +1663,7 @@ export function renderOnboardFan(d: { fanId: string; sport?: string; sports: { k
     ...d.athletes.map(a => pick('athlete', a.id, a.name, [a.sport, a.region].filter(Boolean).join(' · ') || 'athlete', a.verified)),
     ...d.clubs.map(c => pick('club', c.id, c.name, [c.sport, c.region].filter(Boolean).join(' · ') || 'club', c.verified)),
   ].join('') || `<p class="mut">No coverage for that sport yet — try another, or skip.</p>`;
-  return layout('Set up your Horda', `
+  return layout('Set up your Furia', `
     <style>.pick{display:flex;align-items:center;gap:11px;border:1px solid var(--b);border-radius:12px;padding:11px 13px;margin:8px 0;cursor:pointer}
     .pick input{position:absolute;opacity:0;width:0;height:0}
     .pick .po{flex:1;min-width:0}.on{font-weight:800;font-size:15px}.osub{color:var(--mut);font-size:12px;text-transform:capitalize;display:block;margin-top:1px}.sf{color:var(--bone)}
@@ -1690,9 +1690,9 @@ export function renderWelcome(d: { fanId: string; createHref?: string }): string
     <div style="max-width:520px;margin:0 auto;text-align:center;padding:18px 0">
       <div style="color:#5865F2;line-height:0;margin-bottom:16px">${discordMark(38)}</div>
       <h1 style="font-size:29px;font-weight:900;letter-spacing:-.02em;margin-bottom:12px">You’re in. Now come tell us what to build.</h1>
-      <p class="mut" style="line-height:1.6;margin-bottom:22px">Horda is built in the open — we ship every week and publish every change. Our Discord is where fans, athletes and organisers tell us what’s missing. Ask for something; when we build it, your name goes on the <a href="/changelog" style="color:var(--bone);border-bottom:1px solid var(--b)">changelog</a>.</p>
+      <p class="mut" style="line-height:1.6;margin-bottom:22px">Furia is built in the open — we ship every week and publish every change. Our Discord is where fans, athletes and organisers tell us what’s missing. Ask for something; when we build it, your name goes on the <a href="/changelog" style="color:var(--bone);border-bottom:1px solid var(--b)">changelog</a>.</p>
       <a class="btn" href="${esc(discordUrl())}" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:9px">${discordMark(16)} Join the Discord ↗</a>
-      <div style="margin-top:18px"><a class="mut" href="${next}" style="font-size:14px;border-bottom:1px solid var(--b)">Skip — take me to Horda</a></div>
+      <div style="margin-top:18px"><a class="mut" href="${next}" style="font-size:14px;border-bottom:1px solid var(--b)">Skip — take me to Furia</a></div>
     </div>
   `, { nav: { active: 'home', guest: false, fanId: d.fanId, createHref: d.createHref } });
 }
@@ -1732,7 +1732,7 @@ export function renderProfileCreate(d: {
       <label class="mut" style="display:block;margin:12px 0 0;font-size:13px">Description
         <textarea style="${ta}" name="description" maxlength="2000" placeholder="${esc(descPh)}"></textarea>
         <span class="mut" style="font-size:11.5px">The longer about, shown on the page itself.</span></label>
-      <p class="mut" style="margin:14px 0 0;font-size:12.5px">Your page gets a Horda link to start with. Once it exists you can claim a custom one — <span style="color:var(--bone)">joinhorda.com/yourname</span> — from the edit page.</p>
+      <p class="mut" style="margin:14px 0 0;font-size:12.5px">Your page gets a Furia link to start with. Once it exists you can claim a custom one — <span style="color:var(--bone)">joinfuria.com/yourname</span> — from the edit page.</p>
       <div class="row" style="margin-top:14px"><button type="submit">Save</button></div>
     </form>
     ${d.altLink ?? ''}`, { back: d.back });
@@ -1740,7 +1740,7 @@ export function renderProfileCreate(d: {
 
 // --- onboarding: find + claim an existing org page, or create one from scratch
 // A single live-search field. As you type it shows matching pages: unclaimed ones
-// get a "Claim" button; ones already on Horda are highlighted with their logo (no
+// get a "Claim" button; ones already on Furia are highlighted with their logo (no
 // claim). A "Create" button always makes your own page — same name as an existing
 // one is allowed, with a notice. Progressive enhancement: the Search button and the
 // Create form both work with JavaScript off.
@@ -1753,7 +1753,7 @@ export function renderOnboardClaim(d: { q: string; kind?: string; results: { kin
   const initials = (n: string) => (n || '').split(/\s+/).map(w => w[0] || '').join('').slice(0, 2).toUpperCase();
   const resRow = (r: { kind: string; id: string; name: string; avatarUrl?: string | null; claimable: boolean }) => {
     const logo = r.avatarUrl ? `<img class="lg" src="${esc(r.avatarUrl)}" alt="">` : `<span class="lg ini">${esc(initials(r.name))}</span>`;
-    const right = r.claimable ? `<a class="mini p" href="/claim/${r.kind}/${r.id}">Claim</a>` : `<span class="tag mutd">On Horda</span>`;
+    const right = r.claimable ? `<a class="mini p" href="/claim/${r.kind}/${r.id}">Claim</a>` : `<span class="tag mutd">On Furia</span>`;
     return `<div class="eres${r.claimable ? '' : ' exists'}">${logo}<span class="en">${esc(r.name)}<span class="ek">${esc(r.kind)}</span></span>${right}</div>`;
   };
   const serverResults = d.results.map(resRow).join('') || (d.q.length >= 2 ? `<p class="mut" style="font-size:13px;margin:8px 2px">No ${esc(kindLabel)} with that name yet — create yours below.</p>` : '');
@@ -1785,7 +1785,7 @@ export function renderOnboardClaim(d: { q: string; kind?: string; results: { kin
       var ek=document.createElement("span");ek.className="ek";ek.textContent=it.kind;en.appendChild(ek);
       var right;
       if(it.claimable){right=document.createElement("a");right.className="mini p";var cu="/claim/"+it.kind+"/"+it.id;right.setAttribute("href",cu);right.textContent="Claim";}
-      else {right=document.createElement("span");right.className="tag mutd";right.textContent="On Horda";}
+      else {right=document.createElement("span");right.className="tag mutd";right.textContent="On Furia";}
       w.appendChild(lg);w.appendChild(en);w.appendChild(right);return w;
     }
     function sync(){var v=q.value.trim(); if(cname)cname.value=v; if(clabel)clabel.textContent=v||"your page"; if(nname)nname.textContent=v;}
@@ -1808,7 +1808,7 @@ export function renderOnboardClaim(d: { q: string; kind?: string; results: { kin
   return layout('Set up your page', `
     <style>${CSS}</style>
     <h1>Find or create your ${esc(kindLabel)}</h1>
-    <p class="mut">Start typing. If your ${esc(kindLabel)} is already on Horda you can claim it; if not, create it in a tap.</p>
+    <p class="mut">Start typing. If your ${esc(kindLabel)} is already on Furia you can claim it; if not, create it in a tap.</p>
     <form method="get" action="/onboarding/claim" id="findform" autocomplete="off">
       <input type="hidden" name="kind" value="${esc(kind)}">
       <div class="searchrow">
@@ -1821,14 +1821,14 @@ export function renderOnboardClaim(d: { q: string; kind?: string; results: { kin
     <form method="post" action="/onboarding/create" id="createform">
       <input type="hidden" name="kind" value="${esc(kind)}">
       <input type="hidden" name="name" id="createname" value="${esc(d.q)}">
-      <p class="notice" id="notice"${d.exact ? '' : ' hidden'}>A ${esc(kindLabel)} named “<span id="noticename">${esc(d.q)}</span>” already exists on Horda — creating yours makes a separate page.</p>
+      <p class="notice" id="notice"${d.exact ? '' : ' hidden'}>A ${esc(kindLabel)} named “<span id="noticename">${esc(d.q)}</span>” already exists on Furia — creating yours makes a separate page.</p>
       <label class="mut" style="display:block;margin:10px 0 0;font-size:13px">One-line about
         <input style="${inp};margin-top:6px" name="tagline" maxlength="90" placeholder="Grassroots football in Kreuzberg since 1924">
         <span class="mut" style="font-size:11.5px">One line, shown next to the name. Max 90 characters.</span></label>
       <label class="mut" style="display:block;margin:10px 0 0;font-size:13px">Description
         <textarea style="${inp};margin-top:6px;min-height:96px;line-height:1.55" name="description" maxlength="2000" placeholder="The longer version — who you are, what you run, who turns up."></textarea>
         <span class="mut" style="font-size:11.5px">The longer about, shown on the page itself.</span></label>
-      <p class="mut" style="margin:12px 0 0;font-size:12.5px">Your page gets a Horda link to start with. Once it exists you can claim a custom one — <span style="color:var(--bone)">joinhorda.com/yourname</span> — from the edit page.</p>
+      <p class="mut" style="margin:12px 0 0;font-size:12.5px">Your page gets a Furia link to start with. Once it exists you can claim a custom one — <span style="color:var(--bone)">joinfuria.com/yourname</span> — from the edit page.</p>
       <div class="row" style="margin-top:12px"><button type="submit" class="p" id="createbtn">Save</button></div>
     </form>
     ${SCRIPT}`, { back: '/onboarding' });
@@ -1980,8 +1980,8 @@ export function renderFanHome(d: { fanId: string; fanName: string; handle?: stri
   const unread = home.notifications.filter(n => !n.read).length;
 
   const following = d.follows.length
-    ? `<h2 id="hordas">My Hordas</h2><p class="mut" style="font-size:12.5px;margin:-4px 0 8px">Everyone you follow.</p><div class="row">${d.follows.map(f => `<a class="tag mutd" href="/${f.type === 'club' ? 'club' : f.type === 'athlete' ? 'athlete' : 'club'}/${f.id}">${esc(f.name)}</a>`).join(' ')}</div>`
-    : `<h2 id="hordas">My Hordas</h2><p class="mut" style="font-size:12.5px;margin:-4px 0 8px">You're not following anyone yet. <a href="/" style="border-bottom:1px solid var(--b)">Discover athletes &amp; clubs →</a></p>`;
+    ? `<h2 id="furias">My Furias</h2><p class="mut" style="font-size:12.5px;margin:-4px 0 8px">Everyone you follow.</p><div class="row">${d.follows.map(f => `<a class="tag mutd" href="/${f.type === 'club' ? 'club' : f.type === 'athlete' ? 'athlete' : 'club'}/${f.id}">${esc(f.name)}</a>`).join(' ')}</div>`
+    : `<h2 id="furias">My Furias</h2><p class="mut" style="font-size:12.5px;margin:-4px 0 8px">You're not following anyone yet. <a href="/" style="border-bottom:1px solid var(--b)">Discover athletes &amp; clubs →</a></p>`;
 
   // You're co-running: events someone else owns where you're a co-organiser. You
   // don't edit them — you promote with your own link and watch the stats.
@@ -2040,7 +2040,7 @@ export function renderFanHome(d: { fanId: string; fanName: string; handle?: stri
       .mpchip{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--b);border-radius:999px;padding:6px 12px;font-size:13px;font-weight:600;color:var(--bone)}
       .mpchip:hover{border-color:var(--bone)}
       .mpchip .mpk{font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--mut)}
-      /* "Your Horda" identity header — profile-first: your name + @handle, the
+      /* "Your Furia" identity header — profile-first: your name + @handle, the
          one place that says "this space is yours". @handle → manage in Settings. */
       .yhhead{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:6px 0 14px}
       .yhhead .yhk{font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--acc);font-weight:800}
@@ -2050,7 +2050,7 @@ export function renderFanHome(d: { fanId: string; fanName: string; handle?: stri
     </style>
     ${profileTabs({ fanId: d.fanId, active: 'events', profileHref: (() => { const a = (d.pages ?? []).find(p => p.kind === 'athlete'); return a ? `/athlete/${a.id}/customize` : undefined; })() })}
     <div class="yhhead">
-      <div><div class="yhk">Your Horda</div><h1 class="yhname">Hi, ${esc((d.fanName || 'you').split(' ')[0])}</h1></div>
+      <div><div class="yhk">Your Furia</div><h1 class="yhname">Hi, ${esc((d.fanName || 'you').split(' ')[0])}</h1></div>
       ${d.handle ? `<a class="yhhandle" href="/settings" title="Manage your @handle">@${esc(d.handle)}</a>` : `<a class="yhhandle add" href="/settings">＋ Pick a @handle</a>`}
     </div>
     ${(d.pages && d.pages.length)
@@ -2060,7 +2060,7 @@ export function renderFanHome(d: { fanId: string; fanName: string; handle?: stri
     ${coRunningBlock}
     ${attendingBlock}
     ${following}
-    <div class="prov">Your events: what you run, what you co-run, what you're going to, and your Hordas. Notifications live under the bell.</div>`, { back: '/', nav: { active: 'you', guest: false, fanId: d.fanId, createHref: d.createHref } });
+    <div class="prov">Your events: what you run, what you co-run, what you're going to, and your Furias. Notifications live under the bell.</div>`, { back: '/', nav: { active: 'you', guest: false, fanId: d.fanId, createHref: d.createHref } });
 }
 
 // --- club page -----------------------------------------------------------

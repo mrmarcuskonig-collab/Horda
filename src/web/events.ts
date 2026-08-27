@@ -23,7 +23,7 @@ const hostHref2 = (kind: string | null, id: string | null) =>
   kind === 'athlete' ? `/athlete/${id}` : kind === 'team' ? `/team/${id}` : kind === 'association' ? `/association/${id}` : `/club/${id}`;
 
 // The line-up: organizers, the two sides (versus), attending athletes + sponsors.
-// Unclaimed slots invite the rival to join Horda to claim their side + fans + tickets.
+// Unclaimed slots invite the rival to join Furia to claim their side + fans + tickets.
 export function renderRoster(d: {
   eventId: string; archetype: string; parties: EventParty[]; guest: boolean;
   canClaim: boolean; isOrganizer: boolean;
@@ -150,7 +150,7 @@ export function renderEventPage(d: EventDetail, ctx: {
         ? (() => { const named = _parties.filter(p => (p.role === 'side' || p.role === 'attending_athlete') && p.name); return named.length ? `<div class="pversus pmulti">${named.slice(0, 3).map(p => esc(p.name)).join(' · ')}${named.length > 3 ? ` +${named.length - 3}` : ''}</div>` : ''; })()
         : '');
   // How a fan reaches the host: their public socials (the real contact path, since
-  // there's no in-app DM) + a link to their Horda page.
+  // there's no in-app DM) + a link to their Furia page.
   const hostSocials = Object.entries(ctx.hostLinks ?? {}).filter(([, v]) => v)
     .map(([k, v]) => `<a class="ic" aria-label="${esc(k)}" href="${esc(v)}" target="_blank" rel="noopener">${socialIcon(k)}</a>`).join('');
   const cover = d.coverUrl
@@ -328,8 +328,8 @@ export function renderEventPage(d: EventDetail, ctx: {
     <aside class="evside">
       <div class="hostrow" style="border-top:0;padding-top:0;margin-top:2px"><div><div class="hk">Hosted by</div><div class="hn"><a href="${hostHref(d.hostKind, d.hostId)}">${esc(d.hostName)}</a></div></div>${followBtn}</div>
       <div class="sidelinks">
-        <a href="${hostHref(d.hostKind, d.hostId)}">View ${esc(d.hostName)} on Horda →</a>
-        ${hostSocials ? `<div class="hostsoc"><span class="hsl">Reach the host</span>${hostSocials}</div>` : `<span class="mut" style="font-size:12px">Reach the host via their Horda page — follow to get their updates.</span>`}
+        <a href="${hostHref(d.hostKind, d.hostId)}">View ${esc(d.hostName)} on Furia →</a>
+        ${hostSocials ? `<div class="hostsoc"><span class="hsl">Reach the host</span>${hostSocials}</div>` : `<span class="mut" style="font-size:12px">Reach the host via their Furia page — follow to get their updates.</span>`}
         <a href="/e/${d.id}/ics">＋ Add to calendar</a>
       </div>
       <span class="evtag"># ${esc(ADMISSION_LABEL[d.admission])}</span>
@@ -371,7 +371,7 @@ export function renderEventPage(d: EventDetail, ctx: {
   // it is silent. Without `origin` we emit no image rather than a broken one.
   const og = ogMeta({
     title: d.title,
-    description: `${shareLine(d)} · Hosted by ${d.hostName} on Horda.`,
+    description: `${shareLine(d)} · Hosted by ${d.hostName} on Furia.`,
     url: ctx.origin ? `${ctx.origin}/e/${d.id}` : undefined,
     image: ctx.origin ? `${ctx.origin}${cardUrl}` : null,
     type: 'article',
@@ -404,13 +404,13 @@ export function renderEventPage(d: EventDetail, ctx: {
 export function renderPayouts(d: { hostKind: string; hostId: string; hostName: string; connected: boolean; payoutsEnabled: boolean; started: boolean; live: boolean }): string {
   const connectAction = `/host/${d.hostKind}/${d.hostId}/connect`;
   const status = d.connected
-    ? `<div class="card" style="border-color:var(--bone)"><strong>✓ Payouts connected.</strong> <span class="mut">You can sell paid tickets. Horda keeps a flat <b style="color:var(--bone)">${TAKE_RATE_PCT}%</b>; the rest is paid out to your connected account.</span></div>`
+    ? `<div class="card" style="border-color:var(--bone)"><strong>✓ Payouts connected.</strong> <span class="mut">You can sell paid tickets. Furia keeps a flat <b style="color:var(--bone)">${TAKE_RATE_PCT}%</b>; the rest is paid out to your connected account.</span></div>`
     : d.started
       ? `<div class="card"><strong>Almost there.</strong> <span class="mut">Your Stripe onboarding isn't finished — Stripe still needs a few details before you can accept payments.</span><form method="post" action="${connectAction}" style="margin-top:8px"><button type="submit">Finish setup →</button></form></div>`
-      : `<div class="card"><strong>Connect payouts to sell paid tickets.</strong> <span class="mut">Free events need nothing. To charge for tickets, connect a Stripe account — Stripe handles identity verification; payouts land in your bank. Horda takes a flat ${TAKE_RATE_PCT}%.</span><form method="post" action="${connectAction}" style="margin-top:8px"><button type="submit">Connect payouts →</button></form></div>`;
+      : `<div class="card"><strong>Connect payouts to sell paid tickets.</strong> <span class="mut">Free events need nothing. To charge for tickets, connect a Stripe account — Stripe handles identity verification; payouts land in your bank. Furia takes a flat ${TAKE_RATE_PCT}%.</span><form method="post" action="${connectAction}" style="margin-top:8px"><button type="submit">Connect payouts →</button></form></div>`;
   return layout('Payouts · ' + d.hostName, `
     <h1>Payments &amp; payouts</h1>
-    <p class="mut">For ${esc(d.hostName)}. ${d.live ? '' : 'Demo mode — set STRIPE_SECRET_KEY for real Stripe Connect. '}Web-first checkout; card details never touch Horda.</p>
+    <p class="mut">For ${esc(d.hostName)}. ${d.live ? '' : 'Demo mode — set STRIPE_SECRET_KEY for real Stripe Connect. '}Web-first checkout; card details never touch Furia.</p>
     ${status}
     <p class="mut" style="font-size:12.5px;margin-top:12px">Free tickets are always frictionless — this only applies where money changes hands. We gate money, not creation.</p>
   `, { back: hostHref(d.hostKind, d.hostId) });
@@ -425,7 +425,7 @@ export function renderCheckout(d: EventDetail, fanId: string, live = false): str
   <form method="post" action="/e/${d.id}/pay"><input type="hidden" name="fan_id" value="${fanId}">
     <div class="row"><button type="submit">${live ? `Pay ${esc(priceLabel(d))} with card` : `Pay ${esc(priceLabel(d))} · get ticket`}</button></div></form>
   <p class="mut" style="margin-top:12px">${live
-    ? 'Secure payment by Stripe — you’ll be taken to Stripe’s checkout, then straight back with your ticket. Your card details never touch Horda.'
+    ? 'Secure payment by Stripe — you’ll be taken to Stripe’s checkout, then straight back with your ticket. Your card details never touch Furia.'
     : 'Demo checkout — payments are stubbed (set STRIPE_SECRET_KEY to charge for real). The ticket + guest-list flow is already live.'}</p>`;
   return layout('Checkout · ' + d.title, body, { back: `/e/${d.id}` });
 }
@@ -435,11 +435,11 @@ export function renderCheckout(d: EventDetail, fanId: string, live = false): str
 export function renderEditEvent(d: EventDetail, viewerFanId: string | null, opt: { origin?: string; error?: string } = {}): string {
   const fld = 'display:block;margin:12px 0;font-size:13px;color:var(--mut)';
   const inp = 'display:block;width:100%;margin-top:6px;background:var(--s);border:1px solid var(--b);border-radius:10px;color:var(--bone);padding:11px;font:inherit';
-  // Custom event URL. Free on every plan — it used to sit in the Horda Plus
+  // Custom event URL. Free on every plan — it used to sit in the Furia Plus
   // bundle while the backend applied a posted slug for anyone, and the field was
   // shown to nobody at all. A slug is the URL you put on a poster; the promo
   // links are still what measures who actually brought people. Different jobs.
-  const evHost = (opt.origin || 'joinhorda.com').replace(/^https?:\/\//, '');
+  const evHost = (opt.origin || 'joinfuria.com').replace(/^https?:\/\//, '');
   const isOnline = d.locationKind === 'online';
   const streamUrl = (d.streams && (d.streams as any).primary) || (typeof d.location === 'string' && /^https?:/i.test(d.location) ? d.location : '');
   const draft = `Hi everyone — sorry, but we've had to call off ${d.title}. ${d.priceCents ? 'If you bought a spot, you\'ll be refunded. ' : ''}Thanks for backing it — we'll be back with the next one.`;
@@ -567,7 +567,7 @@ export function renderCreateEvent(hostKind: string, hostId: string, hostName: st
         ${sportSelect('sport', defaultSport ?? null, 'appearance:none')}
       </label>
     </div>
-    <p class="mut" id="ev_vis_hint" style="font-size:12px;margin:0 0 4px">Listed on Horda, in search and on your page.</p>
+    <p class="mut" id="ev_vis_hint" style="font-size:12px;margin:0 0 4px">Listed on Furia, in search and on your page.</p>
 
     <label style="${fld}">Event name<input style="${inp}" name="title" required placeholder="${parent ? 'Rico vs. Tariq' : 'Open sparring night'}"></label>
 
@@ -582,7 +582,7 @@ export function renderCreateEvent(hostKind: string, hostId: string, hostName: st
       </select></label>
     ${/* Rival + roster typeahead.
         Why this is more than a nicety: naming a rival as free text always mints
-        an UNCLAIMED placeholder. If that rival is already on Horda and you type
+        an UNCLAIMED placeholder. If that rival is already on Furia and you type
         their name a shade differently ("FC Rival" vs "1. FC Rival"), you create
         a duplicate ghost — and that side's attribution accrues to nobody, which
         is the one number the whole product sells. Suggesting real entities is
@@ -590,12 +590,12 @@ export function renderCreateEvent(hostKind: string, hostId: string, hostName: st
         listing rivals who AREN'T here yet) — we just look first. */''}
     <div id="ev_versus" style="display:${parent ? 'block' : 'none'}">
       <label style="${fld}">Side B (the rival)
-        <input style="${inp}" name="side_b_name" id="ev_sideb" autocomplete="off" placeholder="Start typing — we'll find them on Horda">
+        <input style="${inp}" name="side_b_name" id="ev_sideb" autocomplete="off" placeholder="Start typing — we'll find them on Furia">
       </label>
       <input type="hidden" name="side_b_kind" id="ev_sideb_kind">
       <input type="hidden" name="side_b_id" id="ev_sideb_id">
       <div class="acbox" id="ev_sideb_ac" hidden></div>
-      <p class="mut" style="font-size:12px;margin:-6px 0 0">You're side A. List side B even if they're not on Horda yet — they join to claim their side, their fans and their ticket share.</p>
+      <p class="mut" style="font-size:12px;margin:-6px 0 0">You're side A. List side B even if they're not on Furia yet — they join to claim their side, their fans and their ticket share.</p>
     </div>
     <div id="ev_roster" style="display:none">
       <label style="${fld}">On the card
@@ -625,7 +625,7 @@ export function renderCreateEvent(hostKind: string, hostId: string, hostName: st
     </style>
     <script>(function(){
       // Shared typeahead against /api/entities. Debounced, keyboard-navigable,
-      // and always offers "use as typed" so an off-Horda rival is never blocked.
+      // and always offers "use as typed" so an off-Furia rival is never blocked.
       function look(q, sport, cb){
         if(q.trim().length < 2){ cb([]); return; }
         fetch('/api/entities?q='+encodeURIComponent(q)+(sport?'&sport='+encodeURIComponent(sport):''))
@@ -646,7 +646,7 @@ export function renderCreateEvent(hostKind: string, hostId: string, hostName: st
           items=res;
           if(!res.length && input.value.trim().length<2){ close(); return; }
           var h = res.map(function(e,i){ return '<div class="ac" data-i="'+i+'">'+row(e)+'</div>' }).join('');
-          h += '<div class="ac new" data-i="-1">Use "<b>'+input.value.replace(/[<>&]/g,'')+'</b>" — not on Horda yet</div>';
+          h += '<div class="ac new" data-i="-1">Use "<b>'+input.value.replace(/[<>&]/g,'')+'</b>" — not on Furia yet</div>';
           box.innerHTML=h; box.hidden=false;
           Array.prototype.forEach.call(box.querySelectorAll('.ac'), function(el){
             el.onmousedown=function(ev){ ev.preventDefault(); var i=+el.getAttribute('data-i'); onPick(i>=0?items[i]:null, input.value); close(); };
@@ -685,7 +685,7 @@ export function renderCreateEvent(hostKind: string, hostId: string, hostName: st
         document.getElementById('ev_roster_ids').value = picked.map(function(p){return p.id?(p.kind+':'+p.id):''}).join(',');
         chips.innerHTML = picked.map(function(p,i){
           return '<span class="chip'+(p.id?' known':'')+'"><b>'+p.name.replace(/[<>&]/g,'')+'</b>'+
-                 (p.id?'<span class="onh">on horda</span>':'')+'<span class="x" data-i="'+i+'">×</span></span>';
+                 (p.id?'<span class="onh">on furia</span>':'')+'<span class="x" data-i="'+i+'">×</span></span>';
         }).join('');
         Array.prototype.forEach.call(chips.querySelectorAll('.x'), function(x){
           x.onclick=function(){ picked.splice(+x.getAttribute('data-i'),1); sync(); };
@@ -950,7 +950,7 @@ export function renderCreateEvent(hostKind: string, hostId: string, hostName: st
       document.getElementById('ip_price_wrap').hidden = ip!=='paid';
       var st=(form.querySelector('input[name=st_cost]:checked')||{}).value;
       document.getElementById('st_price_wrap').hidden = st!=='paid';
-      // "Open to all" is the one option that costs you the thing Horda is for,
+      // "Open to all" is the one option that costs you the thing Furia is for,
       // so say it plainly rather than letting them find out later.
       document.getElementById('st_note').textContent = st==='open'
         ? 'Anyone can watch without claiming — you will not know who watched.'
@@ -978,7 +978,7 @@ export function renderCreateEvent(hostKind: string, hostId: string, hostName: st
     var vis=document.getElementById('ev_vis'), hint=document.getElementById('ev_vis_hint');
     vis.addEventListener('change', function(){
       hint.textContent = vis.value==='public'
-        ? 'Listed on Horda, in search and on your page.'
+        ? 'Listed on Furia, in search and on your page.'
         : 'Hidden from search and your page. Only people you send the link to can find it.';
     });
 
@@ -1097,7 +1097,7 @@ export function renderManage(d: EventDetail, guests: { response: string; status:
   // Paid event → surface payout status: connect payouts (KYC) before selling.
   const payoutBanner = (d.admission === 'paid' && payout)
     ? (payout.connected
-        ? `<div class="card" style="border-color:var(--bone)"><strong>✓ Payouts connected.</strong> <span class="mut">Selling tickets · Horda keeps ${TAKE_RATE_PCT}%.</span> <a class="rb sm" href="/manage-payouts/${payout.hostKind}/${payout.hostId}">Manage payouts</a></div>`
+        ? `<div class="card" style="border-color:var(--bone)"><strong>✓ Payouts connected.</strong> <span class="mut">Selling tickets · Furia keeps ${TAKE_RATE_PCT}%.</span> <a class="rb sm" href="/manage-payouts/${payout.hostKind}/${payout.hostId}">Manage payouts</a></div>`
         : `<div class="card"><strong>Connect payouts to sell tickets.</strong> <span class="mut">This is a paid event — connect a Stripe account (Stripe handles KYC) before you can collect money.</span><form method="post" action="/host/${payout.hostKind}/${payout.hostId}/connect" style="margin-top:8px"><button class="rb p" type="submit">Connect payouts →</button></form></div>`)
     : '';
   // The share panel — every participant's promo link with its live counts, the
@@ -1149,7 +1149,7 @@ export function renderManage(d: EventDetail, guests: { response: string; status:
   const formatBreakdown = formats.length
     ? `<h2>Attendance by format · ${totalGoing}</h2>
        <div class="fmtgrid">${formats.map(fmtCard).join('')}</div>
-       ${totalRev ? `<p class="mut" style="margin-top:6px">Tickets sold on Horda: <b>${money2(totalRev)}</b></p>` : ''}
+       ${totalRev ? `<p class="mut" style="margin-top:6px">Tickets sold on Furia: <b>${money2(totalRev)}</b></p>` : ''}
        <style>.fmtgrid{display:grid;gap:10px;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));margin:10px 0}.fmtcard{border:1px solid var(--b);border-radius:12px;padding:12px;background:var(--s)}details.fmtcard{cursor:pointer}details.fmtcard>summary{list-style:none;cursor:pointer}details.fmtcard>summary::-webkit-details-marker{display:none}.fk{font-size:12.5px;font-weight:600}.fn{font-size:30px;font-weight:800;font-variant-numeric:tabular-nums;margin-top:4px}.fl{font-size:11.5px;color:var(--mut);text-transform:uppercase;letter-spacing:.5px}.fu{font-size:12px;border-bottom:1px solid var(--b);display:inline-block;margin-top:6px}.fmore{font-size:12px;color:var(--acc);margin-top:8px;font-weight:600}details.fmtcard[open] .fmore{display:none}.attlist{list-style:none;padding:0;margin:10px 0 2px;border-top:1px solid var(--b)}.attrow{display:flex;align-items:baseline;justify-content:space-between;gap:8px;padding:7px 0;border-bottom:1px solid var(--b)}.attrow .an{font-size:13.5px;font-weight:600}.attrow .an a:hover{border-bottom:1px solid var(--b)}.attrow .am{font-size:11.5px;color:var(--mut)}</style>`
     : '';
   // Promo codes — organiser-defined discounts on this event's paid tickets. Same

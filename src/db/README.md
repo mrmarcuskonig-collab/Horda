@@ -21,9 +21,9 @@ The durable asset. If a second product is ever built under the same operating en
 ## Consent / rights (dormant, pending legal)
 - (schema `0044_rights_grants.sql`, extended by `0056` with product + purpose scope)
 
-## Horda product — surfaces on top of the graph
+## Furia product — surfaces on top of the graph
 Product-specific. A different product would have its *own* equivalents; these are
-Horda's. Kept deliberately separable from the core above.
+Furia's. Kept deliberately separable from the core above.
 
 - `events_repo.ts`, `event_format_repo.ts` — events, ways-in, attribution shares
 - `membership_repo.ts` — memberships/tiers

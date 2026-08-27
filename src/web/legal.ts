@@ -3,7 +3,7 @@
 // Its own file, plain prose. Rules:
 //
 //   1. ENGLISH PROSE, GERMAN LAW. On 27 Jul 2026 Marcus decided these pages read
-//      in English to match the English-only product (the audience Horda targets
+//      in English to match the English-only product (the audience Furia targets
 //      is English-speaking). German LAW still governs, so every statutory
 //      citation stays in its German form (§ 5 DDG, DSGVO articles, § 312g BGB,
 //      etc.) — those are the instruments, not the prose language. This still
@@ -42,7 +42,7 @@ export const OPERATOR = {
 export const LEGAL_UPDATED = '27 July 2026';
 
 function legalShell(title: string, body: string): string {
-  return `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><link rel="icon" href="/favicon.svg"><title>${esc(title)} — Horda</title>${THEME_BOOT}
+  return `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><link rel="icon" href="/favicon.svg"><title>${esc(title)} — Furia</title>${THEME_BOOT}
 <link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
   ${THEME_VARS}
@@ -67,9 +67,9 @@ function legalShell(title: string, body: string): string {
   .lgfoot{border-top:1px solid var(--b);margin-top:44px;padding-top:20px;font-size:12.5px}
   .lgfoot a{margin-right:16px;color:var(--mut)}
 </style></head><body>
-  <div class="lgtop"><a href="/">${ravenMarkCurrent(24)} Horda</a></div>
+  <div class="lgtop"><a href="/">${ravenMarkCurrent(24)} Furia</a></div>
   <div class="lgwrap">${body}
-    <div class="lgfoot"><a href="/agb">Terms</a><a href="/widerruf">Withdrawal</a><a href="/impressum">Legal notice</a><a href="/datenschutz">Privacy</a><a href="/">Back to Horda</a></div>
+    <div class="lgfoot"><a href="/agb">Terms</a><a href="/widerruf">Withdrawal</a><a href="/impressum">Legal notice</a><a href="/datenschutz">Privacy</a><a href="/">Back to Furia</a></div>
   </div>
 </body></html>`;
 }
@@ -102,7 +102,7 @@ export function renderImpressum(): string {
     <p>My offering contains links to external third-party websites over whose content I have no influence. I therefore cannot accept any liability for this third-party content. The respective provider or operator of the linked pages is always responsible for their content. The linked pages were checked for possible legal infringements at the time of linking; no unlawful content was identifiable at that time. Permanent monitoring of the content of the linked pages is not reasonable without concrete evidence of an infringement. Upon becoming aware of infringements, I will remove such links without delay.</p>
 
     <h2>User-generated content</h2>
-    <p>Users may post their own content on Horda and in the associated Discord server (for example profiles, events, images and posts). I do not adopt this content as my own; the person who posted it is responsible for it. Upon becoming aware of infringements, I remove the content concerned without delay.</p>
+    <p>Users may post their own content on Furia and in the associated Discord server (for example profiles, events, images and posts). I do not adopt this content as my own; the person who posted it is responsible for it. Upon becoming aware of infringements, I remove the content concerned without delay.</p>
 
     <h2>Copyright</h2>
     <p>The content and works created by the operator on these pages are subject to German copyright law (Urheberrecht). Reproduction, adaptation, distribution and any kind of exploitation beyond the limits of copyright require the written consent of the respective author or creator. Downloads and copies of this page are permitted only for private, non-commercial use. Insofar as the content on this page was not created by the operator, the copyrights of third parties are respected; in particular, third-party content is identified as such. Should you nevertheless become aware of a copyright infringement, please notify me accordingly. Upon becoming aware of infringements, I will remove such content without delay.</p>
@@ -122,7 +122,7 @@ export function renderDatenschutz(): string {
     <div class="addr"><p><b>${esc(OPERATOR.name)}</b><br>${esc(OPERATOR.street)}<br>${esc(OPERATOR.city)}<br>${esc(OPERATOR.country)}<br>Email: <a href="mailto:${esc(OPERATOR.email)}">${esc(OPERATOR.email)}</a></p></div>
 
     <h2>2. Principle</h2>
-    <p>I process personal data only where this is necessary to provide Horda, or where you have consented. Horda is designed to collect as little data as possible.</p>
+    <p>I process personal data only where this is necessary to provide Furia, or where you have consented. Furia is designed to collect as little data as possible.</p>
     <div class="note"><p><b>Fan activity is private.</b> Who you follow and which events you attend cannot be seen by other users.</p></div>
 
     <h2>3. What data is processed</h2>
@@ -154,7 +154,7 @@ export function renderDatenschutz(): string {
     <p>I use carefully selected service providers that process data exclusively on my instructions (processing on behalf of the controller under Art. 28 DSGVO): hosting and database, email delivery and image storage. For payments, Stripe is independently responsible. Any transfer to third countries takes place only on the basis of an adequacy decision or standard contractual clauses (Standardvertragsklauseln).</p>
 
     <h2>7. Discord</h2>
-    <p>The Horda Discord server is a voluntary additional offering and not a prerequisite for using Horda. Discord is responsible for the processing carried out by the platform itself (<a href="https://discord.com/privacy" target="_blank" rel="noopener">discord.com/privacy</a>). For the processing <i>on the server I operate</i>, I am responsible. Details are provided there.</p>
+    <p>The Furia Discord server is a voluntary additional offering and not a prerequisite for using Furia. Discord is responsible for the processing carried out by the platform itself (<a href="https://discord.com/privacy" target="_blank" rel="noopener">discord.com/privacy</a>). For the processing <i>on the server I operate</i>, I am responsible. Details are provided there.</p>
 
     <h2>8. Retention period</h2>
     <p>Account data is stored until you delete your account. Sign-in tokens expire after 15 minutes. Data on events and check-ins is stored for as long as this is necessary to evidence attendance. Statutory retention periods — in particular tax-law periods for ticket purchases — remain unaffected.</p>
@@ -169,6 +169,6 @@ export function renderDatenschutz(): string {
     <p>For children and young people under 16 years of age, use is permitted only with the consent of a parent or guardian (Art. 8 DSGVO). For selling paid tickets and receiving payouts, a minimum age of 18 years is required due to the requirements of our payment service provider.</p>
 
     <h2>11. Cookies</h2>
-    <p>Horda uses strictly necessary cookies only: a session cookie for sign-in and a cookie storing the selected language. There is no tracking and no advertising analytics; no consent is required for this (§ 25 Abs. 2 TDDDG).</p>`;
+    <p>Furia uses strictly necessary cookies only: a session cookie for sign-in and a cookie storing the selected language. There is no tracking and no advertising analytics; no consent is required for this (§ 25 Abs. 2 TDDDG).</p>`;
   return legalShell('Privacy policy', body);
 }

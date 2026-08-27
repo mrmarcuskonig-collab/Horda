@@ -1,13 +1,13 @@
 // transfer_repo.ts — how a ticket changes hands.
 //
 // ═══════════════════════════════════════════════════════════════════════════
-// DECISION (17 Jul 2026, Marcus): HORDA DOES NOT DO RESALE. Not "not yet" —
+// DECISION (17 Jul 2026, Marcus): FURIA DOES NOT DO RESALE. Not "not yet" —
 // not at all. This is a position, not a backlog item.
 //
 // The reasoning, so nobody relitigates it from scratch:
 //
 //   * A ticket that can be sold is an asset. An asset attracts people who want
-//     the asset rather than the event. Horda's entire claim is that it knows who
+//     the asset rather than the event. Furia's entire claim is that it knows who
 //     is actually in the room — a secondary market is the mechanism by which
 //     that stops being true.
 //   * Luma, the closest comparable, doesn't offer resale either. They offer free
@@ -65,7 +65,7 @@ import type { Database } from './index.ts';
  * a payment leg and a refund path that do not exist, which is the point: it
  * cannot happen by accident, or by someone flipping an env var they found.
  */
-export const RESALE_ENABLED = process.env.HORDA_RESALE === 'on';
+export const RESALE_ENABLED = process.env.FURIA_RESALE === 'on';
 
 /**
  * Free transfer ("I can't go, you take my spot") — the Luma model. Also off, but
@@ -77,7 +77,7 @@ export const RESALE_ENABLED = process.env.HORDA_RESALE === 'on';
  * because a gift that isn't reissued to the recipient's identity silently breaks
  * the personengebunden promise in the AGB.
  */
-export const GIFT_ENABLED = process.env.HORDA_GIFT === 'on';
+export const GIFT_ENABLED = process.env.FURIA_GIFT === 'on';
 
 export type TransferKind = 'gift' | 'resale' | 'return';
 

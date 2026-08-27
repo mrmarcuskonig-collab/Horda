@@ -79,7 +79,7 @@ export function renderPass(d: {
       #hzqr img,#hzqr canvas{display:block}
     </style>
     <div class="pass">
-      <div class="passhd"><div class="k">Horda ${isTicket ? 'ticket' : 'pass'}</div><h1>${esc(p.eventTitle)}</h1>${/* The ticket MUST carry the venue's local time, with the zone spelled out.
+      <div class="passhd"><div class="k">Furia ${isTicket ? 'ticket' : 'pass'}</div><h1>${esc(p.eventTitle)}</h1>${/* The ticket MUST carry the venue's local time, with the zone spelled out.
      This used to be toLocaleString() with no zone — evaluated on the SERVER, so
      it printed the server's idea of the time to every fan on earth. */''}
 <div class="mut" style="font-size:13px;margin-top:4px">${p.startsAt ? `${esc(inZone(p.startsAt, p.timezone))}${zoneLabel(p.startsAt, p.timezone) ? ` <b style="color:var(--bone)">${esc(zoneLabel(p.startsAt, p.timezone))}</b>` : ''}` : 'Time TBA'}</div>
@@ -253,7 +253,7 @@ export function renderCheckedIn(d: { eventId: string; title: string; claimed: nu
 }
 
 // Multi-format attendance picker — one event, several ways to attend it, each
-// confirmed on Horda so the organizer gets clean per-format counts. The fan
+// confirmed on Furia so the organizer gets clean per-format counts. The fan
 // commits to a single format (switching allowed). In-person can be ticketed;
 // streams carry a watch link. Shown in place of the plain claim CTA when the
 // organizer has defined formats.

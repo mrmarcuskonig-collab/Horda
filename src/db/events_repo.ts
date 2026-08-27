@@ -214,7 +214,7 @@ export async function getEventDetail(db: Database, eventIdOrSlug: string): Promi
 // moving it silently is worse than cancelling). The organiser edits the address,
 // title, description, cover and stream links; to change the date they cancel and
 // recreate, which is honest and re-triggers everyone's decision to attend.
-// --- custom event URL (Horda Plus) ----------------------------------------
+// --- custom event URL (Furia Plus) ----------------------------------------
 // Slug rules: 3–40 chars, lowercase letters/numbers/hyphens, not a bare uuid.
 export function slugify(raw: string): string {
   return (raw || '').toLowerCase().normalize('NFKD').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40);
@@ -335,9 +335,9 @@ export async function shareAttribution(db: Database, eventId: string): Promise<S
      WHERE s.event_id=$1 ORDER BY claims DESC, s.clicks DESC`, [eventId])).rows;
 }
 
-// --- multi-party events (Horda_Multi_Party_Events_Architecture.md) -----------
+// --- multi-party events (Furia_Multi_Party_Events_Architecture.md) -----------
 // Many entities attach to one event, each with a role + an auto promo link. A
-// side can be an UNCLAIMED placeholder (a rival who hasn't joined Horda yet).
+// side can be an UNCLAIMED placeholder (a rival who hasn't joined Furia yet).
 export interface EventParty {
   id: string; eventId: string; role: string; side: string | null;
   entityKind: string | null; entityId: string | null; placeholder: string | null;
@@ -408,7 +408,7 @@ export interface PartyStat { partyId: string; name: string; role: string; side: 
 // The three numbers a promo link drove. They are NOT the same number, and
 // conflating them is how attribution quietly lies:
 //   identities  — PEOPLE WE NOW KNOW. One per claim: if you bring three mates on
-//                 your ticket, Horda learns about you, not about them.
+//                 your ticket, Furia learns about you, not about them.
 //   ticketBuyers— people who paid. One per paid claim, for the same reason.
 //   tickets     — SEATS SOLD. sum(party_size). This is the one that maps to
 //                 money, and it was missing: a link selling one 4-ticket claim
@@ -448,15 +448,15 @@ export async function myParty(db: Database, eventId: string, ownedKinds: { kind:
 }
 
 // RFC-5545 calendar export (Luma's signature "add to calendar")
-export function icsFor(d: EventDetail, origin = 'https://joinhorda.com'): string {
+export function icsFor(d: EventDetail, origin = 'https://joinfuria.com'): string {
   const dt = d.startsAt ? new Date(d.startsAt) : new Date();
   const z = (n: number) => String(n).padStart(2, '0');
   const stamp = (x: Date) => `${x.getUTCFullYear()}${z(x.getUTCMonth() + 1)}${z(x.getUTCDate())}T${z(x.getUTCHours())}${z(x.getUTCMinutes())}00Z`;
   const end = new Date(dt.getTime() + 2 * 3600 * 1000);
   const esc = (s: string) => String(s ?? '').replace(/([,;\\])/g, '\\$1').replace(/\n/g, '\\n');
-  return ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Horda//EN', 'BEGIN:VEVENT',
-    `UID:${d.id}@joinhorda.com`, `DTSTAMP:${stamp(new Date())}`, `DTSTART:${stamp(dt)}`, `DTEND:${stamp(end)}`,
-    `SUMMARY:${esc(d.title)}`, `DESCRIPTION:${esc((d.description ?? '') + `\nHosted by ${d.hostName} on Horda`)}`,
+  return ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Furia//EN', 'BEGIN:VEVENT',
+    `UID:${d.id}@joinfuria.com`, `DTSTAMP:${stamp(new Date())}`, `DTSTART:${stamp(dt)}`, `DTEND:${stamp(end)}`,
+    `SUMMARY:${esc(d.title)}`, `DESCRIPTION:${esc((d.description ?? '') + `\nHosted by ${d.hostName} on Furia`)}`,
     d.location ? `LOCATION:${esc(d.location)}` : '', `URL:${origin}/e/${d.id}`, 'END:VEVENT', 'END:VCALENDAR']
     .filter(Boolean).join('\r\n');
 }

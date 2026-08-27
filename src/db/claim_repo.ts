@@ -1,5 +1,5 @@
 // claim_repo.ts — claim verification.
-// Owning a Horda page is a privileged act, so it is gated. A claim is a request
+// Owning a Furia page is a privileged act, so it is gated. A claim is a request
 // that becomes ownership only when verified. Verification paths, strongest first:
 //   email_domain      — claimant email domain == the entity's official site  → auto
 //   channel_code       — a one-time code placed on the official site, re-checked → auto
@@ -94,7 +94,7 @@ export async function requestClaim(db: Database, account: Acct, kind: ClaimKind,
 }
 
 async function upsertClaim(db: Database, accountId: string, kind: ClaimKind, id: string, method: string): Promise<string> {
-  const code = 'horda-verify-' + randomBytes(5).toString('hex');
+  const code = 'furia-verify-' + randomBytes(5).toString('hex');
   const r = (await db.query<{ id: string }>(
     `INSERT INTO claim_request (account_id,target_kind,target_id,method,status,channel_code)
        VALUES ($1,$2,$3,$4::claim_method,'pending',$5)

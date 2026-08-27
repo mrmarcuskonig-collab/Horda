@@ -23,7 +23,7 @@ export async function fanChecklist(db: Database, fanId: string): Promise<Checkli
     { label: 'Claim your first event', done: claims > 0, href: '/' },
     { label: 'Show up — earn your first verified presence', done: pres > 0, href: '/record' },
   ];
-  return { title: 'Finish setting up your Horda', steps, complete: steps.every(s => s.done), storageKey: 'hz_act_fan' };
+  return { title: 'Finish setting up your Furia', steps, complete: steps.every(s => s.done), storageKey: 'hz_act_fan' };
 }
 
 export async function athleteChecklist(db: Database, athleteId: string): Promise<Checklist> {

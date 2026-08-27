@@ -30,7 +30,7 @@ let cached: Renderer | null | undefined;   // undefined = not tried, null = unav
 async function loadRenderer(): Promise<Renderer | null> {
   if (cached !== undefined) return cached;
   cached = null;
-  if (process.env.HORDA_RASTER === 'off') return cached;
+  if (process.env.FURIA_RASTER === 'off') return cached;
   try {
     const mod: any = await import('@resvg/resvg-js');
     const Resvg = mod.Resvg ?? mod.default?.Resvg;

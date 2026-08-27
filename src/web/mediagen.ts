@@ -31,7 +31,7 @@ export function recapGraphic(b: EventBrief): string {
 }
 // Free shareable supporter card — the viral surface. "I'm backing X".
 export function supporterCard(b: EventBrief, opt: { superfanNo?: number; backing?: boolean } = {}): string {
-  const kicker = opt.superfanNo ? `Superfan #${opt.superfanNo}` : 'In the Horda';
+  const kicker = opt.superfanNo ? `Superfan #${opt.superfanNo}` : 'In the Furia';
   const tagline = opt.backing !== false ? `Backing ${firstName(b.athleteName)} for ${b.label.toLowerCase()}` : `${b.label}`;
   return coverSvg({ title: b.athleteName, kicker, tagline });
 }
@@ -53,7 +53,7 @@ export async function generateEventAssets(b: EventBrief, model?: ModelCaller): P
   let recap = b.result ? detRecap(b) : null;
   if (model) {
     try {
-      const prompt = `You are the social media manager for a sports athlete page on "Horda". Write SHORT, punchy, factual copy. Never invent results, stats, or quotes. Brand voice: bold, warm, no clichés, no hashtags-spam (one hashtag max). Event: ${JSON.stringify({ label: b.label, athlete: b.athleteName, opponent: b.opponent, date: b.date, location: b.location, result: b.result })}. Return STRICT JSON: {"hype": "<=280 chars pre-event hype>", "recap": "${b.result ? '<=280 chars post-result recap>' : ''}"}.`;
+      const prompt = `You are the social media manager for a sports athlete page on "Furia". Write SHORT, punchy, factual copy. Never invent results, stats, or quotes. Brand voice: bold, warm, no clichés, no hashtags-spam (one hashtag max). Event: ${JSON.stringify({ label: b.label, athlete: b.athleteName, opponent: b.opponent, date: b.date, location: b.location, result: b.result })}. Return STRICT JSON: {"hype": "<=280 chars pre-event hype>", "recap": "${b.result ? '<=280 chars post-result recap>' : ''}"}.`;
       const raw = await model(prompt);
       const j = JSON.parse(raw.slice(raw.indexOf('{'), raw.lastIndexOf('}') + 1));
       if (typeof j.hype === 'string' && j.hype.trim()) hype = j.hype.trim().slice(0, 300);

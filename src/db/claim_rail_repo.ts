@@ -57,6 +57,8 @@ export async function formatSpots(db: Database, formatId: string, capacity: numb
 
 export async function createClaim(db: Database, o: {
   eventId: string; fanId: string; capacity: number | null; mode: string; partySize?: number; priceCents?: number | null; sourceEdge?: string;
+  /** ADR-0002 provenance: which PRODUCT wrote this fact. Omit to use the column default (the current product). */
+  source?: string;
   /** The way-in the fan chose. Drives per-format capacity + the max-per-person cap. */
   formatId?: string | null;
   /** Per-format ceiling on how many spots one person may take (organiser's choice). */
@@ -79,11 +81,21 @@ export async function createClaim(db: Database, o: {
     ? await formatSpots(db, o.formatId, o.capacity)
     : await spotsInfo(db, o.eventId, o.capacity);
   const status = info.full ? 'waitlisted' : (o.mode === 'approval' ? 'approved' : 'claimed');
+  // Provenance (ADR-0002 §2.4): thread `source` when a product overrides it;
+  // otherwise omit the column so its DEFAULT (the current product) applies.
+  const cols = ['event_id', 'fan_id', 'status', 'party_size', 'price_cents', 'source_edge', 'format_id'];
+  const vals: any[] = [o.eventId, o.fanId, status, party, o.priceCents ?? null, o.sourceEdge ?? null, o.formatId ?? null];
+  if (o.source !== undefined) { cols.push('source'); vals.push(o.source); }
+  const ph = vals.map((_, i) => `$${i + 1}`).join(',');
   const claim = (await db.query<{ id: string }>(
-    `INSERT INTO claim (event_id, fan_id, status, party_size, price_cents, source_edge, format_id) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id`,
-    [o.eventId, o.fanId, status, party, o.priceCents ?? null, o.sourceEdge ?? null, o.formatId ?? null])).rows[0];
+    `INSERT INTO claim (${cols.join(', ')}) VALUES (${ph}) RETURNING id`, vals)).rows[0];
   const token = randomBytes(16).toString('hex');
-  await db.query(`INSERT INTO pass (claim_id, fan_id, token) VALUES ($1,$2,$3)`, [claim.id, o.fanId, token]);
+  // The pass inherits the claim's provenance so a product's passes slice with its claims.
+  if (o.source !== undefined) {
+    await db.query(`INSERT INTO pass (claim_id, fan_id, token, source) VALUES ($1,$2,$3,$4)`, [claim.id, o.fanId, token, o.source]);
+  } else {
+    await db.query(`INSERT INTO pass (claim_id, fan_id, token) VALUES ($1,$2,$3)`, [claim.id, o.fanId, token]);
+  }
   return { claimId: claim.id, passToken: token, status, partySize: party };
 }
 

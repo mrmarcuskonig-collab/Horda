@@ -1,8 +1,8 @@
-// handles_repo.ts — vanity handles: joinhorda.com/<handle> → a public entity page.
+// handles_repo.ts — vanity handles: joinfuria.com/<handle> → a public entity page.
 //
 // One flat namespace across athletes, clubs, teams and federations, so a single
 // /<handle> is never ambiguous. A page shares ONE memorable link and users see
-// everything it runs — no need to link back to Horda from their own site.
+// everything it runs — no need to link back to Furia from their own site.
 import type { Database } from './index.ts';
 
 // First-path segments a handle can never be — so a vanity URL can never shadow an

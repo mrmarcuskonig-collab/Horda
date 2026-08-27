@@ -42,7 +42,7 @@ export function ogMeta(o: { title: string; description: string; url?: string; im
   const img = o.image && /^https?:\/\//i.test(o.image) ? o.image : '';
   const t = esc(o.title), d = esc((o.description || '').slice(0, 200)), u = o.url ? esc(o.url) : '';
   return [
-    `<meta property="og:site_name" content="Horda">`,
+    `<meta property="og:site_name" content="Furia">`,
     `<meta property="og:type" content="${esc(o.type || 'website')}">`,
     `<meta property="og:title" content="${t}">`,
     `<meta property="og:description" content="${d}">`,
@@ -74,7 +74,7 @@ export function layout(title: string, body: string, opts: { back?: string; head?
   // the user reported). Genuinely guest-facing pages pass `guest: true` explicitly.
   const nv = opts.nav ?? { guest: false, fanId: null };
   return `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1"><link rel="icon" href="/favicon.svg"><title>${esc(title)} — Horda</title>${opts.head ?? ''}${THEME_BOOT}
+<meta name="viewport" content="width=device-width, initial-scale=1"><link rel="icon" href="/favicon.svg"><title>${esc(title)} — Furia</title>${opts.head ?? ''}${THEME_BOOT}
 <style>
   ${THEME_VARS}
   ${THM_CSS}

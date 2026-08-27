@@ -3,7 +3,7 @@
 // Language is a per-device cookie (hz_lang). Full-app translation is incremental;
 // this deliberately covers the primary navigation surface, not every string yet.
 export type Lang = 'en' | 'de';
-// Horda is English-only. The DE column is retained in the dictionary for history
+// Furia is English-only. The DE column is retained in the dictionary for history
 // but is never served: normLang always resolves to 'en' and t() always returns
 // English, so the whole UI renders in English regardless of any hz_lang cookie.
 // (Search still understands German city/sport terms — that lives in localize.ts,
@@ -14,7 +14,7 @@ const DICT: Record<string, { en: string; de: string }> = {
   explore:      { en: 'Explore',          de: 'Erkunden' },
   // The logged-in home is the feed, so the nav says so. Guests see the same
   // slot; the content behind it just isn't personalised yet.
-  your_horda:   { en: 'Your Horda',       de: 'Deine Horda' },
+  your_furia:   { en: 'Your Furia',       de: 'Deine Furia' },
   // Guests have no profile to visit — they have a handle worth taking.
   claim_handle_nav: { en: 'Claim your @handle', de: '@Handle sichern' },
   following:    { en: 'Following',         de: 'Gefolgt' },

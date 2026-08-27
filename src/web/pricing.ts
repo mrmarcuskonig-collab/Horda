@@ -1,4 +1,4 @@
-// pricing.ts — THE single source of truth for what Horda charges and what each
+// pricing.ts — THE single source of truth for what Furia charges and what each
 // plan includes.
 //
 // WHY THIS FILE EXISTS: as a solo, AI-native founder, Marcus's edge is being able
@@ -9,7 +9,7 @@
 //     (server.ts), the AGB take-rate clause (terms.ts), the /about/pricing page,
 //     the manage-view payout cards, and llms.txt. Change a number here → it moves
 //     everywhere, consistently, at once.
-//   * Every knob is ALSO overridable at runtime via an env var (HORDA_*), so a
+//   * Every knob is ALSO overridable at runtime via an env var (FURIA_*), so a
 //     price or fee can be changed live on Render with no redeploy. That is the
 //     experiment surface: flip an env var, reload, measure.
 //   * Plans carry an ENTITLEMENT map (data, not code branches), so adding a plan
@@ -19,7 +19,7 @@
 //     on different plans — grandfathering, cohorts, promos, A/Bs — so experiments
 //     don't have to be all-or-nothing.
 //
-// NOTHING here charges anyone by itself; server.ts derives the fee from it. Horda
+// NOTHING here charges anyone by itself; server.ts derives the fee from it. Furia
 // Plus billing (collecting the subscription, enforcing 0%) is a separate, later
 // build — until then Plus.live=false and the page shows it as coming soon.
 
@@ -32,9 +32,9 @@ const envBool = (k: string, d: boolean) => {
   return v === undefined ? d : /^(1|true|yes|on)$/i.test(v);
 };
 
-// The Free-plan platform fee (%). Override live with HORDA_PLATFORM_FEE_PCT.
+// The Free-plan platform fee (%). Override live with FURIA_PLATFORM_FEE_PCT.
 // This is the single number the AGB and the live Stripe fee both read.
-export const PLATFORM_FEE_PCT = envNum('HORDA_PLATFORM_FEE_PCT', 5);
+export const PLATFORM_FEE_PCT = envNum('FURIA_PLATFORM_FEE_PCT', 5);
 
 export type Entitlement =
   | 'zero_fee'
@@ -99,7 +99,7 @@ const FREE_FEATURES: Entitlement[] = [
 export const PLANS: Plan[] = [
   {
     id: 'free',
-    name: 'Horda Free',
+    name: 'Furia Free',
     priceMonthly: 0,
     priceAnnual: 0,
     currency: 'EUR',
@@ -110,13 +110,13 @@ export const PLANS: Plan[] = [
   },
   {
     id: 'plus',
-    name: 'Horda Plus',
-    priceMonthly: envNum('HORDA_PLUS_MONTHLY', 69),
-    priceAnnual: envNum('HORDA_PLUS_ANNUAL', 59),
+    name: 'Furia Plus',
+    priceMonthly: envNum('FURIA_PLUS_MONTHLY', 69),
+    priceAnnual: envNum('FURIA_PLUS_ANNUAL', 59),
     currency: 'EUR',
-    feePct: envNum('HORDA_PLUS_FEE_PCT', 0),
+    feePct: envNum('FURIA_PLUS_FEE_PCT', 0),
     blurb: 'For organisers and clubs running events for real.',
-    live: envBool('HORDA_PLUS_LIVE', false),   // flip on when billing is wired
+    live: envBool('FURIA_PLUS_LIVE', false),   // flip on when billing is wired
     featured: true,
     entitlements: [
       'zero_fee', ...FREE_FEATURES,

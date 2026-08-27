@@ -29,14 +29,14 @@ export function matchReport(d: { sport: string; sides: ResultSide[]; date?: stri
 export function fightHype(d: { a: string; b: string; date?: string; recordA?: string; ticket?: boolean; stream?: boolean }): string {
   const head = `${d.a} vs ${d.b}${d.date ? ` is set for ${d.date}` : ' is confirmed'}.`;
   const rec = d.recordA ? ` ${d.a} comes in at ${d.recordA}.` : '';
-  const ways: string[] = ['follow on Horda'];
+  const ways: string[] = ['follow on Furia'];
   if (d.ticket) ways.unshift('buy tickets'); if (d.stream) ways.push('stream live');
   return `${head}${rec} You can ${ways.join(', ')}.`;
 }
 
 export function weekDrop(d: { fanName: string; results: { headline: string; date?: string }[]; upcoming: { headline: string; date?: string }[] }): string {
   const r = d.results.length, u = d.upcoming.length;
-  const head = `${d.fanName}'s week in the Horda — ${r} result${r === 1 ? '' : 's'}, ${u} coming up.`;
+  const head = `${d.fanName}'s week in the Furia — ${r} result${r === 1 ? '' : 's'}, ${u} coming up.`;
   const body = [
     ...d.results.slice(0, 4).map(x => `• ${x.headline}`),
     ...d.upcoming.slice(0, 3).map(x => `• Upcoming: ${x.headline}${x.date ? ` (${x.date})` : ''}`),
@@ -45,4 +45,4 @@ export function weekDrop(d: { fanName: string; results: { headline: string; date
 }
 
 // short text for an outbound share (tweet/WhatsApp) — facts + the link
-export const shareText = (headline: string) => `${headline} — on Horda. joinhorda.com`;
+export const shareText = (headline: string) => `${headline} — on Furia. joinfuria.com`;

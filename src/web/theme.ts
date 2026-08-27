@@ -1,4 +1,4 @@
-// theme.ts — one identity, two skins. Dark (Ink/Bone) is the default Horda look;
+// theme.ts — one identity, two skins. Dark (Ink/Bone) is the default Furia look;
 // light is the bright, photo-forward variant. The choice is per-device and
 // applied before first paint (no flash). Every page shares these tokens, so the
 // whole app flips together.
@@ -217,12 +217,12 @@ export function deskRail(o: { guest: boolean; fanId: string | null; lang?: _Lang
     return `<a class="dr-item${on ? ' on' : ''}" href="${href}"${on ? ' aria-current="page"' : ''}>${icon}<span>${label}</span>${badge}</a>`;
   };
   return `<aside class="drail">
-    <a class="dr-logo" href="/" aria-label="Horda">${_ravenMark(26)}<b>Horda</b></a>
+    <a class="dr-logo" href="/" aria-label="Furia">${_ravenMark(26)}<b>Furia</b></a>
     <form class="dr-search" method="get" action="/">${o.sport ? `<input type="hidden" name="sport" value="${o.sport}">` : ''}<input name="region" value="${o.region ?? ''}" placeholder="${_t(lang, 'search_ph')}" autocomplete="off" aria-label="${_t(lang, 'search_ph')}"></form>
     ${/* Exactly five, same order as the mobile bottom bar: Home · Following ·
          Create · Notifications · You. */''}
     <nav class="dr-nav" aria-label="Primary">
-      ${item('explore', '/', RAIL_ICON.explore, _t(lang, 'your_horda'))}
+      ${item('explore', '/', RAIL_ICON.explore, _t(lang, 'your_furia'))}
       ${item('following', followHref, RAIL_ICON.following, _t(lang, 'following'))}
       ${item('create', '/create', RAIL_ICON.create, _t(lang, 'create_event'))}
       ${o.guest ? '' : item('notifications', '/notifications', RAIL_ICON.bell, _t(lang, 'notifications'), unread ? `<span class="dr-badge">${unread > 9 ? '9+' : unread}</span>` : '')}
@@ -233,7 +233,7 @@ export function deskRail(o: { guest: boolean; fanId: string | null; lang?: _Lang
         o.guest ? '' : item('profile', profileHref(o), RAIL_ICON.profile, _t(lang, 'profile'))}
     </nav>
     ${/* English-only: no language toggle. No "your feed" button either — the feed
-         IS Your Horda, one nav item up. */''}
+         IS Your Furia, one nav item up. */''}
     <div class="dr-foot">${o.guest
       ? `<a class="btn ghost" href="/login">${_t(lang, 'login')}</a><a class="btn" href="/signup">${_t(lang, 'join_free')}</a>`
       : ''}</div>
@@ -292,7 +292,7 @@ window.hzShare=function(b){
   var to=setTimeout(link,2500), sent=false;
   fetch(im.charAt(0)==='/'?location.origin+im:im).then(function(r){ if(!r.ok)throw 0; return r.blob() }).then(function(bl){
     if(sent)return; clearTimeout(to);
-    var f=new File([bl],'horda-matchday.png',{type:bl.type||'image/png'});
+    var f=new File([bl],'furia-matchday.png',{type:bl.type||'image/png'});
     if(navigator.canShare({files:[f]})){ sent=true; return navigator.share({files:[f],title:t,text:x,url:u}) }
     sent=true; link();
   }).catch(function(){ if(!sent){sent=true;clearTimeout(to);link()} });
@@ -422,7 +422,7 @@ export function bottomNav(o: { active?: string; guest: boolean; fanId: string | 
   // logged-in user (a fan with no page yet gets one auto-provisioned at /create),
   // so the bar never flips between 4 and 5. Mobile shows icons only (no text).
   return `<nav class="bnav" aria-label="Primary"><div class="bninner">
-    ${tab('home', '/', _t(lang, 'your_horda'), NAV_ICON.home)}
+    ${tab('home', '/', _t(lang, 'your_furia'), NAV_ICON.home)}
     ${tab('following', following, _t(lang, 'following'), NAV_ICON.heart)}
     ${tab('create', '/create', _t(lang, 'create_event'), NAV_ICON.plus)}
     ${o.guest ? '' : tab('notifications', '/notifications', _t(lang, 'notifications'), NAV_ICON.bell)}
@@ -436,7 +436,7 @@ export function actionBar(o: { title: string; sub?: string; cta: string }): stri
   return `<div class="actionbar"><div class="abin"><div class="ablabel"><div class="abt">${o.title}</div>${o.sub ? `<div class="abs">${o.sub}</div>` : ''}</div>${o.cta}</div></div>`;
 }
 
-// Retired: Horda is a single dark "arena" theme with no light mode and no toggle.
+// Retired: Furia is a single dark "arena" theme with no light mode and no toggle.
 // Kept as a no-op so existing call sites render nothing (removed cleanly over time).
 export function themeToggle(): string {
   return '';

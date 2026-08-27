@@ -6,11 +6,11 @@
 // that produced it, so those facts can later be attributed, scoped, and consented
 // per product WITHOUT a data-archaeology migration.
 //
-// Today there is exactly one writer, Horda. New products import PRODUCT_SOURCE-style
+// Today there is exactly one writer, Furia. New products import PRODUCT_SOURCE-style
 // constants from here (or pass their own `source`) — they do NOT invent ad-hoc
 // strings at call sites. Keep this list short and stable; a source string, once
 // written to a fact, is forever.
-export type ProductSource = 'horda' | (string & {});
+export type ProductSource = 'furia' | (string & {});
 
-/** The default writer. All current fan-behavior writes are Horda's. */
-export const PRODUCT_SOURCE: ProductSource = 'horda';
+/** The default writer. All current fan-behavior writes are Furia's. */
+export const PRODUCT_SOURCE: ProductSource = 'furia';

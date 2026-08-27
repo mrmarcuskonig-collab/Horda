@@ -5,12 +5,12 @@ import { grantOwnership } from './auth_repo.ts';
 
 // A page you might find when setting up: an existing club or federation. Carries
 // its logo (for the "this really exists" cue) and whether it's still CLAIMABLE
-// (unclaimed + nobody owns it) vs. already on Horda (claimed / owned).
+// (unclaimed + nobody owns it) vs. already on Furia (claimed / owned).
 export interface ClaimTarget { kind: 'club' | 'association'; id: string; name: string; avatarUrl: string | null; claimable: boolean }
 
 // Real-time "find your page" search across the org entities a person can run.
 // Union of club + association, name-prefix/substring, logo joined, ownership
-// checked so the UI can show Claim (claimable) vs. On Horda (taken).
+// checked so the UI can show Claim (claimable) vs. On Furia (taken).
 export async function searchClaimTargets(db: Database, q: string, limit = 8): Promise<ClaimTarget[]> {
   const like = '%' + q.toLowerCase().trim() + '%';
   const rows = (await db.query<any>(

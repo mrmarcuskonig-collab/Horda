@@ -1,7 +1,7 @@
 // event_format_repo.ts — the multi-format attendance layer. One event can be
-// attended several ways: in person (tickets sold on Horda) and/or via one or
+// attended several ways: in person (tickets sold on Furia) and/or via one or
 // more streams (TikTok Live, a sport-specific media provider). Every format's
-// attendance is confirmed on Horda, so the organizer sees a clean per-format
+// attendance is confirmed on Furia, so the organizer sees a clean per-format
 // breakdown — exactly what to expect, and what to optimise for.
 import type { Database } from './index.ts';
 

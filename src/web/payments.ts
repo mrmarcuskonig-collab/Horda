@@ -1,5 +1,5 @@
 // payments.ts — real money via Stripe Checkout (hosted, PCI-safe). No card data
-// ever touches Horda: we create a Checkout Session server-side and redirect the
+// ever touches Furia: we create a Checkout Session server-side and redirect the
 // buyer to Stripe's page; on return we verify the session and grant access.
 //
 // With STRIPE_SECRET_KEY set → real charges. Without it → a stub that grants
@@ -17,7 +17,7 @@ export interface CheckoutReq {
   cancelUrl: string;
   metadata: Record<string, string>;
   // Connect destination charge: route funds to the organizer's connected account,
-  // keeping `applicationFeeCents` (Horda's Free-plan 5%) on the platform.
+  // keeping `applicationFeeCents` (Furia's Free-plan 5%) on the platform.
   applicationFeeCents?: number;
   destinationAccount?: string;   // acct_… of the connected organizer
 }
@@ -27,7 +27,7 @@ export interface Payments {
   readonly enabled: boolean;
   createCheckout(o: CheckoutReq): Promise<{ url: string }>;
   retrieve(sessionId: string): Promise<CheckoutResult | null>;
-  // Cancel a recurring subscription (Horda Plus). Returns true if the request
+  // Cancel a recurring subscription (Furia Plus). Returns true if the request
   // was accepted; the actual downgrade happens on the customer.subscription.deleted webhook.
   cancelSubscription(subscriptionId: string): Promise<boolean>;
   // Stripe Connect (Express) — the organizer's KYC + payout account.

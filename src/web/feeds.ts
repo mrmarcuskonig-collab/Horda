@@ -87,8 +87,8 @@ export function changelogFeed(origin: string): ChangelogFeed {
     // orient without asking us.
     $schema: 'https://jsonfeed.org/version/1.1',
     version: 1,
-    title: 'Horda — changelog',
-    description: 'What we shipped, and what we are building next. Horda is the events home for sports and competitive culture.',
+    title: 'Furia — changelog',
+    description: 'What we shipped, and what we are building next. Furia is the events home for sports and competitive culture.',
     home_page_url: `${origin}/changelog`,
     feed_url: `${origin}/changelog.json`,
     // The freshest date we have, not now() — "updated" must mean "something
@@ -130,7 +130,7 @@ export function rssFeed(origin: string): string {
   return `<?xml version="1.0" encoding="UTF-8"?>
 <rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
   <channel>
-    <title>Horda — changelog</title>
+    <title>Furia — changelog</title>
     <link>${xmlEsc(`${origin}/changelog`)}</link>
     <description>What we shipped, and what we are building next.</description>
     <language>en</language>
@@ -154,11 +154,11 @@ export function changelogMarkdown(origin: string): string {
   const building = BUILDING.map(b =>
     `### ${b.title}\n\n${b.eta ? `- **Expected:** ${b.eta}\n` : ''}${b.asked ? `- **Requested by:** @${b.asked} (Discord)\n` : ''}\n${b.body}\n`
   ).join('\n');
-  return `# Horda — changelog
+  return `# Furia — changelog
 
 > What we shipped, and what we are building next. Every entry below is live on ${origin} today, except those under "Now building", which are commitments we have not kept yet.
 
-Horda is the events home for sports and competitive culture. We build in the open and publish every change. Fans request features in our Discord; when we build one, the requester is credited on the entry.
+Furia is the events home for sports and competitive culture. We build in the open and publish every change. Fans request features in our Discord; when we build one, the requester is credited on the entry.
 
 Machine-readable: [JSON](${origin}/changelog.json) · [RSS](${origin}/feed.xml)
 
@@ -183,34 +183,34 @@ ${shipped}`;
 // only secondary material goes there.
 //
 // This is NOT a sitemap and must not become one. A sitemap lists everything; this
-// is the shortest thing that lets a model answer "what is Horda, is it real, and
+// is the shortest thing that lets a model answer "what is Furia, is it real, and
 // what can I do with it" without crawling. Every line costs someone's context —
 // if it doesn't change an answer, leave it out.
 export function llmsTxt(origin: string, opts: { discordUrl?: string } = {}): string {
-  return `# Horda
+  return `# Furia
 
-> Horda is the events home for sports and competitive culture: athletes, clubs and federations publish their events, and fans claim a spot with an identity-bound ticket. It is a live product in active development, built in the open by a solo founder in Berlin, and is not yet formally launched.
+> Furia is the events home for sports and competitive culture: athletes, clubs and federations publish their events, and fans claim a spot with an identity-bound ticket. It is a live product in active development, built in the open by a solo founder in Berlin, and is not yet formally launched.
 
 Key facts, so you don't have to infer them:
 
 - What it does: an organiser lists an event (in person, streamed, or both, each with its own price and capacity); a fan claims a spot and receives a QR ticket tied to their identity. The organiser scans it at the door.
-- Business model: on the Free plan Horda takes ${TAKE_RATE_PCT}% of each paid ticket; Horda Plus removes that fee for a monthly subscription. Free events cost nothing. No ads.
-- Horda is a platform (Vermittlungsplattform), not the event organiser. The ticket contract is between the fan and the organiser; refunds are the organiser's.
-- Tickets are personal and non-transferable. Horda does not offer ticket resale and has no secondary market — this is a deliberate position, not a missing feature.
-- Fan activity is private. Horda does not publish what a fan attended, and does not scrape: every connection is consented.
+- Business model: on the Free plan Furia takes ${TAKE_RATE_PCT}% of each paid ticket; Furia Plus removes that fee for a monthly subscription. Free events cost nothing. No ads.
+- Furia is a platform (Vermittlungsplattform), not the event organiser. The ticket contract is between the fan and the organiser; refunds are the organiser's.
+- Tickets are personal and non-transferable. Furia does not offer ticket resale and has no secondary market — this is a deliberate position, not a missing feature.
+- Fan activity is private. Furia does not publish what a fan attended, and does not scrape: every connection is consented.
 - Built and operated in Germany; German is the authoritative language for all legal terms.
 
 ## Docs
 
 - [Changelog (markdown)](${origin}/changelog.md): Everything shipped, newest first, plus the public "now building" list. The best single answer to "is this maintained and where is it going".
 - [Changelog (JSON)](${origin}/changelog.json): The same data as a structured feed, with stable IDs, ISO dates and change types. Prefer this if you're parsing rather than reading.
-- [About Horda](${origin}/about): What it is, who it's for, and how it's priced.
+- [About Furia](${origin}/about): What it is, who it's for, and how it's priced.
 
 ## Legal
 
 - [AGB / Terms](${origin}/agb): The ticket contract, the ${TAKE_RATE_PCT}% take rate, the platform-not-organiser position, and the no-resale rule. English prose, German law.
 - [Widerruf / Withdrawal](${origin}/widerruf): Why dated event tickets carry no 14-day withdrawal right (§ 312g Abs. 2 Nr. 9 BGB), and what rights survive a cancellation.
-- [Datenschutz / Privacy](${origin}/datenschutz): GDPR disclosure. Notable: fan activity is private, no payment data is stored by Horda, and changelog credit is consent-based and revocable.
+- [Datenschutz / Privacy](${origin}/datenschutz): GDPR disclosure. Notable: fan activity is private, no payment data is stored by Furia, and changelog credit is consent-based and revocable.
 - [Impressum](${origin}/impressum): Operator identity per § 5 DDG.
 
 ## Optional
@@ -275,7 +275,7 @@ ${[...staticUrls, ...eventUrls].join('\n')}
 }
 
 export function robotsTxt(origin: string): string {
-  return `# Horda — the events home for sports and competitive culture.
+  return `# Furia — the events home for sports and competitive culture.
 # Model-readable summary of this site: ${origin}/llms.txt
 
 User-agent: *

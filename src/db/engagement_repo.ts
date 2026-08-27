@@ -28,7 +28,7 @@ export async function setAthleteProfile(db: Database, athleteId: string, p: { ta
 }
 
 export async function followEntity(db: Database, fanId: string, targetType: 'club' | 'team' | 'athlete' | 'association', targetId: string, source: string = PRODUCT_SOURCE): Promise<void> {
-  // `source` = which product produced this follow edge (ADR-0002); defaults to Horda.
+  // `source` = which product produced this follow edge (ADR-0002); defaults to Furia.
   await db.query(`INSERT INTO follow (fan_id,target_type,target_id,source) VALUES ($1,$2,$3,$4) ON CONFLICT DO NOTHING`, [fanId, targetType, targetId, source]);
 }
 export async function unfollowEntity(db: Database, fanId: string, targetType: string, targetId: string): Promise<void> {

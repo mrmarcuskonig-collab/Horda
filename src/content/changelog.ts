@@ -74,7 +74,7 @@ export const SHIPPED: ChangeEntry[] = [
   {
     date: '2026-08-18',
     title: 'Rate the night — and see what the room really thought',
-    body: 'If you were scanned in at an event, you can now leave a three-tap verdict — atmosphere, was it worth it, and would you come back — plus a private note just for the organiser. Only people who were actually there can rate it, so the number means something. The organiser sees the full picture on Manage (response rate, no-shows, what people said), and once enough of the room has spoken, a public room score shows on the event.',
+    body: 'Once an event is over, anyone can leave a three-tap verdict: atmosphere, was it worth it, would you come back, plus a private note just for the organiser. But we know how you were there — scanned in at the door, watching the stream, or following from elsewhere — so the public room score only counts people we can verify were actually there. That keeps the number honest. Organisers see everything on Manage, including wider-audience takes, kept separate from the verified score.',
     tag: 'new',
   },
   {
@@ -86,25 +86,25 @@ export const SHIPPED: ChangeEntry[] = [
   {
     date: '2026-08-05',
     title: 'Claim your custom link, and see straight away if it is free',
-    body: 'Every new page starts on a plain Horda link. When you are ready, pick your own — joinhorda.com/yourname — from Edit, and it tells you as you type whether it is taken and whether the spelling works. Once you set it, that is the link your page shows and shares everywhere; it used to keep showing the old one.',
+    body: 'Every new page starts on a plain Furia link. When you are ready, pick your own — joinfuria.com/yourname — from Edit, and it tells you as you type whether it is taken and whether the spelling works. Once you set it, that is the link your page shows and shares everywhere; it used to keep showing the old one.',
     tag: 'fixed',
   },
   {
     date: '2026-08-05',
     title: 'Custom event URLs are back, and free for everyone',
-    body: 'Give an event its own address — joinhorda.com/e/derby-2026 — from the event edit page, with the same live check for whether it is taken. It is free on every plan. Your promo links keep working exactly as before; the custom URL is the one for the poster.',
+    body: 'Give an event its own address — joinfuria.com/e/derby-2026 — from the event edit page, with the same live check for whether it is taken. It is free on every plan. Your promo links keep working exactly as before; the custom URL is the one for the poster.',
     tag: 'new',
   },
   {
     date: '2026-08-05',
     title: 'See exactly who walked through the door',
-    body: 'Tap the "checked in" number — on the check-in screen or on Manage — and you get the names: who came, their page, and the minute they were scanned. Check-in itself is steadier too. The screen no longer goes blank after you scan or type a code, it survives a reload and the back button, and a code typed by hand now works in any case, spaces and all. Events on a custom link (joinhorda.com/yourname) can be checked in at as well — that had been failing outright.',
+    body: 'Tap the "checked in" number — on the check-in screen or on Manage — and you get the names: who came, their page, and the minute they were scanned. Check-in itself is steadier too. The screen no longer goes blank after you scan or type a code, it survives a reload and the back button, and a code typed by hand now works in any case, spaces and all. Events on a custom link (joinfuria.com/yourname) can be checked in at as well — that had been failing outright.',
     tag: 'new',
   },
   {
     date: '2026-07-30',
-    title: 'Your own link: joinhorda.com/yourname',
-    body: 'Clubs, teams, federations and athletes can now claim a memorable link — joinhorda.com/yourname — that shows your page with every event you run. Share that one link instead of a Horda page URL; you never have to link "to Horda" again. Set it on your page under Edit.',
+    title: 'Your own link: joinfuria.com/yourname',
+    body: 'Clubs, teams, federations and athletes can now claim a memorable link — joinfuria.com/yourname — that shows your page with every event you run. Share that one link instead of a Furia page URL; you never have to link "to Furia" again. Set it on your page under Edit.',
     tag: 'new',
   },
   {
@@ -164,7 +164,7 @@ export const SHIPPED: ChangeEntry[] = [
   {
     date: '2026-07-16',
     title: 'Fewer, better sections on your page',
-    body: 'Win/Loss/Draw and Recent results are gone as page sections — they were a leftover from when Horda was about stats. Your page is about what is coming up: Next up, Events, and who you are Connected to.',
+    body: 'Win/Loss/Draw and Recent results are gone as page sections — they were a leftover from when Furia was about stats. Your page is about what is coming up: Next up, Events, and who you are Connected to.',
     tag: 'better',
   },
   {
@@ -182,13 +182,13 @@ export const SHIPPED: ChangeEntry[] = [
   {
     date: '2026-07-12',
     title: 'Events with two sides, a roster, or a whole fight card',
-    body: 'A match has two sides. A tournament has many. You can now list the opposing side even if they are not on Horda yet — they join to claim their side, their fans and their ticket share. Fight cards can nest every bout under one event.',
+    body: 'A match has two sides. A tournament has many. You can now list the opposing side even if they are not on Furia yet — they join to claim their side, their fans and their ticket share. Fight cards can nest every bout under one event.',
     tag: 'new',
   },
   {
     date: '2026-07-12',
     title: 'Every participant gets their own share link — and we count it',
-    body: 'Each athlete, club and organiser on an event gets a personal link. The organiser sees exactly how many fans and ticket buyers each person drove, rolled up across the whole card. That number is the point of Horda.',
+    body: 'Each athlete, club and organiser on an event gets a personal link. The organiser sees exactly how many fans and ticket buyers each person drove, rolled up across the whole card. That number is the point of Furia.',
     tag: 'new',
   },
   {
@@ -206,7 +206,7 @@ export const SHIPPED: ChangeEntry[] = [
   {
     date: '2026-07-05',
     title: 'The site speaks German if you are in DACH',
-    body: 'Land on Horda from Germany, Austria or Switzerland and you get German by default; English everywhere else. Switching the language now also keeps you on the page you were reading instead of dumping you home.',
+    body: 'Land on Furia from Germany, Austria or Switzerland and you get German by default; English everywhere else. Switching the language now also keeps you on the page you were reading instead of dumping you home.',
     tag: 'better',
   },
   {

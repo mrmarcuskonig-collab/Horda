@@ -16,7 +16,7 @@ const CFG: Record<'athletes' | 'clubs', PitchCfg> = {
   athletes: {
     kicker: 'For athletes',
     headline: 'Turn followers into superfans — and a real income.',
-    sub: 'Horda is your home base: an AI‑built page, members‑only drops, events and tickets, and recurring support from the fans who back you most. You own the audience — we handle the rest.',
+    sub: 'Furia is your home base: an AI‑built page, members‑only drops, events and tickets, and recurring support from the fans who back you most. You own the audience — we handle the rest.',
     ctaLabel: 'Create your page',
     ctaPath: g => g ? '/signup?next=/onboarding/athlete' : '/onboarding/athlete',
     benefits: [
@@ -54,7 +54,7 @@ const CFG: Record<'athletes' | 'clubs', PitchCfg> = {
 export function renderPitch(kind: 'athletes' | 'clubs', guest: boolean): string {
   const c = CFG[kind];
   const cta = c.ctaPath(guest);
-  return `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><link rel="icon" href="/favicon.svg"><title>${esc(c.kicker)} — Horda</title>${THEME_BOOT}
+  return `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><link rel="icon" href="/favicon.svg"><title>${esc(c.kicker)} — Furia</title>${THEME_BOOT}
 <link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
   ${THEME_VARS}
@@ -92,11 +92,11 @@ export function renderPitch(kind: 'athletes' | 'clubs', guest: boolean): string 
   .closeb .btn{background:var(--ink);color:var(--bone);border-color:var(--ink)}
   .prov{max-width:900px;margin:22px auto 0;padding:0 20px;color:var(--mut);font-size:11.5px}
 </style></head><body>
-  <header class="top"><a class="mark" href="/" aria-label="Horda">${ravenMarkCurrent(30)}</a>
+  <header class="top"><a class="mark" href="/" aria-label="Furia">${ravenMarkCurrent(30)}</a>
     <div class="nav">${themeToggle()}<a class="btn" href="${cta}">${esc(c.ctaLabel)}</a></div></header>
   <div class="wrap">
     <section class="hero">
-      <div class="kick">${esc(c.kicker)} · Horda</div>
+      <div class="kick">${esc(c.kicker)} · Furia</div>
       <h1 class="hl">${esc(c.headline)}</h1>
       <p class="lead">${esc(c.sub)}</p>
       <div class="ctarow"><a class="btn" href="${cta}">${esc(c.ctaLabel)} →</a><a class="btn ghost" href="#how">See how it works</a></div>
@@ -126,7 +126,7 @@ export function renderPitch(kind: 'athletes' | 'clubs', guest: boolean): string 
     <div class="closeb"><h3>${esc(c.close)}</h3><a class="btn" href="${cta}">${esc(c.ctaLabel)} →</a></div>
     <p class="lead" style="font-size:13px;margin-top:18px"><a href="${c.other.href}" style="border-bottom:1px solid var(--b)">${esc(c.other.label)}</a></p>
   </div>
-  <div class="prov">The events home for sports and competitive culture. joinhorda.com</div>
+  <div class="prov">The events home for sports and competitive culture. joinfuria.com</div>
   ${bottomNav({ guest, fanId: null })}
 </body></html>`;
 }
@@ -139,9 +139,9 @@ export function renderPitch(kind: 'athletes' | 'clubs', guest: boolean): string 
 // events layer for competitive sport, with attributed reach.
 const FEATURES: Benefit[] = [
   { t: 'See who drove every ticket', d: 'Every participant gets a ready‑to‑share link. When a fan claims or buys through it, it’s credited to them — “Rico drove 312 fans and 140 ticket buyers to this fight.” Reach you can finally count.' },
-  { t: 'Sell tickets — free or paid', d: `Free tickets are one tap, tied to a real identity, no signup wall. Charge when you want: card payments via Stripe, money in your account, Horda keeps a flat ${TAKE_RATE_PCT}% (0% on Horda Plus).` },
+  { t: 'Sell tickets — free or paid', d: `Free tickets are one tap, tied to a real identity, no signup wall. Charge when you want: card payments via Stripe, money in your account, Furia keeps a flat ${TAKE_RATE_PCT}% (0% on Furia Plus).` },
   { t: 'Know who actually showed up', d: 'Every ticket carries a QR. Scan people in at the door and verified attendance is stamped on their identity — not who clicked “interested”, who was really there.' },
-  { t: 'Drag your rival onto the platform', d: 'A match has two sides. List the rival club even before they join — they join Horda to claim their side, their fans and their share of the tickets. A growth loop generic ticketing can’t have.' },
+  { t: 'Drag your rival onto the platform', d: 'A match has two sides. List the rival club even before they join — they join Furia to claim their side, their fans and their share of the tickets. A growth loop generic ticketing can’t have.' },
   { t: 'Fight cards that roll up', d: 'Nest bouts or races inside one event. Each fighter shares their bout; the sale rolls up to the night. Many small rivalries, all pulling fans into one big event.' },
   { t: 'A record of real presence', d: 'Checked‑in fans get an “I was there” stamp — a passport of where they actually showed up, and a shareable card that pulls the next fan in.' },
 ];
@@ -150,7 +150,7 @@ type AboutPage = 'about' | 'creators' | 'features' | 'pricing' | 'changelog' | '
 const NAV: { key: AboutPage; label: string; href: string; dd: [string, string][] }[] = [
   { key: 'creators', label: 'Who it’s for', href: '/about/creators', dd: [['Event organisers', '/about/creators#organisers'], ['Athletes', '/about/creators#athletes'], ['Clubs & federations', '/about/creators#clubs'], ['Fans', '/about/creators#fans']] },
   { key: 'features', label: 'What you can do', href: '/about/features', dd: [['See who drove your tickets', '/about/features'], ['Free & paid tickets', '/about/features'], ['QR check‑in', '/about/features'], ['Two‑sided events', '/about/features'], ['Fight cards & sub‑events', '/about/features'], ['Verified presence', '/about/features']] },
-  { key: 'pricing', label: 'Pricing', href: '/about/pricing', dd: [['Horda Free — free forever', '/about/pricing'], [`Paid tickets — flat ${TAKE_RATE_PCT}%`, '/about/pricing'], ['Horda Plus — 0% fee', '/about/pricing']] },
+  { key: 'pricing', label: 'Pricing', href: '/about/pricing', dd: [['Furia Free — free forever', '/about/pricing'], [`Paid tickets — flat ${TAKE_RATE_PCT}%`, '/about/pricing'], ['Furia Plus — 0% fee', '/about/pricing']] },
   // Built in the open: the changelog is a top-level marketing surface, not a
   // buried footer link. Shipping velocity IS the pitch.
   { key: 'changelog', label: 'Changelog', href: '/changelog', dd: [['What we just shipped', '/changelog'], ['What we’re building now', '/changelog#building'], ['Ask for a feature', '/changelog#ask']] },
@@ -162,7 +162,7 @@ const NAV: { key: AboutPage; label: string; href: string; dd: [string, string][]
 function aboutShell(active: AboutPage, guest: boolean, title: string, body: string, head = ''): string {
   const createHref = '/create';   // events-first: primary CTA everywhere is "Create an event"
   const navItem = (n: typeof NAV[number]) => `<div class="navitem${active === n.key ? ' on' : ''}"><a class="topl" href="${n.href}">${esc(n.label)}</a><div class="dd">${n.dd.map(([l, h]) => `<a href="${h}">${esc(l)}</a>`).join('')}</div></div>`;
-  return `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><link rel="icon" href="/favicon.svg"><title>${esc(title)} — Horda</title>${head}${THEME_BOOT}
+  return `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><link rel="icon" href="/favicon.svg"><title>${esc(title)} — Furia</title>${head}${THEME_BOOT}
 <link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
 <style>
   ${THEME_VARS}
@@ -208,7 +208,7 @@ function aboutShell(active: AboutPage, guest: boolean, title: string, body: stri
   .pillar:hover{border-color:var(--bone)}
   .pillar .pn{font-size:24px;font-weight:900;letter-spacing:-.02em}.pillar p{color:var(--mut);font-size:14px;margin:8px 0 14px;line-height:1.55}.pillar .go{font-weight:700;font-size:13.5px}
   /* Audience cards — the conversion spine: one card per audience, each naming the
-     OUTCOME Horda drives and a direct CTA into that audience's path. */
+     OUTCOME Furia drives and a direct CTA into that audience's path. */
   .aud{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:8px}@media(max-width:760px){.aud{grid-template-columns:1fr}}
   .audcard{display:flex;flex-direction:column;border:1px solid var(--b);border-radius:20px;padding:28px 26px;background:var(--s);transition:border-color .15s,transform .15s}
   .audcard:hover{border-color:var(--acc);transform:translateY(-2px)}
@@ -261,14 +261,14 @@ function aboutShell(active: AboutPage, guest: boolean, title: string, body: stri
   .cred{margin-top:9px;font-size:13px;color:var(--mut)}.cred b{color:var(--bone);font-weight:600}
   @media(max-width:600px){.cle{flex-direction:column;gap:5px}.cle .when{flex:none}}
 </style></head><body>
-  ${/* About pages carry the brand, not the product nav. Just the Horda logo, in
+  ${/* About pages carry the brand, not the product nav. Just the Furia logo, in
         the same top-left spot as the app's landing header, clicking back into the
         application — no marketing nav bar. */''}
   <header class="mnav">
-    <a class="mark" href="/" aria-label="Horda — back to the app">${ravenMarkCurrent(26)}<b>Horda</b></a>
+    <a class="mark" href="/" aria-label="Furia — back to the app">${ravenMarkCurrent(26)}<b>Furia</b></a>
   </header>
   <div class="wrap">${body}</div>
-  <div class="foot"><div class="fl"><a href="/about/creators">Who it’s for</a><a href="/about/features">Features</a><a href="/about/pricing">Pricing</a><a href="/about">Overview</a><a href="/changelog">Changelog</a>${discordFootLink()}<a href="/agb">Terms</a><a href="/impressum">Legal notice</a><a href="/datenschutz">Privacy</a></div>The events home for sports and competitive culture. joinhorda.com</div>
+  <div class="foot"><div class="fl"><a href="/about/creators">Who it’s for</a><a href="/about/features">Features</a><a href="/about/pricing">Pricing</a><a href="/about">Overview</a><a href="/changelog">Changelog</a>${discordFootLink()}<a href="/agb">Terms</a><a href="/impressum">Legal notice</a><a href="/datenschutz">Privacy</a></div>The events home for sports and competitive culture. joinfuria.com</div>
 </body></html>`;
 }
 
@@ -276,7 +276,7 @@ function aboutShell(active: AboutPage, guest: boolean, title: string, body: stri
 // mould: one big promise, a scrolling WALL of real-styled event posters as proof,
 // then four short, visual audience beats (each with an on-brand mini-mockup, not
 // paragraphs), a "before / during / after" feature grid, and a memorable sign-off.
-// All visuals are built from Horda's own dark event/poster styling — no stock
+// All visuals are built from Furia's own dark event/poster styling — no stock
 // photography, no fabricated platform stats (per-event example figures only).
 type Poster = { sport: string; title: string; when: string; city: string };
 const POSTERS: Poster[] = [
@@ -313,7 +313,7 @@ export function renderAbout(guest: boolean): string {
     </section>
 
     <div class="wallcap">Built for the ones who actually show up</div>
-    <section class="wall" aria-label="Events on Horda">
+    <section class="wall" aria-label="Events on Furia">
       ${wallRow(POSTERS.slice(0, half), 'a')}
       ${wallRow(POSTERS.slice(half), 'b')}
     </section>
@@ -358,7 +358,7 @@ export function renderAbout(guest: boolean): string {
       <div class="beat-txt">
         <div class="who">Clubs &amp; federations</div>
         <h3>Bring both fanbases — and pull your rivals in.</h3>
-        <p>List the away side before they’re even on Horda. They join to claim their side, their fans and their ticket share. Run a whole season — it rolls up the pyramid from federation to club to athlete.</p>
+        <p>List the away side before they’re even on Furia. They join to claim their side, their fans and their ticket share. Run a whole season — it rolls up the pyramid from federation to club to athlete.</p>
         <a class="btn acc" href="${claimHref}">Claim your club →</a>
       </div>
       <div class="beat-vis">
@@ -501,10 +501,10 @@ export function renderAboutCreators(guest: boolean): string {
     <div class="pcard"><h3>Sell out the night — and see who filled the seats.</h3><p>Create a match, a fight night or a run club in a minute. Issue free or paid tickets, scan people in at the door, and invite co‑organisers and the rival side. Afterwards you see the breakdown: which club, which athlete, which link drove the tickets. <b style="color:var(--bone)">The outcome:</b> a full house you can explain — you know who brought them, not just how many turned up.</p><a class="btn acc" href="${createHref}">Create an event →</a> <a class="btn ghost" href="${claimHref}">Claim an organiser page</a></div>
 
     <h2 class="sec" id="athletes">Athletes</h2>
-    <div class="pcard"><h3>Turn your Instagram share into a measured, paid channel.</h3><p>Athletes, coaches, sports influencers — anyone with a following. Today you promote an event by posting to socials, unmeasured and unpaid. On Horda your roster link makes your draw countable: <b style="color:var(--bone)">“Rico drove 312 fans and 140 ticket buyers to this fight.”</b> <b style="color:var(--bone)">The outcome:</b> hard proof of your draw when you negotiate an appearance fee — and a reason to promote here, not just on Instagram.</p><a class="btn acc" href="${athleteHref}">Create your page →</a></div>
+    <div class="pcard"><h3>Turn your Instagram share into a measured, paid channel.</h3><p>Athletes, coaches, sports influencers — anyone with a following. Today you promote an event by posting to socials, unmeasured and unpaid. On Furia your roster link makes your draw countable: <b style="color:var(--bone)">“Rico drove 312 fans and 140 ticket buyers to this fight.”</b> <b style="color:var(--bone)">The outcome:</b> hard proof of your draw when you negotiate an appearance fee — and a reason to promote here, not just on Instagram.</p><a class="btn acc" href="${athleteHref}">Create your page →</a></div>
 
     <h2 class="sec" id="clubs">Clubs &amp; federations</h2>
-    <div class="pcard"><h3>Fill the stands, pull your rivals in, run a whole season.</h3><p>List the away side even before they’re on Horda — they join to claim their side, their fans and their ticket share (a growth loop generic ticketing can’t have). Federations sanction leagues, clubs field teams, athletes compete, and it all connects: promotion cascades and attribution rolls up the whole pyramid. <b style="color:var(--bone)">The outcome:</b> both fanbases in the building and your rivals onboarded — season after season.</p><a class="btn acc" href="${claimHref}">Claim your club or federation →</a></div>
+    <div class="pcard"><h3>Fill the stands, pull your rivals in, run a whole season.</h3><p>List the away side even before they’re on Furia — they join to claim their side, their fans and their ticket share (a growth loop generic ticketing can’t have). Federations sanction leagues, clubs field teams, athletes compete, and it all connects: promotion cascades and attribution rolls up the whole pyramid. <b style="color:var(--bone)">The outcome:</b> both fanbases in the building and your rivals onboarded — season after season.</p><a class="btn acc" href="${claimHref}">Claim your club or federation →</a></div>
 
     <h2 class="sec" id="fans">Fans</h2>
     <div class="pcard"><h3>Prove you were actually there.</h3><p>Claim a spot with just your email — no password wall. Get a QR ticket, show it at the door, and your presence is stamped onto your <b style="color:var(--bone)">Record</b> — a passport of where you really showed up, not what you streamed. <b style="color:var(--bone)">The outcome:</b> proof you were in the room, and an “I was there” card that pulls your friends into the next one.</p><a class="btn" href="/">Find an event →</a></div>
@@ -530,7 +530,7 @@ export function renderAboutFeatures(guest: boolean): string {
     <p class="secsub">One concrete run‑through — the same model handles a Kreisliga cup or a run club.</p>
     <div class="steps">
       <div class="step"><span class="n">1</span><p><b>Create the night</b> and add the card — ten bouts, each its own two sides. Every fighter gets a ready‑to‑share promo link automatically.</p></div>
-      <div class="step"><span class="n">2</span><p><b>List the rivals</b> who aren’t on Horda yet. They join to claim their side, their fans and their ticket share — the event pulls them in.</p></div>
+      <div class="step"><span class="n">2</span><p><b>List the rivals</b> who aren’t on Furia yet. They join to claim their side, their fans and their ticket share — the event pulls them in.</p></div>
       <div class="step"><span class="n">3</span><p><b>Sell one ticket to the night</b> — free or paid. A fighter shares his bout; the sale rolls up to the parent event and is credited to him.</p></div>
       <div class="step"><span class="n">4</span><p><b>Scan tickets at the door.</b> Verified presence is stamped on each fan’s identity — you know exactly who showed up.</p></div>
       <div class="step"><span class="n">5</span><p><b>Read the reach.</b> Your share panel shows every participant’s draw — fans and ticket buyers — rolled up across all ten bouts.</p></div>
@@ -599,7 +599,7 @@ export function renderAboutPricing(guest: boolean): string {
     <div class="plans">
       ${PLANS.map(planCard).join('')}
     </div>
-    <p class="finenote">Stripe's card fee (typically 2.9% + €0.25) applies on paid tickets and is separate from Horda's platform fee. No fee on free events.</p>
+    <p class="finenote">Stripe's card fee (typically 2.9% + €0.25) applies on paid tickets and is separate from Furia's platform fee. No fee on free events.</p>
 
     <h2 class="sec">Fair by design</h2>
     <div class="trust">
@@ -610,7 +610,7 @@ export function renderAboutPricing(guest: boolean): string {
 
     <div class="entcard">
       <div><h3>Running a federation or a whole season?</h3><p>Custom email domain, SSO, multiple calendars and season-wide tooling for clubs and governing bodies.</p></div>
-      <a class="btn ghost" href="mailto:hello@joinhorda.com?subject=Horda%20for%20clubs%20%26%20federations">Talk to us</a>
+      <a class="btn ghost" href="mailto:hello@joinfuria.com?subject=Furia%20for%20clubs%20%26%20federations">Talk to us</a>
     </div>
 
     <div class="closeb"><h3>Start free. Upgrade when the tickets are flowing.</h3><a class="btn" href="${createHref}">Create an event →</a></div>`;
@@ -662,10 +662,10 @@ export function renderAboutPricing(guest: boolean): string {
 // /about/embed — the how-to Q&A for putting your events widget on your own site.
 export function renderAboutEmbed(guest: boolean): string {
   const qa: [string, string][] = [
-    ['What is the events widget?', 'A small box you can put on your own website that shows your upcoming Horda events with live “Tickets →” links. Visitors click through to Horda to claim or buy. It always shows your latest events — you never have to update it by hand.'],
-    ['Where do I get my embed code?', 'Open Horda, go to <b>Your events</b>, and next to the page you manage tap <b>Embed on your website</b>. You’ll get a one‑line <code>&lt;iframe&gt;</code> snippet, a live preview, and a Copy button.'],
+    ['What is the events widget?', 'A small box you can put on your own website that shows your upcoming Furia events with live “Tickets →” links. Visitors click through to Furia to claim or buy. It always shows your latest events — you never have to update it by hand.'],
+    ['Where do I get my embed code?', 'Open Furia, go to <b>Your events</b>, and next to the page you manage tap <b>Embed on your website</b>. You’ll get a one‑line <code>&lt;iframe&gt;</code> snippet, a live preview, and a Copy button.'],
     ['How do I add it to my website?', 'Paste the snippet into any HTML block on your site. In most website builders that’s an element called “Embed”, “HTML”, or “Custom code”. WordPress: add a <b>Custom HTML</b> block. Wix: <b>Embed &rarr; Embed HTML</b>. Squarespace: a <b>Code</b> block. Webflow: an <b>Embed</b> element. Then publish.'],
-    ['Will it stay up to date?', 'Yes. The widget reads your events live from Horda, so when you add, edit, cancel or sell out an event, your website reflects it automatically — no re‑pasting.'],
+    ['Will it stay up to date?', 'Yes. The widget reads your events live from Furia, so when you add, edit, cancel or sell out an event, your website reflects it automatically — no re‑pasting.'],
     ['Can I change the size?', 'Yes — edit the <code>width</code> and <code>height</code> in the snippet. It’s responsive and caps at a tidy width, so it fits a sidebar or a full column.'],
     ['Is anything private exposed?', 'No. The widget is public and read‑only. It shows only what’s already public — your events and their ticket links. Nothing about your account, your attendees, or your revenue is in it.'],
     ['Can athletes and federations embed too?', 'Yes. Any page you manage — an athlete page, a club, a team or a federation — has its own embed code with that page’s events.'],
@@ -748,13 +748,13 @@ export function renderChangelog(guest: boolean): string {
   // without it, it still lets people ask via the existing feature-request form.
   const ask = hasDiscord()
     ? `<div id="ask">${discordModule()}</div>`
-    : `<div id="ask" class="pcard"><h3>Tell us what to build.</h3><p>Horda is built in the open. If something is missing, say so — the things on this page mostly exist because someone asked.</p><a class="btn" href="/about">About Horda →</a></div>`;
+    : `<div id="ask" class="pcard"><h3>Tell us what to build.</h3><p>Furia is built in the open. If something is missing, say so — the things on this page mostly exist because someone asked.</p><a class="btn" href="/about">About Furia →</a></div>`;
 
   const body = `
     <section class="phero clhead">
       <div class="kick">Built in the open</div>
       <h1 class="hl">What we shipped. What we’re building.</h1>
-      <p class="lead">We build Horda in public, one week at a time. Everything below is live right now — and everything under “now building” is a promise we made before we kept it. If you want something on this page, ${hasDiscord() ? 'ask in our Discord' : 'tell us'}; when we build it, your name goes on the entry.</p>
+      <p class="lead">We build Furia in public, one week at a time. Everything below is live right now — and everything under “now building” is a promise we made before we kept it. If you want something on this page, ${hasDiscord() ? 'ask in our Discord' : 'tell us'}; when we build it, your name goes on the entry.</p>
       <div class="ctarow">${discordBtn('Ask for a feature', 'btn')}<a class="btn ghost" href="#shipped">See what shipped</a></div>
     </section>
 
@@ -763,15 +763,15 @@ export function renderChangelog(guest: boolean): string {
     <div class="bld">${building}</div>
 
     <h2 class="sec" id="shipped">Shipped</h2>
-    <p class="secsub">Newest first. All of it is live on joinhorda.com today.</p>
+    <p class="secsub">Newest first. All of it is live on joinfuria.com today.</p>
     <div class="cl">${shipped}</div>
 
     ${ask}`;
   // Autodiscovery: the standard way a feed reader, a Slack unfurler or an agent
   // finds the machine version of a page it was pointed at.
   const head = `
-<link rel="alternate" type="application/rss+xml" title="Horda — changelog" href="/feed.xml">
-<link rel="alternate" type="application/feed+json" title="Horda — changelog" href="/changelog.json">
-<link rel="alternate" type="text/markdown" title="Horda — changelog (markdown)" href="/changelog.md">`;
+<link rel="alternate" type="application/rss+xml" title="Furia — changelog" href="/feed.xml">
+<link rel="alternate" type="application/feed+json" title="Furia — changelog" href="/changelog.json">
+<link rel="alternate" type="text/markdown" title="Furia — changelog (markdown)" href="/changelog.md">`;
   return aboutShell('changelog', guest, 'Changelog', body, head);
 }

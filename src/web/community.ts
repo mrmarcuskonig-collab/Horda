@@ -39,7 +39,7 @@ export function hasDiscord(): boolean {
 }
 
 /**
- * The address we publish everywhere: joinhorda.com/discord → 302 → the invite.
+ * The address we publish everywhere: joinfuria.com/discord → 302 → the invite.
  * Lovable does exactly this (lovable.dev/discord). One indirection means the
  * invite can be rotated in env without editing a single link, and any invite
  * we've ever printed, posted or put on a sticker keeps working.
@@ -72,7 +72,7 @@ export function discordModule(): string {
     <div class="dsci">${discordMark(26)}</div>
     <div>
       <h3>Tell us what to build. Watch us build it.</h3>
-      <p>Horda is built in the open. Ask for a feature in our Discord, argue with our decisions, see the thing appear on the <a href="/changelog">changelog</a> — with your name on it. The fastest way to change this product is to say something.</p>
+      <p>Furia is built in the open. Ask for a feature in our Discord, argue with our decisions, see the thing appear on the <a href="/changelog">changelog</a> — with your name on it. The fastest way to change this product is to say something.</p>
       <a class="btn" href="${DISCORD_PATH}">${discordMark(15)} Join the Discord ↗</a>
     </div>
   </div>`;

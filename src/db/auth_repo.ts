@@ -266,7 +266,7 @@ export async function ownerAccountFor(db: Database, kind: string | null, id: str
   return null;
 }
 
-// --- account plan (Horda Plus) --------------------------------------------
+// --- account plan (Furia Plus) --------------------------------------------
 export async function getAccountPlan(db: Database, accountId: string | null): Promise<string> {
   if (!accountId) return 'free';
   return (await db.query<{ plan: string }>(`SELECT plan FROM account WHERE id=$1`, [accountId])).rows[0]?.plan ?? 'free';

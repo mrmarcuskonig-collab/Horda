@@ -1,5 +1,5 @@
 // embed.ts — the embeddable events widget. A club/athlete/association drops one
-// <iframe> onto their own website and it shows their upcoming Horda events with
+// <iframe> onto their own website and it shows their upcoming Furia events with
 // live "Get tickets" links. Self-contained (its own CSS, no app chrome), frameable
 // (we set no X-Frame-Options), and it always reflects the latest events — no manual
 // updating. The owner-facing /embed/:kind/:id/code page hands them the snippet.
@@ -19,7 +19,7 @@ export function renderEmbedWidget(o: { kind: string; id: string; name: string; e
     ? o.events.map(e => `<a class="ee" href="${ev}/e/${e.id}" target="_blank" rel="noopener">
         <span class="et"><b>${esc(e.title)}</b>${e.live ? '<i class="lv">● LIVE</i>' : ''}<em>${esc(e.date ?? 'Date TBA')}</em></span>
         <span class="eb">Tickets →</span></a>`).join('')
-    : `<div class="empty">No upcoming events right now. <a href="${ev}${entityHref(o.kind, o.id)}" target="_blank" rel="noopener">Follow on Horda →</a></div>`;
+    : `<div class="empty">No upcoming events right now. <a href="${ev}${entityHref(o.kind, o.id)}" target="_blank" rel="noopener">Follow on Furia →</a></div>`;
   return `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${esc(o.name)} — events</title>
 <style>
   :root{--ink:#232020;--bone:#EDE9DF;--mut:rgba(237,233,223,.62);--b:rgba(237,233,223,.16);--acc:#E15A40}
@@ -43,7 +43,7 @@ export function renderEmbedWidget(o: { kind: string; id: string; name: string; e
   <div class="wrap">
     <div class="hd"><h1>${esc(o.name)}</h1><span class="sub">Upcoming events</span></div>
     ${rows}
-    <div class="ft">Powered by <a href="${ev}/about" target="_blank" rel="noopener">Horda</a></div>
+    <div class="ft">Powered by <a href="${ev}/about" target="_blank" rel="noopener">Furia</a></div>
   </div>
 </body></html>`;
 }
@@ -51,7 +51,7 @@ export function renderEmbedWidget(o: { kind: string; id: string; name: string; e
 // The snippet to copy. Given to the owner. The iframe shows a sensible default
 // height the customer can change, and always reflects the latest events.
 export function embedSnippet(kind: string, id: string, origin: string, name: string): string {
-  return `<iframe src="${origin}/embed/${kind}/${id}" title="${esc(name)} — events on Horda" width="100%" height="440" style="border:0;max-width:520px" loading="lazy"></iframe>`;
+  return `<iframe src="${origin}/embed/${kind}/${id}" title="${esc(name)} — events on Furia" width="100%" height="440" style="border:0;max-width:520px" loading="lazy"></iframe>`;
 }
 
 // Owner-facing page: the copy-paste snippet, a live preview, and a link to the
@@ -72,6 +72,6 @@ export function renderEmbedCode(o: { kind: string; id: string; name: string; ori
     <div style="background:#111;border:1px solid var(--b);border-radius:14px;padding:16px;margin-top:8px">
       <iframe src="${o.origin}/embed/${esc(o.kind)}/${esc(o.id)}" title="Preview" width="100%" height="440" style="border:0;max-width:520px" loading="lazy"></iframe>
     </div>
-    <p class="prov">The widget is public and read‑only — it shows your events and sends visitors to Horda to get tickets. Nothing about your account is exposed.</p>`;
+    <p class="prov">The widget is public and read‑only — it shows your events and sends visitors to Furia to get tickets. Nothing about your account is exposed.</p>`;
   return layout('Embed · ' + o.name, body, { back: entityHref(o.kind, o.id), nav: { active: 'you', guest: false, fanId: o.fanId } });
 }

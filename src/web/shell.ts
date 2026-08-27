@@ -177,7 +177,7 @@ export function renderEntityProfile(vm: ProfileVM): string {
     ? `<div class="gatebar"><span><strong>Only members can see the content in full.</strong> You're browsing as a guest.</span><a class="btn" href="/signup">Log in to continue ›</a></div>`
     : '';
 
-  return `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${esc(vm.name)} — Horda</title>${vm.ogTags ?? ''}
+  return `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${esc(vm.name)} — Furia</title>${vm.ogTags ?? ''}
 <link rel="icon" href="/favicon.svg">${THEME_BOOT}<style>${DARK_CSS}</style></head><body class="deskrail">
   ${deskRail({ guest: vm.guest, fanId: vm.fanId, active: 'explore' })}
   ${backButton(vm.backHref)}

@@ -45,6 +45,6 @@ export async function buildWeekDrop(db: Database, fanId: string, fanName = 'You'
   const results = home.feed.filter(f => f.kind === 'result').map(f => ({ headline: f.headline, date: f.date }));
   const upcoming = home.feed.filter(f => f.kind === 'fixture').map(f => ({ headline: f.headline, date: f.date }));
   const body = weekDrop({ fanName, results, upcoming });
-  const card = shareCardSVG({ kicker: 'your week', big: `${fanName}'s Horda`, sub: `${results.length} results · ${upcoming.length} upcoming`, foot: 'the devoted, organised' });
-  return { kind: 'week', title: `${fanName}'s week in the Horda`, card, body, shareText: shareText(`${fanName}'s week in the Horda`) };
+  const card = shareCardSVG({ kicker: 'your week', big: `${fanName}'s Furia`, sub: `${results.length} results · ${upcoming.length} upcoming`, foot: 'the devoted, organised' });
+  return { kind: 'week', title: `${fanName}'s week in the Furia`, card, body, shareText: shareText(`${fanName}'s week in the Furia`) };
 }

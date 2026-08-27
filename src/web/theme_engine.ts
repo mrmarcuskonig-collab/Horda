@@ -1,4 +1,4 @@
-// theme_engine.ts — §4a "your corner of Horda". Constrained generation, not
+// theme_engine.ts — §4a "your corner of Furia". Constrained generation, not
 // free-form design: an athlete customizes within a THEME SCHEMA (tokens), never
 // layout primitives. The same ThemeSpec renders the banner, the OG image, and
 // every share asset, so the athlete's brand propagates everywhere.
@@ -96,7 +96,7 @@ export function bannerSvg(d: BannerData, spec: ThemeSpec, opts: { og?: boolean; 
   const t = autoContrast(spec);
   const w = 1200, h = opts.og ? 630 : 420;
   const ty = TYPE_CSS[t.type] ?? TYPE_CSS.bold;
-  const title = (d.name || 'Horda');
+  const title = (d.name || 'Furia');
   const disp = ty.up ? title.toUpperCase() : title;
   const size = disp.length <= 8 ? 132 : disp.length <= 14 ? 104 : disp.length <= 22 ? 78 : 58;
   const cy = opts.og ? h * 0.52 : 232;
@@ -167,7 +167,7 @@ export function renderThemeStudio(athleteId: string, name: string, current: Them
 }
 
 // --- pluggable social source (§4/§6 architecture requirement) ---------------
-// Native Horda media later becomes just another source. Real IG Graph / TikTok
+// Native Furia media later becomes just another source. Real IG Graph / TikTok
 // Display pulls drop in behind consented OAuth + app approval; until then this
 // returns nothing and the themed default carries the wow.
 export interface SocialMedia { url: string; kind: 'image' | 'video'; permalink?: string }

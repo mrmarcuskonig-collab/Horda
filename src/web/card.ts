@@ -5,7 +5,7 @@
 // Sharing an event used to put a bare URL in WhatsApp. The receiver saw a string,
 // not an event: no title, no date, no venue, no price, no reason to tap. The card
 // is the product's face in someone else's chat — it has to carry enough that a
-// stranger can decide "yes" before they ever reach Horda.
+// stranger can decide "yes" before they ever reach Furia.
 //
 // TWO SURFACES, ONE PICTURE:
 //   1. og:image — what WhatsApp/iMessage/X/Slack render when they unfurl the link.
@@ -154,13 +154,13 @@ export function eventCardSvg(e: CardEvent): string {
   ${cover}
   <rect x="0" y="0" width="${W}" height="6" fill="${ACC}"/>
 
-  <text x="${PAD}" y="${titleTop - 118}" font-family="${F}" font-size="22" font-weight="bold" fill="${ACC}" letter-spacing="3">HORDA</text>
+  <text x="${PAD}" y="${titleTop - 118}" font-family="${F}" font-size="22" font-weight="bold" fill="${ACC}" letter-spacing="3">FURIA</text>
   <text x="${PAD}" y="${titleTop - 68}" font-family="${F}" font-size="29" fill="${MUT}">Hosted by <tspan font-weight="bold" fill="${BONE}">${xml(e.hostName)}</tspan></text>
 
   ${title}
   ${metaLine(metaY, 'When', whenValue)}
   ${metaLine(metaY + 44, 'Where', where)}
   ${chipEls}
-  <text x="${W - PAD}" y="${H - 86}" font-family="${F}" font-size="22" text-anchor="end" fill="${MUT}">joinhorda.com</text>
+  <text x="${W - PAD}" y="${H - 86}" font-family="${F}" font-size="22" text-anchor="end" fill="${MUT}">joinfuria.com</text>
 </svg>`;
 }

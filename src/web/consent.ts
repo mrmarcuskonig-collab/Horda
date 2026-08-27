@@ -41,7 +41,7 @@ const COPY: Record<Lang, { heading: string; intro: string; optional: string; wit
         title: 'Let my image appear in media of events I take part in',
         body: 'Photos and clips of the events you enter may show you — the way a match report or a finish-line photo would. Just the events you were actually part of.' },
       { key: 'data_processing',
-        title: 'Let Horda process my competitive record to improve my experience',
+        title: 'Let Furia process my competitive record to improve my experience',
         body: 'Use of your results and entries to power your profile, matchmaking and reminders, beyond what running the service strictly requires.' },
     ],
   },

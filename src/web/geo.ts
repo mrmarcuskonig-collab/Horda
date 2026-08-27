@@ -1,4 +1,4 @@
-// geo.ts — place lookup for every address field on Horda.
+// geo.ts — place lookup for every address field on Furia.
 //
 // THE HONEST CONSTRAINT: "start typing a coffee shop and the address pops up"
 // is venue-level geocoding, and that needs a geocoding provider. We know about
@@ -20,7 +20,7 @@
 //                               public endpoint is komoot's demo server. They
 //                               offer no availability guarantee and will throttle
 //                               or ban excessive use. Fine now; self-host (two
-//                               files, Apache-2.0) or move to Mapbox when Horda
+//                               files, Apache-2.0) or move to Mapbox when Furia
 //                               is busy enough for that to matter.
 //   GEO_PROVIDER=photon + PHOTON_URL → your own Photon instance. The upgrade
 //                               path that keeps everything else identical.
@@ -68,7 +68,7 @@ function curated(q: string): Place[] {
 async function photon(q: string, fetcher: typeof fetch): Promise<Place[]> {
   const base = process.env.PHOTON_URL || 'https://photon.komoot.io';
   const u = `${base}/api?limit=6&lang=de&q=${encodeURIComponent(q)}`;
-  const r = await fetcher(u, { headers: { 'user-agent': 'Horda/1.0 (joinhorda.com; marcus@spaghetti.ventures)' } });
+  const r = await fetcher(u, { headers: { 'user-agent': 'Furia/1.0 (joinfuria.com; marcus@spaghetti.ventures)' } });
   if (!r.ok) return [];
   const j = await r.json() as any;
   return (j.features || []).map((f: any) => {

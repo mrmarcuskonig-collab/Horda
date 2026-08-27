@@ -6,7 +6,7 @@
 // event page from "some text a model has to parse and might get wrong" into a
 // machine FACT: {a football match, in Berlin, Sat 20:00 Europe/Berlin, €15,
 // tickets at this URL, organised by FC Beispiel}. This is the single highest-
-// leverage thing for making individual Horda events findable by AI search.
+// leverage thing for making individual Furia events findable by AI search.
 //
 // It also unlocks Google's Event rich results (the little event cards in search)
 // for free — same markup.

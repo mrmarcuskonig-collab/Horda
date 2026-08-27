@@ -26,7 +26,7 @@ function wrap(text: string, max: number, lines = 2): string[] {
 
 // a bold, editorial Ink/Bone cover — typographic, with the raven mark
 export function coverSvg(o: { title: string; kicker?: string; tagline?: string }): string {
-  const t = (o.title || 'Horda').toUpperCase();
+  const t = (o.title || 'Furia').toUpperCase();
   const size = t.length <= 8 ? 150 : t.length <= 14 ? 112 : t.length <= 22 ? 84 : 64;
   const maxChars = Math.max(6, Math.floor(1040 / (size * 0.6)));
   const lines = wrap(t, maxChars, 2);
@@ -53,7 +53,7 @@ export function getModel(fetcher: typeof fetch = fetch): ModelCaller | undefined
     const r = await fetcher('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: { 'x-api-key': key, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
-      body: JSON.stringify({ model: process.env.HORDA_AI_MODEL || 'claude-3-5-haiku-latest', max_tokens: 500, messages: [{ role: 'user', content: prompt }] }),
+      body: JSON.stringify({ model: process.env.FURIA_AI_MODEL || 'claude-3-5-haiku-latest', max_tokens: 500, messages: [{ role: 'user', content: prompt }] }),
     } as any);
     const j: any = await r.json();
     return j?.content?.[0]?.text || '';
