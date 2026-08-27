@@ -1,5 +1,5 @@
 process.env.DATABASE_URL = 'postgres://postgres@127.0.0.1:5547/template1?sslmode=disable';
-delete process.env.HORDA_DATA;
+delete process.env.FURIA_DATA;
 const { startServer } = await import('./src/web/server.ts');
 const { requestClaim } = await import('./src/db/claim_repo.ts');
 const { signup, owns } = await import('./src/db/auth_repo.ts');

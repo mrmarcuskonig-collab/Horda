@@ -20,8 +20,8 @@ await notify(db,{fanId:fan,kind:'claim_new',headline:'Alex M. confirmed for Germ
 await notify(db,{fanId:fan,kind:'claim_new',headline:'Sarah K. confirmed for German Championship Final — TikTok Live.',href:`/manage/${champId}`,eventId:champId});
 await notify(db,{fanId:fan,kind:'claim_confirmed',headline:"You're confirmed for Fight Night — LIVE.",href:'/',eventId:liveId});
 const w = async (name:string,p:string,opts?:any)=>{const t=await (await fetch(base+p,opts)).text();writeFileSync('../'+name,t);console.log(name,t.length);};
-await w('horda-DESIGN-erkunden-live.html','/?guest=1');
-await w('horda-DESIGN-event-multiformat.html',`/e/${champId}?guest=1`);
-await w('horda-DESIGN-notifications.html','/notifications');
-await w('horda-DESIGN-create-event.html',`/host/athlete/${rico}/new`);
+await w('furia-DESIGN-erkunden-live.html','/?guest=1');
+await w('furia-DESIGN-event-multiformat.html',`/e/${champId}?guest=1`);
+await w('furia-DESIGN-notifications.html','/notifications');
+await w('furia-DESIGN-create-event.html',`/host/athlete/${rico}/new`);
 process.exit(0);

@@ -10,7 +10,7 @@
 //     handles, it is left untouched and reported — we never delete real people's data.
 //   • Schema-introspecting: it discovers which tables reference events/entities/fans,
 //     so it can't crash on a column that doesn't exist in a given schema version.
-//   • The demo account row itself is KEPT by default (so the HORDA_DEMO no-login view
+//   • The demo account row itself is KEPT by default (so the FURIA_DEMO no-login view
 //     still resolves, just to an empty world). Add --purge-demo-account to remove it.
 //
 // Run (safe preview, local):        node _seed_cleanup.ts
@@ -28,7 +28,7 @@ const SEED_ATH_HANDLES = ['rico', 'tariq', 'otto', 'max'];
 const SEED_ATH_NAMES = ["Rico 'The Raven' Vargas", 'Tariq Bello', 'Otto Kahn', 'Max Stein',
   'Jonas Weber', 'Luka Petrović', 'Emre Demir', 'Finn Albrecht'];
 const SEED_FAN_HANDLES = ['you', 'ines', 'karl', 'maja', 'rieke'];
-const DEMO_EMAIL = 'demo@horda.app';
+const DEMO_EMAIL = 'demo@furia.app';
 
 const db = await openDatabase();
 const rows = async <T = any>(s: string, p: any[] = []) => (await db.query<T>(s, p)).rows;

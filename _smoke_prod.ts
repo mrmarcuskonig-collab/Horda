@@ -11,7 +11,7 @@ let pass = 0, fail = 0;
 const ok = (n: string, c: boolean, extra = '') => { console.log(`  ${c ? 'PASS' : 'FAIL'}  ${n}${extra ? '  ·  ' + extra : ''}`); c ? pass++ : fail++; };
 const get = async (p: string) => {
   const t0 = Date.now();
-  const res = await fetch(BASE + p, { redirect: 'manual', headers: { 'user-agent': 'horda-smoke' } });
+  const res = await fetch(BASE + p, { redirect: 'manual', headers: { 'user-agent': 'furia-smoke' } });
   return { status: res.status, ms: Date.now() - t0, text: await res.text().catch(() => ''), res };
 };
 
@@ -41,7 +41,7 @@ try {
   const r = await fetch(BASE + '/login', {
     method: 'POST', redirect: 'manual',
     headers: { 'content-type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams({ email: 'smoke-test@horda.app' }).toString(),
+    body: new URLSearchParams({ email: 'smoke-test@furia.app' }).toString(),
   });
   ok('POST /login accepts a magic-link request (no 500)', r.status < 500, String(r.status));
 } catch (e: any) { ok('POST /login reachable', false, e?.message); }

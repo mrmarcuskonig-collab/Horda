@@ -15,7 +15,7 @@ function runClick(scenario: { historyLength: number; referrer: string }) {
   const history = { length: scenario.historyLength, back() { wentBack = true; } };
   const event = { preventDefault() { defaultPrevented = true; } };
   const document = { referrer: scenario.referrer };
-  const location = { origin: 'https://joinhorda.com' };
+  const location = { origin: 'https://joinfuria.com' };
   // eslint-disable-next-line no-new-func
   new Function('history', 'event', 'document', 'location', onclick)(history, event, document, location);
   // The <a> navigates to href UNLESS default was prevented.
@@ -29,7 +29,7 @@ console.log('\n[backsim] executing the real onclick in a fake browser\n');
 ok('empty referrer + history → goes BACK (was: navigate to own profile)',
   runClick({ historyLength: 3, referrer: '' }) === 'back');
 ok('same-origin referrer + history → goes BACK',
-  runClick({ historyLength: 3, referrer: 'https://joinhorda.com/' }) === 'back');
+  runClick({ historyLength: 3, referrer: 'https://joinfuria.com/' }) === 'back');
 ok('cross-origin referrer + history → still goes BACK (came from Twitter = back to Twitter, like the browser)',
   runClick({ historyLength: 2, referrer: 'https://twitter.com/x' }) === 'back');
 // Cold deep-link: opened as the very first page in a fresh tab → no history →

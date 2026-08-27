@@ -6,7 +6,7 @@ import { openDatabase } from './src/db/index.ts';
 
 const SEED_CLUBS = ['FC Beispiel', 'TSV Musterstadt', 'SV Example', 'SpVgg Altdorf', 'Berliner SC'];
 const SEED_ASSOC = ['Berliner Fußball-Verband'];
-const DEMO_EMAIL = 'demo@horda.app';
+const DEMO_EMAIL = 'demo@furia.app';
 
 const db = await openDatabase();
 const q = async (s: string, p: any[] = []) => (await db.query<any>(s, p)).rows;

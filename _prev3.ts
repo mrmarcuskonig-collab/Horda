@@ -7,5 +7,5 @@ const base=`http://localhost:${app.port}`, rico=app.ids.athletes[0].id, db=app.d
 await createScheduledEvent(db,{hostKind:'athlete',hostId:rico,title:'Fight Night — LIVE',startsAt:new Date(Date.now()-20*60000).toISOString(),location:'Berlin',admission:'open',locationKind:'hybrid'});
 await notify(db,{fanId:fan,kind:'claim_new',headline:'Alex confirmed — In person.',href:'/'});
 await notify(db,{fanId:fan,kind:'claim_new',headline:'Sarah confirmed — TikTok Live.',href:'/'});
-const t=await (await fetch(base+'/')).text(); writeFileSync('../horda-DESIGN-erkunden-loggedin.html',t); console.log('loggedin',t.length, t.includes('dr-badge')?'HAS-BADGE':'no-badge', t.includes('livepill')?'HAS-LIVE':'no-live');
+const t=await (await fetch(base+'/')).text(); writeFileSync('../furia-DESIGN-erkunden-loggedin.html',t); console.log('loggedin',t.length, t.includes('dr-badge')?'HAS-BADGE':'no-badge', t.includes('livepill')?'HAS-LIVE':'no-live');
 process.exit(0);

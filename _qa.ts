@@ -202,7 +202,7 @@ const gPassUrl = gClaim.headers.get('location') || '';
 const gCookie = (gClaim.headers.get('set-cookie') || '').split(';')[0];
 ok('guest claim folds account + issues a pass', gPassUrl.startsWith('/pass/') && gCookie.includes('hz_session'));
 const passTok = gPassUrl.split('/').pop()!;
-ok('ticket-mode pass shows a scannable QR + door check-in', (await txt(gPassUrl)).includes('Horda ticket') && (await txt(gPassUrl)).includes('Show this QR at the door') && (await txt(gPassUrl)).includes('id="hzqr"'));
+ok('ticket-mode pass shows a scannable QR + door check-in', (await txt(gPassUrl)).includes('Furia ticket') && (await txt(gPassUrl)).includes('Show this QR at the door') && (await txt(gPassUrl)).includes('id="hzqr"'));
 // host verifies at the gate → presence + standing
 await fetch(base + `/e/${eidC}/check-in`, post({ token: passTok }, cc));
 ok('check-in records a verified presence', (await app.db.query<{ n: number }>(`SELECT count(*)::int n FROM presence WHERE event_id=$1`, [eidC])).rows[0].n === 1);
@@ -214,7 +214,7 @@ ok('claim + presence instrumented', (await app.db.query<{ n: number }>(`SELECT c
 ok('following a crowd captured per-channel consent', (await app.db.query<{ n: number }>(`SELECT count(*)::int n FROM consent WHERE class='marketing' AND granted_at IS NOT NULL`)).rows[0].n >= 0);
 
 console.log('\n[§1 — layered account model: Creathor, /pros, 18+, verification, privacy]');
-ok('/pros door sells the back office', (await txt('/pros')).includes('Horda for athletes') && (await txt('/pros')).includes('Create your page'));
+ok('/pros door sells the back office', (await txt('/pros')).includes('Furia for athletes') && (await txt('/pros')).includes('Create your page'));
 const sPro = await fetch(base + '/signup', post({ email: 'proqa@x.com', name: 'Pro', password: 'secret123', next: '/onboarding/athlete', intent: 'pro' }));
 const ccPro = (sPro.headers.get('set-cookie') || '').split(';')[0];
 const proAcc = (await app.db.query<{ creator_layer: boolean; creator_verified: boolean }>(`SELECT creator_layer, creator_verified FROM account WHERE email='proqa@x.com'`)).rows[0];
@@ -256,7 +256,7 @@ ok('event page leads with the claim CTA (registration card removed)', evPg.inclu
 console.log('\n[build order #2 — conversion + growth P0]');
 const guestAth = await txt(`/athlete/${rico}`);                 // logged-out
 const fanAth = await txt(`/athlete/${rico}`, cookie);           // logged-in fan
-ok('guest sees a Follow CTA (not "Join the Horda")', guestAth.includes('>Follow</a>') && !guestAth.includes('Join the Horda'));
+ok('guest sees a Follow CTA (not "Join the Furia")', guestAth.includes('>Follow</a>') && !guestAth.includes('Join the Furia'));
 // The follow control now reflects state: /follow if not yet following, /unfollow
 // if already. Either is "can join/manage the crowd, not paid Support" — the
 // invariant the test actually guards. (It used to only ever render /follow,

@@ -6,7 +6,7 @@ for (const p of ['/agb','/widerruf','/terms','/withdrawal']) {
   console.log(p.padEnd(12), r.status, r.status===200?`len=${t.length}`:'');
 }
 const agb = await (await fetch(b+'/agb')).text();
-console.log('\nAGB says Horda is a platform, not the organiser:', agb.includes('Vermittlungsplattform, nicht der Veranstalter'));
+console.log('\nAGB says Furia is a platform, not the organiser:', agb.includes('Vermittlungsplattform, nicht der Veranstalter'));
 console.log('AGB names the 10% take rate:', agb.includes('10%'));
 console.log('AGB says tickets are personengebunden:', agb.includes('personengebunden'));
 console.log('AGB says resale is NOT offered:', agb.includes('nicht angeboten'));

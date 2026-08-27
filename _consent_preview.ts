@@ -8,7 +8,7 @@ const frame = (title: string, inner: string) => `
     <div class="phone">
       <div class="pt">${title}</div>
       <form onsubmit="return false">
-        <h1 style="font-size:23px;font-weight:900;letter-spacing:-.02em;margin:2px 0 4px">Create your Horda</h1>
+        <h1 style="font-size:23px;font-weight:900;letter-spacing:-.02em;margin:2px 0 4px">Create your Furia</h1>
         <p style="color:var(--mut);font-size:13px;margin:0 0 4px">Enter your email — we'll send a code.</p>
         <input placeholder="you@email.com" style="width:100%;box-sizing:border-box;background:#1c1917;border:1px solid var(--b);border-radius:10px;color:var(--bone);padding:11px 13px;margin:8px 0">
         ${inner}
@@ -20,7 +20,7 @@ const frame = (title: string, inner: string) => `
 
 const html = `<!doctype html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Horda — consent step preview (dormant)</title>
+<title>Furia — consent step preview (dormant)</title>
 <style>
   :root{--ink:#232020;--acc:#E15A40;--bone:#EDE9DF;--mut:#a49e97;--b:#3a3532}
   *{box-sizing:border-box}

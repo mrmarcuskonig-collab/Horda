@@ -1,4 +1,4 @@
-# AGENTS.md — Horda
+# AGENTS.md — Furia
 
 Every session working in this repo reads this file first, before the README. Follow it literally.
 
@@ -6,9 +6,9 @@ Every session working in this repo reads this file first, before the README. Fol
 
 ---
 
-## What Horda is
+## What Furia is
 
-Horda is the system of record for real sport: clubs, teams, athletes, leagues, fixtures and the events around them. Tenants are clubs, fighters, gyms, promoters and organisers; end users are athletes and spectators. The app is a server-rendered Node application with an embedded Postgres, deployed as a single Docker container.
+Furia is the system of record for real sport: clubs, teams, athletes, leagues, fixtures and the events around them. Tenants are clubs, fighters, gyms, promoters and organisers; end users are athletes and spectators. The app is a server-rendered Node application with an embedded Postgres, deployed as a single Docker container.
 
 Market: German cities first — Berlin, Hamburg, Cologne, Munich — with Europe as the goal. Build multi-region, multi-currency and multi-language from the start; launch one city at a time.
 
@@ -26,7 +26,7 @@ Business context that should shape technical judgment: solo founder, bootstrappe
 | Images | `@resvg/resvg-js` rasterises the matchday card to PNG (`src/web/raster.ts`). Needs system fonts — see the Dockerfile comment. |
 | Lint / format | **None configured.** Do not invent a lint step; match surrounding style by eye. |
 | CI | **None.** `.github/` does not exist. Adding it is in progress. |
-| Deploy | Docker → Render (`render.yaml`), health check `/healthz`, domain `joinhorda.com` |
+| Deploy | Docker → Render (`render.yaml`), health check `/healthz`, domain `joinfuria.com` |
 
 Dependencies are three. Keep it that way: every dependency is a real cost against the breakeven number.
 
@@ -38,8 +38,8 @@ npm install            # ~5s, 17 packages
 npm test               # THE gate. ~3 minutes, serial. See "About the suite" below.
 npm run web            # dev server — src/web/server.ts
 npm run demo           # examples/persist-demo.ts
-npm run db:apply       # bash db/apply.sh horda   (real Postgres only)
-npm run db:verify      # psql horda -f db/verify.sql
+npm run db:apply       # bash db/apply.sh furia   (real Postgres only)
+npm run db:verify      # psql furia -f db/verify.sql
 ```
 
 There is no build, no typecheck and no lint command. Do not claim to have run one.
@@ -50,7 +50,7 @@ There is no build, no typecheck and no lint command. Do not claim to have run on
 - The suite is **997 assertions** across those 38 files, and takes about **3 minutes** because every file boots its own server and re-applies all 55 migrations.
 - Because it is a single `&&` chain, **the first failing file stops the run** and everything after it never executes. A "passing" run means every file ran; a failing run tells you nothing about the files below the failure.
 - Run the single relevant file while iterating — `node tests/events.test.ts` — and the full suite before opening a PR.
-- **The suite has side effects on tracked files.** `tests/web.test.ts` overwrites the ten `horda-app-*.html` snapshots at the repo root, and `npm install` can touch `package-lock.json`. Never `git add .` — stage the files your task actually changed, by name. Snapshot churn does not belong in a feature PR.
+- **The suite has side effects on tracked files.** `tests/web.test.ts` overwrites the ten `furia-app-*.html` snapshots at the repo root, and `npm install` can touch `package-lock.json`. Never `git add .` — stage the files your task actually changed, by name. Snapshot churn does not belong in a feature PR.
 
 ## Architecture
 

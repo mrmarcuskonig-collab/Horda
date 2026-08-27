@@ -12,9 +12,9 @@ await addFormat(db,{eventId:champ,kind:'stream',label:'TikTok Live',channelUrl:'
 await addFormat(db,{eventId:champ,kind:'stream',label:'Sportdeutschland.TV',channelUrl:'https://sportdeutschland.tv/x',requiresTicket:false,sort:2});
 await notify(db,{fanId:fan,kind:'claim_new',headline:'Alex confirmed — In person.',href:'/'});
 const w=async(n:string,p:string,o?:any)=>{const t=await(await fetch(base+p,o)).text();writeFileSync('../'+n,t);console.log(n,t.length);};
-await w('horda-DESIGN-athlete.html',`/athlete/${rico}`);
-await w('horda-DESIGN-club.html',`/club/${club}`);
-await w('horda-DESIGN-connections.html',`/athlete/${rico}/connections`);
-await w('horda-DESIGN-event-multiformat.html',`/e/${champ}?guest=1`);
-await w('horda-DESIGN-erkunden-loggedin.html','/');
+await w('furia-DESIGN-athlete.html',`/athlete/${rico}`);
+await w('furia-DESIGN-club.html',`/club/${club}`);
+await w('furia-DESIGN-connections.html',`/athlete/${rico}/connections`);
+await w('furia-DESIGN-event-multiformat.html',`/e/${champ}?guest=1`);
+await w('furia-DESIGN-erkunden-loggedin.html','/');
 process.exit(0);

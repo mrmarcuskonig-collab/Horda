@@ -18,7 +18,7 @@ let captured: any = null;
 const sink = createServer((req, res) => { let b = ''; req.on('data', c => b += c); req.on('end', () => { try { captured = JSON.parse(b); } catch {} res.end('ok'); }); });
 await new Promise<void>(r => sink.listen(0, r));
 const sinkPort = (sink.address() as any).port;
-process.env.HORDA_ERROR_WEBHOOK = `http://localhost:${sinkPort}`;
+process.env.FURIA_ERROR_WEBHOOK = `http://localhost:${sinkPort}`;
 
 const { reportError, errorPage } = await import('./src/web/observe.ts');
 reportError(new Error('synthetic boom'), { where: 'test', method: 'GET', path: '/x' });
