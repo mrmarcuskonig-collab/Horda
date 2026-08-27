@@ -82,21 +82,21 @@ ok('/widerruf is public', (await raw('/widerruf')).status === 200);
 ok('/terms and /withdrawal are English aliases', (await raw('/terms')).status === 200 && (await raw('/withdrawal')).status === 200);
 ok('AGB is linked from the app footer', (await get('/')).includes('/agb'));
 
-// THE structural decision: Horda is a Vermittler, not the Veranstalter. If Horda
+// THE structural decision: Furia is a Vermittler, not the Veranstalter. If Furia
 // were the seller it would owe every consumer duty for every event on the
 // platform — a refund for a cancelled Kreisliga match would be OUR problem.
-ok('AGB states Horda is a platform, NOT the organiser', agb.includes('intermediary platform, not the event organiser'));
+ok('AGB states Furia is a platform, NOT the organiser', agb.includes('intermediary platform, not the event organiser'));
 ok('AGB states the ticket contract is fan ↔ organiser', agb.includes('concluded exclusively between you and the respective organiser'));
-ok('AGB states refunds are the organiser\'s, not ours', agb.includes('Horda supports the reversal technically') && agb.includes('does not itself owe the refund'));
+ok('AGB states refunds are the organiser\'s, not ours', agb.includes('Furia supports the reversal technically') && agb.includes('does not itself owe the refund'));
 // The take rate is a contract term — it must never drift from the code.
 ok('AGB names the take rate from the same constant the code uses', agb.includes(`${TAKE_RATE_PCT}%`) && TAKE_RATE_PCT === 5);
-ok('AGB says card data never touches Horda', agb.includes('Payment data is not collected or stored by Horda'));
+ok('AGB says card data never touches Furia', agb.includes('Payment data is not collected or stored by Furia'));
 ok('AGB covers UGC: you keep your rights, we get a licence to display', agb.includes('simple, geographically and temporally unlimited right'));
 ok('AGB states tickets are identity-bound and non-transferable', agb.includes('identity-bound and non-transferable'));
 // DECIDED: no resale, ever (17 Jul 2026). The AGB has to state a position, not
 // describe a temporary gap — "currently not offered" invited the reader to
 // expect it later. See tests/resale.test.ts for the enforcement side.
-ok('AGB states Horda offers no resale, as a decision', agb.includes('no resale of tickets') && agb.includes('deliberate decision'));
+ok('AGB states Furia offers no resale, as a decision', agb.includes('no resale of tickets') && agb.includes('deliberate decision'));
 ok('AGB carries the 16/18 age rules', agb.includes('16 years') && agb.includes('18 years'));
 ok('AGB has a real liability clause (Kardinalpflicht)', agb.includes('Kardinalpflicht'));
 

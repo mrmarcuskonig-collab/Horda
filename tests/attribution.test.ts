@@ -1,9 +1,9 @@
-// attribution.test.ts — "who drove this fan / this ticket". THE number Horda
+// attribution.test.ts — "who drove this fan / this ticket". THE number Furia
 // sells. If it's wrong, the product is a lie, so it gets its own suite.
 //
 // THE DISTINCTION THAT MATTERS, and that was collapsed until now:
 //   identities   — PEOPLE WE NOW KNOW. One per claim. If you bring three mates
-//                  on your ticket, Horda learns about YOU, not about them.
+//                  on your ticket, Furia learns about YOU, not about them.
 //   ticketBuyers — people who paid. One per paid claim, same reasoning.
 //   tickets      — SEATS SOLD (sum of party_size). The money number.
 // They are not the same number. Reporting claims as if they were tickets

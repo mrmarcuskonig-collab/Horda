@@ -41,7 +41,7 @@ const mp = await get(`/e/${main}?guest=1`);
 ok('the main page shows the sub-events "On the card · 4"', mp.includes('On the card · 4'));
 ok('only a few are shown, the rest behind "Show all 4"', mp.includes('Show all 4'));
 
-// Claiming a SUB enrols you in the MAIN too — both show on your Horda page.
+// Claiming a SUB enrols you in the MAIN too — both show on your Furia page.
 await post(`/claim/${subs[0].id}`, {});
 const feed = (await attendingEvents(app.db, app.ids.fanId)).map(r => r.eventId);
 ok('claiming a sub-event puts BOTH the sub and the main on your feed', feed.includes(subs[0].id) && feed.includes(main));

@@ -10,7 +10,7 @@ const ok = (n: string, c: boolean) => { console.log(`  ${c ? 'PASS' : 'FAIL'}  $
 console.log('\n[email · adapter]');
 let lastUrl = '', lastInit: any = null;
 const fakeFetch: any = async (u: string, init: any) => { lastUrl = u; lastInit = init; return { ok: true, json: async () => ({ id: 'e_1' }) }; };
-const re = new ResendEmailer('re_test_key', 'Horda <marcus@spaghetti.ventures>', fakeFetch);
+const re = new ResendEmailer('re_test_key', 'Furia <marcus@spaghetti.ventures>', fakeFetch);
 const sent = await re.send({ to: 'a@x.com', subject: 'Hi', html: '<b>hi</b>', text: 'hi' });
 const body = JSON.parse(lastInit.body);
 ok('resend send returns true on ok', sent === true);
@@ -24,7 +24,7 @@ await console_.send({ to: 'b@x.com', subject: 'S', html: 'H' });
 ok('console emailer captures the last message', console_.last?.to === 'b@x.com' && console_.last?.subject === 'S');
 
 console.log('\n[email · reset template]');
-const tpl = resetEmail('https://joinhorda.com/reset?token=ABC');
+const tpl = resetEmail('https://joinfuria.com/reset?token=ABC');
 ok('reset email links to the reset url', tpl.html.includes('/reset?token=ABC') && tpl.text.includes('/reset?token=ABC'));
 ok('reset email mentions 1-hour expiry', /1 hour/.test(tpl.text));
 

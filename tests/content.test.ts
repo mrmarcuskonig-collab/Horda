@@ -20,8 +20,8 @@ console.log('\n[content · result card + recap]');
 const rs = (await buildResultShare(db, evRow.event_id))!;
 console.log('  recap:', rs.body);
 ok('recap states the real result (winner + method)', /Rico .*defeated .*(Tariq|Otto).* by (UD|KO)/.test(rs.body));
-ok('card carries the real crest mark + link (no wordmark)', rs.card.includes('M110,40 L350,40') && rs.card.includes('joinhorda.com') && !rs.card.includes('HORDA'));
-ok('card is monochrome (only Ink + Bone)', !/#(?!0B0B0C|EDE9DF)[0-9A-Fa-f]{6}/.test(rs.card));
+ok('card carries the real spark mark + link (no wordmark)', rs.card.includes('M50 22C58 42') && rs.card.includes('joinfuria.com') && !rs.card.includes('FURIA'));
+ok('card uses only brand colours (Ink / Bone / Ember)', !/#(?!0B0B0C|EDE9DF|E15A40|cd4c33)[0-9A-Fa-f]{6}/i.test(rs.card));
 ok('bright line: no fabricated quote/voice', !/[“"].*[”"]/.test(rs.body) && !/\bsaid\b|\bI'?ll\b|\bwe\b/i.test(rs.body));
 
 console.log('\n[content · fight hype]');
@@ -34,8 +34,8 @@ ok('hype surfaces real engagement channels', /tickets|stream|follow/i.test(fs.bo
 console.log('\n[content · week drop]');
 const wd = await buildWeekDrop(db, ids.fanId);
 console.log('  drop:\n  ' + wd.body.replace(/\n/g, '\n  '));
-ok('week drop summarizes the fan’s real coverage', wd.body.includes('week in the Horda') && wd.body.includes('•'));
-ok('week card built (crest mark)', wd.card.includes('M110,40 L350,40'));
+ok('week drop summarizes the fan’s real coverage', wd.body.includes('week in the Furia') && wd.body.includes('•'));
+ok('week card built (spark mark)', wd.card.includes('M50 22C58 42'));
 
 await db.close();
 console.log(`\n──────────── ${pass} passed, ${fail} failed ────────────`);

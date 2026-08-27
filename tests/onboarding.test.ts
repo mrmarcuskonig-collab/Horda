@@ -52,7 +52,7 @@ ok('no AI generate step survives', !form.includes('Generate my page') && !form.i
 ok('no creative-direction pickers survive', !form.includes('name="mood"') && !form.includes('name="energy"') && !form.includes('name="voice"'));
 ok('a new page does NOT choose its own URL up front', !form.includes('name="handle"'));
 ok('it asks for a one-line about AND a longer description', form.includes('name="tagline"') && form.includes('name="description"'));
-ok('it says the custom link comes later', form.includes('joinhorda.com/yourname'));
+ok('it says the custom link comes later', form.includes('joinfuria.com/yourname'));
 const gone = await authed('/onboarding/athlete/generate', { method: 'POST', redirect: 'manual', headers: { 'content-type': 'application/x-www-form-urlencoded' }, body: enc({ description: 'x' }) });
 ok('the old generate endpoint is gone', gone.status === 404);
 const cre = await authed('/onboarding/athlete', { method: 'POST', redirect: 'manual', headers: { 'content-type': 'application/x-www-form-urlencoded' }, body: enc({ name: 'The Hawk', tagline: 'Berlin southpaw', description: 'Fights out of Kreuzberg. Trains at Boxstall 12.' }) });
@@ -73,8 +73,8 @@ ok('fan onboarding = multi-select follow picker (save to persist)', (await (awai
 const cookieC = (sc.headers.get('set-cookie') || '').split(';')[0];
 const cs = await (await fetch(base + '/onboarding/claim?q=Beispiel', { headers: { cookie: cookieC } })).text();
 // search surfaces the existing club (with its logo/name); claimable → Claim button,
-// already on Horda → an "On Horda" marker. Either way it's found and a create form exists.
-ok('claim search finds the club + shows claim-or-exists', cs.includes('FC Beispiel') && (cs.includes('/claim/club/') || cs.includes('On Horda')));
+// already on Furia → an "On Furia" marker. Either way it's found and a create form exists.
+ok('claim search finds the club + shows claim-or-exists', cs.includes('FC Beispiel') && (cs.includes('/claim/club/') || cs.includes('On Furia')));
 ok('claim page offers create-from-scratch', cs.includes('action="/onboarding/create"'));
 
 console.log('\n[onboarding · /about marketing site (4 pages + nav)]');
@@ -87,7 +87,7 @@ ok('/about/creators: organisers + athletes + clubs + fans + CTAs', cr.includes('
 const ft = await (await fetch(base + '/about/features')).text();
 ok('/about/features: outcome-led + fight-night walkthrough', ft.includes('Sell tickets. Scan') && ft.includes('See who drove them') && ft.includes('A fight night, end to end') && ft.includes('promo link'));
 const pr = await (await fetch(base + '/about/pricing')).text();
-ok('/about/pricing: Luma-style two-tier (Free 5% + Horda Plus 0% fee), config-driven', pr.includes('Horda Free') && pr.includes('Horda Plus') && pr.includes('5% platform fee') && pr.includes('0% platform fee') && !pr.includes('Clubhouse'));
+ok('/about/pricing: Luma-style two-tier (Free 5% + Furia Plus 0% fee), config-driven', pr.includes('Furia Free') && pr.includes('Furia Plus') && pr.includes('5% platform fee') && pr.includes('0% platform fee') && !pr.includes('Clubhouse'));
 ok('about header is logo-only (no marketing nav bar), logo links back to the app', cr.includes('class="mnav"') && !cr.includes('class="navitem') && /class="mark" href="\/"/.test(cr));
 ok('old /athletes + /clubs redirect into /about/creators', (await fetch(base + '/athletes', { redirect: 'manual' })).headers.get('location') === '/about/creators' && (await fetch(base + '/clubs', { redirect: 'manual' })).headers.get('location') === '/about/creators');
 

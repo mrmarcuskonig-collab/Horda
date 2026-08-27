@@ -48,7 +48,7 @@ const mapEn = await get('/map');
 const mapDe = await get('/map', true);
 ok('map is English for an English viewer', mapEn.includes('<html lang="en"'));
 ok('map is English even with a legacy German cookie (no more language jump)', mapDe.includes('<html lang="en"'));
-ok('map nav is English', mapDe.includes('Explore') || mapDe.includes('Event map') || mapDe.includes('>Horda<'));
+ok('map nav is English', mapDe.includes('Explore') || mapDe.includes('Event map') || mapDe.includes('>Furia<'));
 
 // Future-only + live ring. Seed a past event and a live one; assert the map
 // query returns future only and flags the live one.
@@ -88,14 +88,14 @@ const runBack = (historyLength: number, referrer: string): 'back' | 'nav' => {
   const history = { length: historyLength, back() { wentBack = true; } };
   const event = { preventDefault() { prevented = true; } };
   const document = { referrer };
-  const location = { origin: 'https://joinhorda.com' };
+  const location = { origin: 'https://joinfuria.com' };
   new Function('history', 'event', 'document', 'location', backClick)(history, event, document, location);
   return wentBack ? 'back' : (prevented ? 'back' : 'nav');
 };
 ok('back does not depend on document.referrer (the thing that broke it)', !backClick.includes('referrer'));
 ok('back uses preventDefault, not unreliable return-false', backClick.includes('preventDefault') && !backClick.includes('return false'));
 ok('THE BUG: empty referrer + history → goes BACK, not to the profile href', runBack(3, '') === 'back');
-ok('same-origin referrer + history → goes back', runBack(3, 'https://joinhorda.com/') === 'back');
+ok('same-origin referrer + history → goes back', runBack(3, 'https://joinfuria.com/') === 'back');
 ok('cold deep-link (no history) → falls to the semantic href', runBack(1, '') === 'nav');
 ok('back still has a fallback href for the cold case', /hz-back" href="[^"]+"/.test(evFan) && backHref === '/athlete/OWNER');
 

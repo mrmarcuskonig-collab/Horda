@@ -1,6 +1,6 @@
 // platform.test.ts — ADR-0002 platform readiness.
 //   * every behavioral FACT (claim, pass, presence, follow, attribution) carries a
-//     `source` tag; existing/default writes are 'horda'
+//     `source` tag; existing/default writes are 'furia'
 //   * a future product can override `source` at the write boundary
 //   * the dormant consent table can EXPRESS product + purpose (schema only)
 // Run: node tests/platform.test.ts
@@ -27,42 +27,42 @@ const evId = (await db.query<{ id: string }>(`SELECT id FROM event ORDER BY crea
 const fanA = app.ids.fanId;
 const ath = app.ids.athletes[0].id;
 
-// --- a Horda claim + its pass are tagged 'horda' by default ---
+// --- a Furia claim + its pass are tagged 'furia' by default ---
 const c = await createClaim(db, { eventId: evId, fanId: fanA, capacity: 100, mode: 'open', priceCents: 0 });
 const claimSrc = (await db.query<{ source: string }>(`SELECT source FROM claim WHERE id=$1`, [c.claimId])).rows[0].source;
 const passSrc = (await db.query<{ source: string }>(`SELECT source FROM pass WHERE claim_id=$1`, [c.claimId])).rows[0].source;
-ok('a claim defaults to source=horda', claimSrc === 'horda');
-ok('its pass defaults to source=horda', passSrc === 'horda');
+ok('a claim defaults to source=furia', claimSrc === 'furia');
+ok('its pass defaults to source=furia', passSrc === 'furia');
 
 // --- verifying the pass records presence, tagged with the claim's source ---
 await verifyPass(db, c.passToken, null);
 const presSrc = (await db.query<{ source: string }>(`SELECT source FROM presence WHERE claim_id=$1`, [c.claimId])).rows[0].source;
-ok('presence inherits the claim source (horda)', presSrc === 'horda');
+ok('presence inherits the claim source (furia)', presSrc === 'furia');
 
-// --- a follow + an attribution share default to horda ---
+// --- a follow + an attribution share default to furia ---
 await followEntity(db, fanA, 'athlete', ath);
 const followSrc = (await db.query<{ source: string }>(`SELECT source FROM follow WHERE fan_id=$1 AND target_id=$2`, [fanA, ath])).rows[0].source;
-ok('a follow defaults to source=horda', followSrc === 'horda');
+ok('a follow defaults to source=furia', followSrc === 'furia');
 const tok = await getOrCreateShareToken(db, evId, fanA);
 const shareSrc = (await db.query<{ source: string }>(`SELECT source FROM event_share WHERE token=$1`, [tok])).rows[0].source;
-ok('an attribution share defaults to source=horda', shareSrc === 'horda');
+ok('an attribution share defaults to source=furia', shareSrc === 'furia');
 
 // --- a DIFFERENT product can claim the SAME graph under its own source ---
 const fanB = (await db.query<{ id: string }>(`SELECT id FROM fan WHERE id<>$1 LIMIT 1`, [fanA])).rows[0].id;
 const c2 = await createClaim(db, { eventId: evId, fanId: fanB, capacity: 100, mode: 'open', priceCents: 0, source: 'arena' });
 const src2 = (await db.query<{ source: string }>(`SELECT source FROM claim WHERE id=$1`, [c2.claimId])).rows[0].source;
-ok('a second product writes its own source (not horda)', src2 === 'arena');
+ok('a second product writes its own source (not furia)', src2 === 'arena');
 // fresh edge — a follow that doesn't already exist (ON CONFLICT DO NOTHING would
-// otherwise keep a seeded 'horda' row and hide the new product's tag)
+// otherwise keep a seeded 'furia' row and hide the new product's tag)
 await db.query(`DELETE FROM follow WHERE fan_id=$1 AND target_id=$2`, [fanB, ath]);
 await followEntity(db, fanB, 'athlete', ath, 'arena');
 const fSrc2 = (await db.query<{ source: string }>(`SELECT source FROM follow WHERE fan_id=$1 AND target_id=$2`, [fanB, ath])).rows[0].source;
 ok('a second product tags its follow edges too', fSrc2 === 'arena');
 
 // --- the graph can be sliced per product (the whole point) ---
-const horda = (await db.query<{ n: number }>(`SELECT count(*)::int n FROM claim WHERE source='horda'`)).rows[0].n;
+const furia = (await db.query<{ n: number }>(`SELECT count(*)::int n FROM claim WHERE source='furia'`)).rows[0].n;
 const arena = (await db.query<{ n: number }>(`SELECT count(*)::int n FROM claim WHERE source='arena'`)).rows[0].n;
-ok('claims are sliceable by product', horda >= 1 && arena === 1);
+ok('claims are sliceable by product', furia >= 1 && arena === 1);
 
 // --- consent (dormant) can EXPRESS product + purpose (ADR-0002 ruling #3) ---
 ok('rights_grant can express a product scope', await col('rights_grant', 'product'));

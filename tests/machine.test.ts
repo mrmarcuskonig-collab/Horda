@@ -4,7 +4,7 @@
 // parse the bytes, believe nothing. That's the only way to catch this class of
 // bug, because every failure here is silent — a wrong xmlns, a missing date, a
 // feed that drifted from its page. Nothing throws. Nobody notices. The answer an
-// agent gives about Horda is just quietly wrong.
+// agent gives about Furia is just quietly wrong.
 //
 // The bug this suite exists for: the changelog printed the date once per DAY and
 // left it empty for every entry after the first. A human reads "same day,
@@ -126,7 +126,7 @@ ok('the escaper handles & and < (asserted directly)',
 
 // --- /changelog.md ---------------------------------------------------------
 const md = await get('/changelog.md');
-ok('markdown twin leads with an H1', md.startsWith('# Horda'));
+ok('markdown twin leads with an H1', md.startsWith('# Furia'));
 ok('it carries every shipped entry', SHIPPED.every(e => md.includes(e.title)));
 ok('it separates shipped from the "now building" promises', md.includes('## Shipped') && md.includes('## Now building'));
 ok('it states plainly that "building" is not live', /NOT live yet/i.test(md));
@@ -135,7 +135,7 @@ ok('it is markdown, not HTML with the tags removed', !md.includes('<div') && !md
 // --- /llms.txt (llmstxt.org spec) ------------------------------------------
 const llms = await get('/llms.txt');
 const lines = llms.split('\n');
-ok('llms.txt: H1 first — the only required element in the spec', lines[0] === '# Horda');
+ok('llms.txt: H1 first — the only required element in the spec', lines[0] === '# Furia');
 ok('llms.txt: blockquote summary directly after the H1', lines[2]?.startsWith('> '));
 ok('llms.txt: H2 sections of link lists, per spec', /^## Docs$/m.test(llms) && /^## Legal$/m.test(llms));
 // "## Optional" is load-bearing in the spec: a consumer short on context may skip

@@ -1,5 +1,5 @@
 // createpage.test.ts — "find or create your club/federation/organiser".
-//   * live search surfaces existing pages, claimable vs. already-on-Horda
+//   * live search surfaces existing pages, claimable vs. already-on-Furia
 //   * creating from scratch makes a claimed page you own (the bug that was missing)
 //   * the page ships live search + claim buttons + a create form + same-name notice
 // Run: node tests/createpage.test.ts
@@ -62,8 +62,8 @@ ok('page offers a create-from-scratch form', pg.includes('action="/onboarding/cr
 ok('the create form is finished with Save, and carries the page prose', pg.includes('>Save</button>') && pg.includes('name="tagline"') && pg.includes('name="description"'));
 ok('the create form does not ask for a custom URL up front', !pg.includes('name="handle"'));
 const pgX = renderOnboardClaim({ q: 'Downtown FC', kind: 'club', results: f2, exact: true });
-ok('same-name notice shows on an exact match', pgX.includes('already exists on Horda') && !pgX.includes('id="notice" hidden'));
-ok('a claimed result shows "On Horda", not a Claim button', pgX.includes('On Horda'));
+ok('same-name notice shows on an exact match', pgX.includes('already exists on Furia') && !pgX.includes('id="notice" hidden'));
+ok('a claimed result shows "On Furia", not a Claim button', pgX.includes('On Furia'));
 
 await app.close();
 console.log(`\n──────── createpage: ${pass} passed, ${fail} failed ────────`);

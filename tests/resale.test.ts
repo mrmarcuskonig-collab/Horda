@@ -1,4 +1,4 @@
-// resale.test.ts — HORDA DOES NOT DO RESALE. This is the guard on that decision.
+// resale.test.ts — FURIA DOES NOT DO RESALE. This is the guard on that decision.
 //
 // DECIDED 17 Jul 2026 (Marcus): no resale, ever. Not deferred — declined. The
 // reasoning lives in src/db/transfer_repo.ts; the short version is that a ticket
@@ -10,7 +10,7 @@
 // Two jobs, and the first matters more:
 //
 //   1. NOTHING IS OFFERED. No UI, no live endpoint, no accidental path to a paid
-//      transfer. The AGB says tickets are personengebunden and Horda offers no
+//      transfer. The AGB says tickets are personengebunden and Furia offers no
 //      resale; if any of these fail, the contract is a lie.
 //   2. THE LOGIC IS CORRECT ANYWAY. Void-then-reissue, price capped at face
 //      value, seat freed, old QR dead, ledger written. Tested with force:true —
@@ -59,17 +59,17 @@ ok('no resale teaser anywhere on the event page', !/resale/i.test(evPage.replace
 
 // The flag is what makes the AGB true, so assert the contract still says so.
 const agb = await (await fetch(`${base}/agb`)).text();
-ok('AGB states Horda offers no resale', agb.includes('no resale of tickets') && agb.includes('identity-bound'));
+ok('AGB states Furia offers no resale', agb.includes('no resale of tickets') && agb.includes('identity-bound'));
 // "currently not offered" framed this as temporary. It isn't — it's a position,
 // and the contract should say what we mean.
 ok('AGB frames it as a decision, not a temporary gap', agb.includes('deliberate decision') && agb.includes('not a temporary limitation'));
-ok('AGB states plainly there is no secondary market', agb.includes('no secondary market on Horda'));
+ok('AGB states plainly there is no secondary market', agb.includes('no secondary market on Furia'));
 // If you can't go, the answer is the organiser — not a marketplace. The contract
 // has to give the fan somewhere to actually go.
 ok('AGB points a stuck fan at the organiser', agb.includes('please contact the organiser'));
 // Cross-references in a contract must resolve. Resale is section 9; the pointer
 // in the tickets clause must aim there, not off-by-one.
-ok('the resale cross-reference points at the resale clause', agb.includes('no resale via Horda (see section 9)'));
+ok('the resale cross-reference points at the resale clause', agb.includes('no resale via Furia (see section 9)'));
 ok('section 9 is in fact the resale clause', /<h2>9\. No resale<\/h2>/.test(agb));
 
 // --- 2. THE LOGIC IS RIGHT ANYWAY ----------------------------------------

@@ -19,7 +19,7 @@ const pd = {
   eventTitle: 'Berliner SC vs FC Beispiel', hostName: 'FC Beispiel',
   startsAt: '2026-08-01T17:00:00.000Z', timezone: 'Europe/Berlin',
   location: 'Poststadion, Berlin', formatLabel: 'In person', fanName: 'Marcus K',
-  eventUrl: 'https://joinhorda.com/e/x',
+  eventUrl: 'https://joinfuria.com/e/x',
 };
 
 // --- not configured is the CURRENT state, and it must be honest ------------
@@ -38,7 +38,7 @@ const claimEv = (await db.query<{ id: string }>(`SELECT id FROM event WHERE admi
 const fanW = (await db.query<{ id: string }>(`INSERT INTO fan (display_name) VALUES ('Wallet Fan') RETURNING id`)).rows[0].id;
 const cw = await createClaim(db, { eventId: claimEv, fanId: fanW, capacity: null, mode: 'open' });
 const passPage = await get(`/pass/${cw.passToken}`);
-ok('pass page renders', passPage.includes('Horda'));
+ok('pass page renders', passPage.includes('Furia'));
 ok('no dead "Add to Wallet — soon" chip', !passPage.includes('Add to Wallet — soon') && !/Wallet\s*—\s*soon/.test(passPage));
 ok('no Wallet button at all while unconfigured', !passPage.includes('Add to Apple Wallet') && !passPage.includes('Save to Google Wallet'));
 ok('the QR is still the ticket — nothing regressed', passPage.includes('hzqr') || passPage.includes('show this QR'));
@@ -46,7 +46,7 @@ ok('an unconfigured .pkpass download 404s, not 500s', (await fetch(`${base}/pass
 
 // --- configured: the passes are built correctly ----------------------------
 process.env.GOOGLE_WALLET_ISSUER_ID = '3388000000022222228';
-process.env.GOOGLE_WALLET_SA_EMAIL = 'horda@horda.iam.gserviceaccount.com';
+process.env.GOOGLE_WALLET_SA_EMAIL = 'furia@furia.iam.gserviceaccount.com';
 const { generateKeyPairSync } = await import('node:crypto');
 const { privateKey } = generateKeyPairSync('rsa', { modulusLength: 2048, privateKeyEncoding: { type: 'pkcs8', format: 'pem' }, publicKeyEncoding: { type: 'spki', format: 'pem' } });
 process.env.GOOGLE_WALLET_SA_KEY = privateKey as string;
@@ -59,7 +59,7 @@ ok('it is a three-part JWT', jwt.length === 3);
 const head = JSON.parse(Buffer.from(jwt[0], 'base64url').toString());
 const body = JSON.parse(Buffer.from(jwt[1], 'base64url').toString());
 ok('signed RS256 (what Google requires)', head.alg === 'RS256');
-ok('issued to the service account', body.iss === 'horda@horda.iam.gserviceaccount.com' && body.aud === 'google');
+ok('issued to the service account', body.iss === 'furia@furia.iam.gserviceaccount.com' && body.aud === 'google');
 const obj = body.payload.eventTicketObjects[0];
 // ONE credential, three surfaces. A wallet-specific code would be a second thing
 // to keep in sync with the door scanner, and it would drift.
@@ -76,10 +76,10 @@ ok('a broken key returns null, it does not throw on the pass page', googleWallet
 delete process.env.GOOGLE_WALLET_ISSUER_ID; delete process.env.GOOGLE_WALLET_SA_EMAIL; delete process.env.GOOGLE_WALLET_SA_KEY;
 
 // --- the .pkpass parts we can build without Apple's certificate ------------
-process.env.APPLE_PASS_TYPE_ID = 'pass.com.joinhorda.ticket';
+process.env.APPLE_PASS_TYPE_ID = 'pass.com.joinfuria.ticket';
 process.env.APPLE_TEAM_ID = 'ABCDE12345';
 const pj = JSON.parse(passJson(pd));
-ok('pass.json declares the Pass Type + Team', pj.passTypeIdentifier === 'pass.com.joinhorda.ticket' && pj.teamIdentifier === 'ABCDE12345');
+ok('pass.json declares the Pass Type + Team', pj.passTypeIdentifier === 'pass.com.joinfuria.ticket' && pj.teamIdentifier === 'ABCDE12345');
 ok('pass.json carries the same token as the QR', pj.serialNumber === pd.token && pj.barcodes[0].message === pd.token);
 ok('pass.json is an eventTicket, and relevant at the event time', !!pj.eventTicket && pj.relevantDate === pd.startsAt);
 ok('the pass wears the arena theme', pj.backgroundColor === 'rgb(35,32,32)' && pj.labelColor === 'rgb(225,90,64)');

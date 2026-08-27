@@ -46,18 +46,18 @@ ok('null passes through', (await storeImage(null)) === null);
 
 console.log('\n[storage · storeImage uploads when configured]');
 process.env.S3_ENDPOINT = 'https://acct.r2.cloudflarestorage.com';
-process.env.S3_BUCKET = 'horda';
+process.env.S3_BUCKET = 'furia';
 process.env.S3_ACCESS_KEY_ID = 'AKIA_TEST';
 process.env.S3_SECRET_ACCESS_KEY = 'secret_test';
-process.env.S3_PUBLIC_BASE = 'https://cdn.joinhorda.com';
+process.env.S3_PUBLIC_BASE = 'https://cdn.joinfuria.com';
 process.env.S3_REGION = 'auto';
 
 let putUrl = '', putInit: any = null;
 const okFetch: any = async (u: string, init: any) => { putUrl = u; putInit = init; return { ok: true, status: 200, text: async () => '' }; };
 
 const url = await storeImage(dataUrl, 'avatars', okFetch);
-ok('returns a public CDN url', !!url && url.startsWith('https://cdn.joinhorda.com/avatars/') && url.endsWith('.png'));
-ok('PUTs to the bucket endpoint (path-style)', putUrl.startsWith('https://acct.r2.cloudflarestorage.com/horda/avatars/'));
+ok('returns a public CDN url', !!url && url.startsWith('https://cdn.joinfuria.com/avatars/') && url.endsWith('.png'));
+ok('PUTs to the bucket endpoint (path-style)', putUrl.startsWith('https://acct.r2.cloudflarestorage.com/furia/avatars/'));
 ok('request is a signed PUT', putInit.method === 'PUT' && String(putInit.headers.Authorization).startsWith('AWS4-HMAC-SHA256 Credential=AKIA_TEST/'));
 ok('sends content-type + payload hash headers', putInit.headers['content-type'] === 'image/png' && !!putInit.headers['x-amz-content-sha256']);
 ok('body is the decoded bytes', Buffer.from(putInit.body).toString() === 'hello');

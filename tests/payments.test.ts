@@ -23,8 +23,8 @@ const sp = new StripePayments('sk_test_123', fakeFetch);
 
 const r = await sp.createCheckout({
   mode: 'payment', amountCents: 1500, currency: 'EUR', productName: 'Ticket · Season launch',
-  successUrl: 'https://joinhorda.com/checkout/success?session_id={CHECKOUT_SESSION_ID}',
-  cancelUrl: 'https://joinhorda.com/e/e1', metadata: { kind: 'ticket', event_id: 'e1', fan_id: 'f1' },
+  successUrl: 'https://joinfuria.com/checkout/success?session_id={CHECKOUT_SESSION_ID}',
+  cancelUrl: 'https://joinfuria.com/e/e1', metadata: { kind: 'ticket', event_id: 'e1', fan_id: 'f1' },
 });
 const decoded = decodeURIComponent(lastInit.body);
 ok('createCheckout returns the hosted Stripe url', r.url.startsWith('https://checkout.stripe.com/'));

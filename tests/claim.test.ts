@@ -61,7 +61,7 @@ async function freshClub(name: string, site: string | null) {
   const club = await freshClub('FC NoSite', null);   // no website → must be reviewed
   const claimant = await acct('hopeful@outlook.com');
   await requestClaim(db, { id: claimant, email: 'hopeful@outlook.com' }, 'club', club);
-  const admin = { id: app.ids.demoAccountId, email: 'demo@horda.app', isAdmin: true };
+  const admin = { id: app.ids.demoAccountId, email: 'demo@furia.app', isAdmin: true };
   const queue = await listClaimsForReviewer(db, admin);
   ok('admin sees the pending claim in the queue', queue.some(c => c.targetId === club));
   // a normal non-admin sees nothing of it
@@ -79,7 +79,7 @@ async function freshClub(name: string, site: string | null) {
   const claimant = await acct('chancer@x.com');
   await requestClaim(db, { id: claimant, email: 'chancer@x.com' }, 'club', club);
   const cid = (await db.query<{ id: string }>(`SELECT id FROM claim_request WHERE target_id=$1`, [club])).rows[0].id;
-  const admin = { id: app.ids.demoAccountId, email: 'demo@horda.app', isAdmin: true };
+  const admin = { id: app.ids.demoAccountId, email: 'demo@furia.app', isAdmin: true };
   ok('admin reject succeeds', await decideClaim(db, cid, admin, false));
   ok('rejected claimant gets no ownership', !(await owns(db, claimant, 'club', club)));
   ok('claim recorded as rejected', (await getClaimFor(db, claimant, 'club', club))?.status === 'rejected');

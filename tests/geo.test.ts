@@ -36,7 +36,7 @@ ok('venue-level results come back (not just cities)', r1.length === 2);
 ok('label is venue + street + city — enough to tell two branches apart', r1[0].label === 'Bonanza Coffee, Oderberger Straße 35, Berlin, Deutschland');
 ok('coordinates are carried through (lat/lon, not lon/lat)', Math.round(r1[0].lat!) === 53 && Math.round(r1[0].lon!) === 13);
 ok('hits Photon, not Nominatim (whose policy forbids autocomplete)', lastUrl.includes('photon') && !lastUrl.includes('nominatim'));
-ok('identifies itself with a contactable User-Agent', String(lastHeaders['user-agent'] || '').includes('joinhorda.com'));
+ok('identifies itself with a contactable User-Agent', String(lastHeaders['user-agent'] || '').includes('joinfuria.com'));
 
 // A 2-char query matches half of Europe — and burns someone else's rate limit.
 lastUrl = '';

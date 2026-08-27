@@ -1,6 +1,6 @@
 // yourevents.test.ts — the "Your events" profile page: a top selector (Your events
 // · Settings · Log out) and four bands in order — You're running, You're co-running,
-// You're going to, My Hordas — with no discovery feed and no notifications.
+// You're going to, My Furias — with no discovery feed and no notifications.
 // Run: node tests/yourevents.test.ts
 import { renderFanHome } from '../src/web/pages.ts';
 
@@ -18,16 +18,16 @@ const html = renderFanHome({
   coRunning: [{ eventId: 'e-co', title: 'CORUN_EVENT', date: 'Fri', hostName: 'FC Rival' }],
 });
 
-ok('profile-first header: "Your Horda" + first name + @handle → settings', html.includes('Your Horda') && html.includes('Hi, Marcus') && html.includes('@marcusk') && html.includes('class="yhhandle"'));
+ok('profile-first header: "Your Furia" + first name + @handle → settings', html.includes('Your Furia') && html.includes('Hi, Marcus') && html.includes('@marcusk') && html.includes('class="yhhandle"'));
 ok('no @handle → prompt to pick one', renderFanHome({ fanId: 'f', fanName: 'Sam', handle: null, home: { notifications: [] } as any, follows: [] }).includes('Pick a @handle'));
 ok('titled "Your events" (top selector, active)', html.includes('>Your events</a>'));
 ok('selector has Settings and Log out', html.includes('href="/settings"') && html.includes('href="/logout"'));
 ok('band: You\'re running', html.includes("You're running"));
 ok('band: You\'re co-running, with the co-organised event + its host', html.includes("You're co-running") && html.includes('CORUN_EVENT') && html.includes('FC Rival'));
 ok('band: You\'re going to', html.includes("You're going to") && html.includes('GOING_EVENT'));
-ok('band: My Hordas (everyone you follow)', html.includes('My Hordas') && html.includes('Rico'));
-// ordering: running → co-running → going → hordas
-const iRun = html.indexOf("You're running"), iCo = html.indexOf("You're co-running"), iGo = html.indexOf("You're going to"), iH = html.indexOf('My Hordas');
+ok('band: My Furias (everyone you follow)', html.includes('My Furias') && html.includes('Rico'));
+// ordering: running → co-running → going → furias
+const iRun = html.indexOf("You're running"), iCo = html.indexOf("You're co-running"), iGo = html.indexOf("You're going to"), iH = html.indexOf('My Furias');
 ok('sections are in the requested order', iRun < iCo && iCo < iGo && iGo < iH);
 ok('no discovery feed ("Might be for you")', !html.includes('Might be for you'));
 ok('no notifications on this page', !html.includes('Should NOT show here') && !html.includes('<h2>Notifications'));

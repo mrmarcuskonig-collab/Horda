@@ -15,14 +15,14 @@ process.env.GOOGLE_CLIENT_ID = 'test-google-id';
 process.env.GOOGLE_CLIENT_SECRET = 'test-google-secret';
 ok('google enabled once configured', isEnabled('google') && oauthProviders().some(p => p.id === 'google'));
 ok('unknown provider stays disabled', !isEnabled('twitter'));
-const u = authUrl('google', 'https://joinhorda.com/auth/google/callback', 'STATE123');
+const u = authUrl('google', 'https://joinfuria.com/auth/google/callback', 'STATE123');
 ok('authUrl points at Google with client_id + state + redirect', u.startsWith('https://accounts.google.com/') && u.includes('client_id=test-google-id') && u.includes('state=STATE123') && u.includes('callback'));
 
 console.log('\n[oauth · code exchange (faked transport)]');
 const fakeFetch: any = async (url: string) => url.includes('oauth2.googleapis.com/token')
   ? { json: async () => ({ access_token: 'AT' }) }
   : { json: async () => ({ email: 'sam@gmail.com', name: 'Sam G' }) };
-const prof = await exchange('google', 'code123', 'https://joinhorda.com/auth/google/callback', fakeFetch);
+const prof = await exchange('google', 'code123', 'https://joinfuria.com/auth/google/callback', fakeFetch);
 ok('exchange returns the verified email + name', prof!.email === 'sam@gmail.com' && prof!.name === 'Sam G');
 
 console.log('\n[oauth · find-or-create account by email]');

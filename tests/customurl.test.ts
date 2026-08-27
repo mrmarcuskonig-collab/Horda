@@ -7,7 +7,7 @@
 // links are what measures who brought people, and they don't compete. Promo
 // links and `attribution` (a Free entitlement) are untouched.
 //
-// The packaging change this locks in: `custom_url` is no longer a Horda Plus
+// The packaging change this locks in: `custom_url` is no longer a Furia Plus
 // entitlement. It was sold on the pricing page while the backend applied a
 // posted slug for anyone and the form showed it to nobody.
 // Run: node tests/customurl.test.ts
@@ -32,14 +32,14 @@ const cookie = `hz_session=${await createSession(app.db, acct)}`;
 const ev = await createScheduledEvent(app.db, { hostKind: 'athlete', hostId: ath, title: 'Derby Night', startsAt: new Date(Date.now() + 864e5).toISOString(), location: 'Berlin', admission: 'open' });
 
 // --- creation still starts on the uuid link, like a new page does ---------
-const create = renderCreateEvent('athlete', 'a', 'Rico', undefined, null, 'f', { origin: 'https://joinhorda.com' });
+const create = renderCreateEvent('athlete', 'a', 'Rico', undefined, null, 'f', { origin: 'https://joinfuria.com' });
 ok('a new event does NOT pick its URL up front', !create.includes('name="slug"'));
-ok('no Horda Plus upsell anywhere near it', !create.includes('Horda Plus'));
+ok('no Furia Plus upsell anywhere near it', !create.includes('Furia Plus'));
 
 // --- the edit form offers it, ungated, to a Free organiser ----------------
 const edit = await get(`/e/${ev}/edit`, cookie);
 ok('the edit form offers the custom-URL field', edit.includes('name="slug"'));
-ok('it is offered to a FREE organiser with no upsell', !edit.includes('Horda Plus'));
+ok('it is offered to a FREE organiser with no upsell', !edit.includes('Furia Plus'));
 ok('it shows the link prefix so the organiser sees the whole URL', edit.includes('/e/'));
 ok('it wires the same live availability check as profile handles', edit.includes('/link-available?scope=event'));
 ok('the check is debounced and guards against a stale response', edit.includes('setTimeout(check,280)') && edit.includes('if(v!==val())return'));
@@ -71,7 +71,7 @@ ok('an empty slug clears the custom URL', cleared.ok && cleared.slug === null &&
 
 // --- packaging: it is no longer a Plus feature ---------------------------
 ok('custom_url is gone from the entitlement labels', !('custom_url' in ENTITLEMENT_LABEL));
-ok('Horda Plus no longer lists it as a paid feature', !(getPlan('plus').entitlements as string[]).includes('custom_url'));
+ok('Furia Plus no longer lists it as a paid feature', !(getPlan('plus').entitlements as string[]).includes('custom_url'));
 ok('the pricing page no longer sells "Custom event URL"', !(await get('/about/pricing')).includes('Custom event URL'));
 ok('Plus still has its other paid entitlements', (getPlan('plus').entitlements as string[]).includes('zero_fee'));
 

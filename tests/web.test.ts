@@ -47,12 +47,12 @@ ok('public event page leads with the claim (no content/shop)', guestEv.includes(
 
 const fan = await get(`/fan/${app.ids.fanId}`);
 // "Your events": the profile page is your personal events dashboard — what you
-// RUN, what you CO-RUN, what you're GOING TO, and your Hordas (follows). It is
+// RUN, what you CO-RUN, what you're GOING TO, and your Furias (follows). It is
 // titled "Your events", carries the Settings/Log out selector on top, and does
 // NOT carry the discovery feed or notifications (those live elsewhere).
-ok('profile page is titled "Your events" (not "Your Horda")', fan.includes('>Your events</a>') && !fan.includes('<h1>Your Horda</h1>'));
+ok('profile page is titled "Your events" (not "Your Furia")', fan.includes('>Your events</a>') && !fan.includes('<h1>Your Furia</h1>'));
 ok('top selector offers Settings + Log out', fan.includes('href="/settings"') && fan.includes('href="/logout"'));
-ok('the four bands are present (run / co-run / going / Hordas)', fan.includes("You're running") && fan.includes("My Hordas"));
+ok('the four bands are present (run / co-run / going / Furias)', fan.includes("You're running") && fan.includes("My Furias"));
 ok('no discovery feed on the profile ("Might be for you" is gone)', !fan.includes('Might be for you'));
 ok('no notifications on the profile (they live under the bell)', !fan.includes('<h2>Notifications'));
 
@@ -99,12 +99,12 @@ ok('owner edits photos in Edit page; not on the public profile', athEdit.include
 
 // --- public share pages (the acquisition loop) ---
 const shareFight = await get(`/share/fight/${upcoming.eventId}`);
-ok('fight share: public, has card svg + join CTA', shareFight.includes('<svg') && shareFight.includes('This is the Horda') && shareFight.includes('Join free'));
+ok('fight share: public, has card svg + join CTA', shareFight.includes('<svg') && shareFight.includes('This is the Furia') && shareFight.includes('Join free'));
 const evWin = (await app.db.query<{ event_id: string }>(`SELECT event_id FROM result WHERE participant_id=$1 AND outcome='win' LIMIT 1`, [rico])).rows[0];
 const shareResult = await get(`/share/result/${evWin.event_id}`);
 ok('result share: recap + outbound share links', shareResult.includes('def.') && shareResult.includes('twitter.com/intent'));
 const shareWeek = await get(`/share/week/${app.ids.fanId}`);
-ok('week-drop share: public + join CTA', shareWeek.includes('week in the Horda') && shareWeek.includes('Join free'));
+ok('week-drop share: public + join CTA', shareWeek.includes('week in the Furia') && shareWeek.includes('Join free'));
 
 // --- Luma-style scheduled events ---
 const evId = (await app.db.query<{ id: string }>(`SELECT id FROM event WHERE host_kind='athlete' AND admission='open' LIMIT 1`)).rows[0].id;
@@ -288,7 +288,7 @@ ok('the upload previews the actual card art before publishing', cform2.includes(
 
 // --- rival / roster typeahead ---------------------------------------------
 // Naming a rival as free text mints an UNCLAIMED placeholder. If that rival is
-// already on Horda and you type their name slightly differently, you get a
+// already on Furia and you type their name slightly differently, you get a
 // duplicate ghost and that side's attribution accrues to nobody — which is the
 // one number the product sells. So: picked entity → linked; typed → placeholder
 // (the growth loop); forged id → refused, never trusted from the client.
@@ -314,7 +314,7 @@ ok('a named-but-not-consenting rival is "invited", not silently "accepted"', bPi
 
 const evFree = await mkEv({ host_kind: 'athlete', host_id: hostA, title: 'Free rival', starts_at: '2030-01-01T20:00', admission: 'open', archetype: 'versus', side_b_name: 'FC Nowhere' });
 const bFree = (await app.db.query<any>(`SELECT entity_id, placeholder, status FROM event_party WHERE event_id=$1 AND side='B'`, [evFree])).rows[0];
-ok('a rival NOT on Horda still works as free text (the growth loop)', bFree.entity_id === null && bFree.placeholder === 'FC Nowhere' && bFree.status === 'unclaimed');
+ok('a rival NOT on Furia still works as free text (the growth loop)', bFree.entity_id === null && bFree.placeholder === 'FC Nowhere' && bFree.status === 'unclaimed');
 
 const evRost = await mkEv({ host_kind: 'athlete', host_id: hostA, title: 'Card', starts_at: '2030-01-01T20:00', admission: 'open', archetype: 'multi', roster: 'Rico, Ghost Guy', roster_ids: `athlete:${hostA},` });
 const rost = (await app.db.query<any>(`SELECT entity_id, placeholder FROM event_party WHERE event_id=$1 AND role='attending_athlete'`, [evRost])).rows;
@@ -326,7 +326,7 @@ ok('a forged entity id from the client is refused, falls back to placeholder', b
 
 const formHtml = await get(`/host/athlete/${hostA}/new`);
 ok('create form ships the rival + roster typeahead', formHtml.includes('/api/entities') && formHtml.includes('ev_sideb') && formHtml.includes('ev_roster_in'));
-ok('typeahead always offers "use as typed" so off-Horda rivals are never blocked', formHtml.includes('not on Horda yet'));
+ok('typeahead always offers "use as typed" so off-Furia rivals are never blocked', formHtml.includes('not on Furia yet'));
 
 // --- built in the open: public changelog + env-gated Discord ---------------
 // The changelog is public (no auth) — a stranger who has never heard of us must
@@ -358,27 +358,27 @@ ok('map filters with taste too (Hamburg boxing excludes Rico everywhere)', !filt
 // instagram-like usability: persistent bottom tab bar + verified trust badges
 // The mobile bar now mirrors the desktop rail exactly (same five destinations,
 // same labels) instead of having its own Home/Map/You vocabulary.
-ok('persistent bottom tab bar, icon-only (labels via aria-label, no text)', land.includes('class="bnav"') && land.includes('aria-label="Your Horda"') && !land.includes('class="lbl"') && !land.includes('>Home<'));
-ok('mobile bar mirrors the desktop rail (same destinations)', land.includes('aria-label="Your Horda"') && land.includes('aria-label="Following"'));
+ok('persistent bottom tab bar, icon-only (labels via aria-label, no text)', land.includes('class="bnav"') && land.includes('aria-label="Your Furia"') && !land.includes('class="lbl"') && !land.includes('>Home<'));
+ok('mobile bar mirrors the desktop rail (same destinations)', land.includes('aria-label="Your Furia"') && land.includes('aria-label="Following"'));
 ok('mobile bar is a floating translucent glass bar, not an opaque tray', land.includes('backdrop-filter:blur(22px)') && land.includes('border-radius:20px'));
 ok('bottom nav appears on inner pages too (athlete)', (await get(`/athlete/${rico}`)).includes('class="bnav"'));
 ok('verified badge on a claim-verified athlete (Rico is owned)', land.includes('class="vbadge"'));
 // TikTok-style desktop left rail + language toggle + event engagement chips
-// "Explore" → "Your Horda": the logged-in home IS the feed, so the nav says so.
-ok('desktop left rail: labelled Your Horda/Following/Create/Profile nav', land.includes('class="drail"') && land.includes('>Your Horda<') && land.includes('>Following<') && land.includes('>Create event<'));
-ok('no separate "your feed" button (the feed is Your Horda)', !land.includes('Your feed →'));
+// "Explore" → "Your Furia": the logged-in home IS the feed, so the nav says so.
+ok('desktop left rail: labelled Your Furia/Following/Create/Profile nav', land.includes('class="drail"') && land.includes('>Your Furia<') && land.includes('>Following<') && land.includes('>Create event<'));
+ok('no separate "your feed" button (the feed is Your Furia)', !land.includes('Your feed →'));
 ok('search box says just "Search" (you can search clubs + athletes too)', land.includes('placeholder="Search"'));
 ok('rail create link is generic /create (no leaked athlete id)', land.includes('href="/create"') && !land.includes(`/athlete/${rico}/compose`));
 ok('rail carries a search box (English-only: no language toggle)', land.includes('class="dr-search"') && !land.includes('class="lgtog"') && !land.includes('/set-lang?l=de'));
 ok('event cards show engagement stats (going / followers / shares)', land.includes('class="estats"') && land.includes('class="est"'));
 // English-only: even a legacy German cookie renders English chrome.
 const deLand = await (await fetch(base + '/', { headers: { cookie: 'hz_lang=de' } })).text();
-ok('a legacy German cookie still renders English (no German chrome)', deLand.includes('>Your Horda<') && !deLand.includes('>Deine Horda<') && deLand.includes('lang="en"'));
+ok('a legacy German cookie still renders English (no German chrome)', deLand.includes('>Your Furia<') && !deLand.includes('>Deine Furia<') && deLand.includes('lang="en"'));
 // region default: even a DACH country header renders English now.
 const dachLand = await (await fetch(base + '/', { headers: { 'cf-ipcountry': 'AT' } })).text();
-ok('DACH visitor also gets English (app is English-only)', dachLand.includes('lang="en"') && dachLand.includes('>Your Horda<'));
+ok('DACH visitor also gets English (app is English-only)', dachLand.includes('lang="en"') && dachLand.includes('>Your Furia<'));
 const usLand = await (await fetch(base + '/', { headers: { 'cf-ipcountry': 'US' } })).text();
-ok('non-DACH visitor gets English', usLand.includes('lang="en"') && usLand.includes('>Your Horda<'));
+ok('non-DACH visitor gets English', usLand.includes('lang="en"') && usLand.includes('>Your Furia<'));
 // no underline on logo/nav; active nav item uses the accent (not underline)
 ok('logo + nav are never underlined; active nav uses the accent', !land.includes('text-decoration:underline') && land.includes('.dr-item.on,.dr-item.on svg{color:var(--acc)}'));
 // one sign-up for everyone: no creator fork on the sign-up page
@@ -529,7 +529,7 @@ const sc = verifyRes.headers.get('set-cookie') || '';
 ok('magic-link verify issues a persistent session cookie (Max-Age set), not session-scoped', sc.includes('hz_session=') && /Max-Age=\d{5,}/.test(sc));
 // contact host: event page shows a way to reach the host (socials or profile link)
 const hostEv = await get(`/e/${tkId}?guest=1`);
-ok('event page gives a real way to reach the host', hostEv.includes('on Horda →') && (hostEv.includes('Reach the host') || hostEv.includes('via their Horda page')));
+ok('event page gives a real way to reach the host', hostEv.includes('on Furia →') && (hostEv.includes('Reach the host') || hostEv.includes('via their Furia page')));
 // past event: create one in the past → event page says it's over, no claim CTA
 const pastId = await mkEvent({ host_kind: 'athlete', host_id: rico, title: 'Last Month', starts_at: '2020-01-01T19:00', location_kind: 'in_person', location: 'Berlin', admission: 'open', access_mode: 'ticket' });
 const pastEv = await get(`/e/${pastId}?guest=1`);
@@ -542,7 +542,7 @@ const createGo = await fetch(base + '/create', { redirect: 'manual' });
 const createLoc = createGo.headers.get('location') || '';
 ok('/create sends a logged-in user toward hosting an event (not the athlete/club chooser)', (createGo.status === 303 && (createLoc.includes('/host/') || createLoc.startsWith('/signup'))) || createGo.status === 200);
 
-// --- multi-party events (Horda_Multi_Party_Events_Architecture.md) ---
+// --- multi-party events (Furia_Multi_Party_Events_Architecture.md) ---
 // versus event with an unclaimed rival side + auto promo links
 const vsId = await mkEvent({ host_kind: 'club', host_id: club, title: 'Regionalliga-Pokal', starts_at: '2027-11-01T19:00', location_kind: 'in_person', location: 'Berlin', admission: 'open', access_mode: 'ticket', archetype: 'versus', side_b_name: 'FC Rival' });
 const vsGuest = await get(`/e/${vsId}?guest=1`);
@@ -594,18 +594,18 @@ const cg = await get(`/club/${club}?guest=1`);
 ok('guest gate now coexists with the bottom nav (in-flow banner)', cg.includes('Log in to continue') && cg.includes('class="bnav"') && cg.includes('border-radius:14px'));
 
 // --- snapshot the screens for viewing ---
-writeFileSync('horda-app-start.html', land);
-writeFileSync('horda-app-event.html', evPage);
-writeFileSync('horda-app-event-paid.html', await get(`/e/${ticketedId}`));
-writeFileSync('horda-app-checkout.html', checkout);
-writeFileSync('horda-app-share.html', shareResult);
-writeFileSync('horda-app-athlete.html', athleteImg);        // registered, attending, with uploaded art
-writeFileSync('horda-app-athlete-guest.html', guest);       // public/guest view
-writeFileSync('horda-app-fan.html', fan);
-writeFileSync('horda-app-club.html', clubImg);
-writeFileSync('horda-app-team.html', teamPage);
-writeFileSync('horda-app-association.html', assocPage);
-console.log('  wrote horda-app-{athlete,athlete-guest,fan,club,team,association}.html');
+writeFileSync('furia-app-start.html', land);
+writeFileSync('furia-app-event.html', evPage);
+writeFileSync('furia-app-event-paid.html', await get(`/e/${ticketedId}`));
+writeFileSync('furia-app-checkout.html', checkout);
+writeFileSync('furia-app-share.html', shareResult);
+writeFileSync('furia-app-athlete.html', athleteImg);        // registered, attending, with uploaded art
+writeFileSync('furia-app-athlete-guest.html', guest);       // public/guest view
+writeFileSync('furia-app-fan.html', fan);
+writeFileSync('furia-app-club.html', clubImg);
+writeFileSync('furia-app-team.html', teamPage);
+writeFileSync('furia-app-association.html', assocPage);
+console.log('  wrote furia-app-{athlete,athlete-guest,fan,club,team,association}.html');
 
 await app.close();
 console.log(`\n──────────── ${pass} passed, ${fail} failed ────────────`);

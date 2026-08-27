@@ -77,7 +77,7 @@ ok('the page keeps reading as available to ITSELF', (await avail(`/link-availabl
 console.log('\n[profilecreate · the custom URL is the one we then show]');
 ok('publicPathFor prefers the handle', publicPathFor('club', clubId, 'fc-neu') === '/fc-neu');
 ok('publicPathFor falls back to the uuid path', publicPathFor('club', clubId, null) === `/club/${clubId}`);
-ok('publicUrlFor is absolute', publicUrlFor('https://joinhorda.com', 'club', clubId, 'fc-neu') === 'https://joinhorda.com/fc-neu');
+ok('publicUrlFor is absolute', publicUrlFor('https://joinfuria.com', 'club', clubId, 'fc-neu') === 'https://joinfuria.com/fc-neu');
 const withHandle = await get(`/club/${clubId}?guest=1`);
 const ogUrl = (withHandle.match(/og:url" content="([^"]+)"/) || [])[1] || '';
 ok('og:url uses the custom link, not the old uuid one', ogUrl.endsWith('/fc-neu') && !ogUrl.includes(`/club/${clubId}`));

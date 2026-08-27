@@ -24,10 +24,10 @@ ok('annual saving is computed, not hardcoded', annualSavingPct(getPlan('plus')) 
 
 // --- env override (the experiment surface) --------------------------------
 // A fresh import with the env set proves a price/fee can move with no deploy.
-process.env.HORDA_PLATFORM_FEE_PCT = '7';
+process.env.FURIA_PLATFORM_FEE_PCT = '7';
 const reimport = await import('../src/web/pricing.ts?bust=' + Date.now());
-ok('HORDA_PLATFORM_FEE_PCT overrides the fee live (no deploy)', reimport.PLATFORM_FEE_PCT === 7 && reimport.feePctForPlan('free') === 7);
-delete process.env.HORDA_PLATFORM_FEE_PCT;
+ok('FURIA_PLATFORM_FEE_PCT overrides the fee live (no deploy)', reimport.PLATFORM_FEE_PCT === 7 && reimport.feePctForPlan('free') === 7);
+delete process.env.FURIA_PLATFORM_FEE_PCT;
 
 // --- per-account plan column (0050) ---------------------------------------
 const app = await startServer(0);
@@ -39,7 +39,7 @@ ok('accounts default to the free plan', (def.rows[0]?.plan ?? 'free') === 'free'
 
 // --- the pricing page renders from the config -----------------------------
 const pr = await (await fetch(base + '/about/pricing')).text();
-ok('pricing page shows both plans from config', pr.includes('Horda Free') && pr.includes('Horda Plus'));
+ok('pricing page shows both plans from config', pr.includes('Furia Free') && pr.includes('Furia Plus'));
 ok('pricing page shows the real fee + the 0% headline', pr.includes(`${PLATFORM_FEE_PCT}% platform fee`) && pr.includes('0% platform fee'));
 ok('pricing page has the monthly/annual toggle', pr.includes('billtoggle'));
 ok('Plus is honestly marked coming soon (billing not wired)', getPlan('plus').live === false ? pr.includes('Coming soon') : true);

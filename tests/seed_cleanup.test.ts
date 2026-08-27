@@ -17,8 +17,8 @@ const count = async (db: any, s: string, p: any[] = []) => (await db.query(s, p)
 console.log('\n[seed_cleanup] removes the demo world, spares everything real');
 
 // A shared PGlite file so the CLI (separate process) sees the same DB we seeded.
-const DBFILE = `/tmp/horda_cleanup_${Date.now()}`;
-process.env.HORDA_DATA = DBFILE;                 // openDatabase uses HORDA_DATA as the file-backed PGlite dir
+const DBFILE = `/tmp/furia_cleanup_${Date.now()}`;
+process.env.FURIA_DATA = DBFILE;                 // openDatabase uses FURIA_DATA as the file-backed PGlite dir
 const db = await openDatabase();
 await applySchema(db);
 const seed = await seedDemo(db);
@@ -42,7 +42,7 @@ await grantOwnership(db, realAcct, 'club', svExample);            // now REAL-ow
 await db.close();
 
 // ---- run the CLI: dry-run first, then commit ----
-const run = (args: string[]) => execFileSync('node', ['_seed_cleanup.ts', ...args], { encoding: 'utf8', env: { ...process.env, HORDA_DATA: DBFILE } });
+const run = (args: string[]) => execFileSync('node', ['_seed_cleanup.ts', ...args], { encoding: 'utf8', env: { ...process.env, FURIA_DATA: DBFILE } });
 const dry = run([]);
 ok('dry-run changes nothing (says DRY RUN)', dry.includes('DRY RUN') && dry.includes('would remove'));
 ok('dry-run reports the guarded club as KEPT', dry.includes('SV Example') && dry.includes('KEPT'));

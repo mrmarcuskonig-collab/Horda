@@ -14,26 +14,26 @@ const club = app.ids.clubs[0].id;
 const enc = (o: Record<string, string>) => new URLSearchParams(o);
 
 console.log('\n[auth · repo basics]');
-const made = await signup(app.db, 'unit@horda.app', 'Unit', 'secret123');
+const made = await signup(app.db, 'unit@furia.app', 'Unit', 'secret123');
 ok('signup creates an account + fan', !!made?.accountId && !!made?.fanId);
-ok('correct password verifies', (await verifyLogin(app.db, 'unit@horda.app', 'secret123')) === made!.accountId);
-ok('wrong password rejected', (await verifyLogin(app.db, 'unit@horda.app', 'nope')) === null);
-ok('duplicate email refused', (await signup(app.db, 'unit@horda.app', 'Dup', 'x')) === null);
+ok('correct password verifies', (await verifyLogin(app.db, 'unit@furia.app', 'secret123')) === made!.accountId);
+ok('wrong password rejected', (await verifyLogin(app.db, 'unit@furia.app', 'nope')) === null);
+ok('duplicate email refused', (await signup(app.db, 'unit@furia.app', 'Dup', 'x')) === null);
 ok('new account owns nothing', !(await owns(app.db, made!.accountId, 'athlete', rico)));
 
 console.log('\n[auth · POST /signup never hands out instant access — magic link only]');
 // Security: POST /signup must NOT create a session. It funnels into the magic
 // link flow (name+email → emailed link), so no unverified instant account exists.
-const sres = await fetch(base + '/signup', { method: 'POST', redirect: 'manual', headers: { 'content-type': 'application/x-www-form-urlencoded' }, body: enc({ email: 'instant@horda.app', name: 'Nope', next: '/' }) });
+const sres = await fetch(base + '/signup', { method: 'POST', redirect: 'manual', headers: { 'content-type': 'application/x-www-form-urlencoded' }, body: enc({ email: 'instant@furia.app', name: 'Nope', next: '/' }) });
 const sBody = await sres.text();
 ok('POST /signup sets NO session cookie (no instant access)', !((sres.headers.get('set-cookie') ?? '').includes('hz_session=')));
 ok('POST /signup responds with the check-your-email step', /check your email/i.test(sBody));
-ok('POST /signup creates no account until verified', (await app.db.query<{ n: number }>(`SELECT count(*)::int n FROM account WHERE email='instant@horda.app'`)).rows[0].n === 0);
+ok('POST /signup creates no account until verified', (await app.db.query<{ n: number }>(`SELECT count(*)::int n FROM account WHERE email='instant@furia.app'`)).rows[0].n === 0);
 
 // For the ownership/authz assertions below we need a genuinely logged-in fan.
 // Establish sam's session through the repo (the same createSession the verified
 // magic-link path uses), not the removed instant-signup shortcut.
-const samMade = await signup(app.db, 'sam@horda.app', 'Sam', 'secret123');
+const samMade = await signup(app.db, 'sam@furia.app', 'Sam', 'secret123');
 const samToken = await createSession(app.db, samMade!.accountId);
 const cookie = `hz_session=${samToken}`;
 const authed = (p: string) => fetch(base + p, { headers: { cookie } }).then(r => r.text());
@@ -51,9 +51,9 @@ ok('claiming opens a verification request (not instant ownership)', claimResp.in
 const stillGuarded = await authed(`/club/${club}`);
 ok('pending claim still shows NO owner edit affordance', !stillGuarded.includes('Edit this page'));
 // admin verifies the claim → ownership is granted, owner tools unlock
-const sam = (await app.db.query<{ id: string }>(`SELECT id FROM account WHERE email='sam@horda.app'`)).rows[0].id;
+const sam = (await app.db.query<{ id: string }>(`SELECT id FROM account WHERE email='sam@furia.app'`)).rows[0].id;
 const claimId = (await app.db.query<{ id: string }>(`SELECT id FROM claim_request WHERE account_id=$1 AND target_id=$2`, [sam, club])).rows[0].id;
-await decideClaim(app.db, claimId, { id: app.ids.demoAccountId, email: 'demo@horda.app', isAdmin: true }, true);
+await decideClaim(app.db, claimId, { id: app.ids.demoAccountId, email: 'demo@furia.app', isAdmin: true }, true);
 const after = await authed(`/club/${club}`);
 ok('after admin verification, the club shows the owner edit affordance', after.includes('Edit this page') && after.includes(`/club/${club}/customize`));
 
@@ -63,7 +63,7 @@ const post = (o: Record<string, string>) => ({ method: 'POST', redirect: 'manual
 const loginPage = await fetch(base + '/login').then(r => r.text());
 ok('login is magic-link only (no password fallback)', loginPage.includes('/auth/start') && loginPage.includes('sign-in link') && !loginPage.includes('Use a password instead'));
 // start a magic link for a brand-new email → dev mode surfaces link + code
-const mlEmail = 'magic_' + Date.now() + '@horda.app';
+const mlEmail = 'magic_' + Date.now() + '@furia.app';
 const startPage = await fetch(base + '/auth/start', post({ email: mlEmail })).then(r => r.text());
 const mlTok = (startPage.match(/\/auth\/verify\?token=([a-f0-9-]+)/) || [])[1] || '';
 const mlCode = (startPage.match(/Code: <b[^>]*>(\d{6})/) || [])[1] || '';
@@ -79,7 +79,7 @@ ok('the created account is passwordless (no password hash)', !!newAcct && newAcc
 const reuse = await fetch(base + '/auth/verify?token=' + mlTok, { redirect: 'manual' });
 ok('a magic link is single-use (reuse is rejected)', (reuse.headers.get('set-cookie') || '') === '' || !(reuse.headers.get('set-cookie') || '').includes('hz_session='));
 // OTP path for a second email
-const otpEmail = 'otp_' + Date.now() + '@horda.app';
+const otpEmail = 'otp_' + Date.now() + '@furia.app';
 const otpStart = await fetch(base + '/auth/start', post({ email: otpEmail })).then(r => r.text());
 const otpCode = (otpStart.match(/Code: <b[^>]*>(\d{6})/) || [])[1] || '';
 const otpRes = await fetch(base + '/auth/code', post({ email: otpEmail, code: otpCode }));
