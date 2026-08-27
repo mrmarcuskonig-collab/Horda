@@ -1,6 +1,6 @@
-# Horda — Backend
+# Furia — Backend
 
-The data foundation for Horda: the system of record for real sport. This repo currently holds the **database schema** — the first product slice — built faithfully from `horda_master_spec.md`.
+The data foundation for Furia: the system of record for real sport. This repo currently holds the **database schema** — the first product slice — built faithfully from `furia_master_spec.md`.
 
 ---
 
@@ -65,9 +65,9 @@ db/
 ## Run it
 
 ```bash
-createdb horda
-./db/apply.sh horda
-psql horda -f db/verify.sql
+createdb furia
+./db/apply.sh furia
+psql furia -f db/verify.sql
 ```
 
 ---
@@ -137,7 +137,7 @@ tests/
 
 **What shipped (`src/read/`).** Read models assembled purely from the spine — `buildClubPage()` produces a league table (via the slice-2 engine), the club's recent form with natural-language headlines, upcoming fixtures (with low-confidence ones honestly flagged), a season record, and a coverage feed. `renderClubPage()` renders it as a strictly monochrome (Ink/Bone) page. **System of record, not a venue:** the feed only carries results and fixtures — there is no fan-to-fan item type to render (spec §9).
 
-**The demo (`examples/demo.ts`).** Pastes a messy WhatsApp results dump + a fixtures list and writes `horda-club-page.html`: FC Beispiel, 3W-1D, top of the table on 10 pts, with headlines ("FC Beispiel beat SpVgg Altdorf 4–0") and upcoming matches — all from raw text, no DB. **10/10 read tests pass; 39/39 across the whole suite.**
+**The demo (`examples/demo.ts`).** Pastes a messy WhatsApp results dump + a fixtures list and writes `furia-club-page.html`: FC Beispiel, 3W-1D, top of the table on 10 pts, with headlines ("FC Beispiel beat SpVgg Altdorf 4–0") and upcoming matches — all from raw text, no DB. **10/10 read tests pass; 39/39 across the whole suite.**
 
 ## Layout (added in slice 4)
 
@@ -185,7 +185,7 @@ tests/
 
 ## ADR-006 — Slice 6: the fandom layer (fan↔athlete engagement) (17 Jun 2026)
 
-**Context.** Horda is predominantly a fandom product: the point is *closeness between fans and the athletes/teams they back.* The structural graph (clubs, teams, associations, leagues) built in slices 1–5 is the substrate that makes that closeness real and verified — it is never the point. This slice builds the engagement surfaces on the **hub-and-spoke** axis the spec mandates (§1, §9): fans follow entities, the hub broadcasts to fans, fans engage with **real outcomes**.
+**Context.** Furia is predominantly a fandom product: the point is *closeness between fans and the athletes/teams they back.* The structural graph (clubs, teams, associations, leagues) built in slices 1–5 is the substrate that makes that closeness real and verified — it is never the point. This slice builds the engagement surfaces on the **hub-and-spoke** axis the spec mandates (§1, §9): fans follow entities, the hub broadcasts to fans, fans engage with **real outcomes**.
 
 **The fan↔fan guardrail is structural, not a convention.** The schema cannot express a fan-to-fan venue:
 - `post_author_type` is `athlete | club | team` — there is **no `fan`**, so a fan literally cannot author feed content. Posts are hub→spoke broadcasts.
@@ -207,7 +207,7 @@ There is no fan→fan edge anywhere. *(Both guardrails are asserted in the test.
 
 **What shipped (`src/web/`).**
 - **Athlete profile / idol surface** — record, followers, a **Follow** button, the next fight with **"your call?"** predict buttons, the fighter's broadcasts, recent results.
-- **Fan home** — "Your Horda": notifications, your graded calls, and a personalized feed that's pure coverage of who you follow (the guardrail line is right on the page).
+- **Fan home** — "Your Furia": notifications, your graded calls, and a personalized feed that's pure coverage of who you follow (the guardrail line is right on the page).
 - **Club page** — league table, form, upcoming.
 - `seed.ts` builds a demo world on boot (a 2-0 boxer with a callout + upcoming fight; a football club with a table; a fan following both). `follow`/`predict` are real POST actions that persist.
 
@@ -221,7 +221,7 @@ npm run web     # → http://localhost:8787  (home / fan / athlete / club, live)
 
 ## ADR-008 — Slice 8: athlete surface, Weverse-style (17 Jun 2026)
 
-**Context.** Horda is predominantly a fandom product, so the athlete page is the marquee surface. Reworked it to match the Weverse/FURIA pattern, made sports-specific, and athlete-owned.
+**Context.** Furia is predominantly a fandom product, so the athlete page is the marquee surface. Reworked it to match the Weverse/FURIA pattern, made sports-specific, and athlete-owned.
 
 - **Athlete-controlled identity** — banner, avatar, tagline, and **social links rendered as platform icons** (not words), pointing OUT (Instagram/X/TikTok/YouTube/site). Migration 0008.
 - **Athlete-curated affiliations** — the athlete chooses which clubs/teams/leagues/gym/promotion/events to show (sidebar chips, like Weverse's member list). Migration 0009 (`athlete_affiliation`).
@@ -230,7 +230,7 @@ npm run web     # → http://localhost:8787  (home / fan / athlete / club, live)
 - **Public, with a sign-up gate** — anyone can browse; a guest who acts on anything except **Shop** is routed to `/signup`, with a bottom "log in to continue" bar (`?guest=1` renders the guest view).
 - **Dark, monochrome, two-column** layout mirroring Weverse — still strictly Ink/Bone.
 
-`tests/web.test.ts` checks all of it incl. both registered and guest views, and an attend action over HTTP. **19/19**; whole suite **83/83**. Snapshots: `horda-app-athlete.html` (registered) and `horda-app-athlete-guest.html` (public).
+`tests/web.test.ts` checks all of it incl. both registered and guest views, and an attend action over HTTP. **19/19**; whole suite **83/83**. Snapshots: `furia-app-athlete.html` (registered) and `furia-app-athlete-guest.html` (public).
 
 ---
 
@@ -247,7 +247,7 @@ npm run web     # → http://localhost:8787  (home / fan / athlete / club, live)
 
 All public with the same guest sign-up gate (Shop exempt). The fan↔fan guardrail still holds end to end — posts are authored by club/team/athlete (never fans), and `post_author_type` has no `association` either, so governing bodies broadcast via notices, not a feed of users.
 
-`tests/web.test.ts` covers all three plus a guest gate; snapshots `horda-app-{club,team,association}.html`. **29/29 web, 93/93 suite.**
+`tests/web.test.ts` covers all three plus a guest gate; snapshots `furia-app-{club,team,association}.html`. **29/29 web, 93/93 suite.**
 
 ---
 
@@ -268,9 +268,9 @@ All public with the same guest sign-up gate (Shop exempt). The fan↔fan guardra
 **The bright line, enforced.** Every artifact restates **recorded facts only** — names, scores, method, date, record. Nothing invents a quote, a voice, or a stat (spec §4). The generators are deterministic functions over the spine (`src/content/report.ts`, `cards.ts`); an LLM may later *polish phrasing* behind the same interface but can't change the facts. A test asserts there's no fabricated quote/first-person voice.
 
 **What shipped (`src/content/`).**
-- **Stat cards** — vertical 1080×1350 SVG, strictly Ink/Bone, raven motif, `horda.app` footer (result card, fight card, week-drop card).
+- **Stat cards** — vertical 1080×1350 SVG, strictly Ink/Bone, raven motif, `furia.app` footer (result card, fight card, week-drop card).
 - **Factual recaps** — match report, fight hype, and a personalized **"your week" drop** from a fan's coverage.
-- **Public share pages** — `/share/result/:id`, `/share/fight/:id`, `/share/week/:fan`: open to everyone (the one gate exception alongside Shop — shares must reach non-users), showing the card, the recap, outbound **Share on X / WhatsApp / download**, and a **"This is the Horda — Join free"** CTA. Share affordances sit on the athlete (results + matchup), club/team (matchday), and fan home (week drop).
+- **Public share pages** — `/share/result/:id`, `/share/fight/:id`, `/share/week/:fan`: open to everyone (the one gate exception alongside Shop — shares must reach non-users), showing the card, the recap, outbound **Share on X / WhatsApp / download**, and a **"This is the Furia — Join free"** CTA. Share affordances sit on the athlete (results + matchup), club/team (matchday), and fan home (week drop).
 
 `tests/content.test.ts` (8) checks the bright line + cards; `tests/web.test.ts` checks the public share routes. **107/107 across 7 suites.**
 
@@ -278,7 +278,7 @@ All public with the same guest sign-up gate (Shop exempt). The fan↔fan guardra
 
 ## ADR-012 — Real marks, no wordmark (18 Jun 2026)
 
-The supplied brand assets are now wired verbatim (`src/web/brand.ts`): the **raven** on everyday surfaces (every page header, the favicon, default avatars) and the **crest** on ceremonial ones (the share cards). **There is no wordmark anywhere** — the bird is the identity. All placeholder "HORDA" type was removed across the app, the standalone club render, and the share cards; `/favicon.svg` is served from the delivered asset. A test asserts the share card carries the crest path and contains no "HORDA" text. **107/107.**
+The supplied brand assets are now wired verbatim (`src/web/brand.ts`): the **raven** on everyday surfaces (every page header, the favicon, default avatars) and the **crest** on ceremonial ones (the share cards). **There is no wordmark anywhere** — the bird is the identity. All placeholder "FURIA" type was removed across the app, the standalone club render, and the share cards; `/favicon.svg` is served from the delivered asset. A test asserts the share card carries the crest path and contains no "FURIA" text. **107/107.**
 
 ---
 
@@ -329,7 +329,7 @@ Bright line intact: monetization is access + status, never faked intimacy or a f
 - **Accounts + sessions** — real signup/login (scrypt-hashed passwords; managed auth/bcrypt is the prod swap), cookie sessions (migration 0014: `account.password_hash`, `session`).
 - **Ownership** — an `ownership` table maps an account to the entities (athlete/club/team/association) it controls; an athlete is also owned by the account that self-created it. `owns()` drives **authorization**: edit branding, schedule events, post, manage, set a tier — all gated on ownership, not merely "logged in."
 - **Claim** — `/claim/:kind/:id` grants ownership and flips a non-person entity to `claimed`. The verification gradient (official-channel, federation cross-check) is the next layer; the pilot is instant-claim, logged + revocable.
-- **Demo fallback** — with `HORDA_DEMO=1` (default) an unauthenticated visitor is the demo account that owns the seeded world, so the app is browsable and the whole suite runs without login. Set `HORDA_DEMO=0` in production: then browsing is open but acting requires sign-up, and owner tools require ownership.
+- **Demo fallback** — with `FURIA_DEMO=1` (default) an unauthenticated visitor is the demo account that owns the seeded world, so the app is browsable and the whole suite runs without login. Set `FURIA_DEMO=0` in production: then browsing is open but acting requires sign-up, and owner tools require ownership.
 
 `tests/auth.test.ts` (11) covers signup→session, password verify, a fan owning nothing (no owner tools, can still engage), claim→owner tools appear, logout. **156/156 across 10 suites.**
 
@@ -339,7 +339,7 @@ Bright line intact: monetization is access + status, never faked intimacy or a f
 
 - `/` is now a **live discover screen** rendered from the DB: live & upcoming events, athletes, clubs, and latest results — all real entities, all public to browse.
 - **Taste filter** — sport + region chips (region added to club/athlete, migration 0015) that narrow the screen via `/?sport=&region=`.
-- **Gated personalization** — a "Your Horda — pick 3 and your feed already knows you" card that, for guests, leads to sign-up; for members, opens their feed. (Browsing open; acting = account.)
+- **Gated personalization** — a "Your Furia — pick 3 and your feed already knows you" card that, for guests, leads to sign-up; for members, opens their feed. (Browsing open; acting = account.)
 - No marketing copy — the page *is* the product. Logged-in vs guest differ only in the header CTA and the personalization card.
 
 `tests/web.test.ts` covers the chips, that real coverage shows, the gated feed CTA, and that filtering narrows to taste. **160/160 across 10 suites.**
@@ -349,12 +349,12 @@ Bright line intact: monetization is access + status, never faked intimacy or a f
 The app is a single Node process — embedded Postgres (PGlite), no external DB to provision for a pilot.
 
 ```bash
-docker build -t horda . && docker run -p 8787:8787 -v horda-data:/data horda
+docker build -t furia . && docker run -p 8787:8787 -v furia-data:/data furia
 # or, locally:
-HORDA_DATA=./.horda-data npm run web
+FURIA_DATA=./.furia-data npm run web
 ```
 
-Env: `PORT` (8787), `HORDA_DATA` (persist the DB to a volume; omit = in-memory), `HORDA_DEMO` (`0` disables the demo fallback for production). The DB is created + seeded on first boot and reused on restart.
+Env: `PORT` (8787), `FURIA_DATA` (persist the DB to a volume; omit = in-memory), `FURIA_DEMO` (`0` disables the demo fallback for production). The DB is created + seeded on first boot and reused on restart.
 
 **Production swaps, each behind a seam already in the code:** managed Postgres (Neon) behind the one-method `Database` interface; Stripe in the single checkout/pay path; object storage for uploaded images behind the existing `*_url` fields; a managed auth provider for `auth_repo`. None changes the app logic.
 

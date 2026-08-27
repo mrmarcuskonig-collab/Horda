@@ -1,0 +1,368 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><link rel="icon" href="/favicon.svg"><title>Furia</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  
+  :root{color-scheme:dark;--ink:#232020;--bone:#EDE9DF;--s:rgba(237,233,223,.05);--b:rgba(237,233,223,.16);--mut:rgba(237,233,223,.6);--scrim:rgba(26,23,23,.84);--acc:#E15A40;--acc2:#cd4c33;--accink:#1b1310;--btnr:12px}
+
+  *{margin:0;box-sizing:border-box}
+  body{background:var(--ink);color:var(--bone);font-family:"Inter",-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif;line-height:1.5;padding-bottom:92px;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
+  a{color:inherit;text-decoration:none}
+  
+  /* The sheet only exists on mobile; desktop keeps normal navigation. */
+  #hz-peek, #hz-peekscrim { display: none; }
+  @media (max-width: 820px) {
+    #hz-peekscrim { position: fixed; inset: 0; background: rgba(0,0,0,.5); opacity: 0; transition: opacity .2s ease; z-index: 60; }
+    #hz-peekscrim.on { display: block; opacity: 1; }
+    #hz-peek {
+      display: block; position: fixed; left: 0; right: 0; bottom: 0; z-index: 61;
+      height: 92vh; background: var(--ink, #232020); border-top-left-radius: 18px; border-top-right-radius: 18px;
+      box-shadow: 0 -12px 40px rgba(0,0,0,.5); transform: translateY(102%);
+      transition: transform .28s cubic-bezier(.22,.61,.36,1); display: flex; flex-direction: column;
+    }
+    /* peek = ~58% up; open = full. A single class flips between them. */
+    #hz-peek.peek { transform: translateY(42vh); }
+    #hz-peek.open { transform: translateY(0); }
+    #hz-peek .hz-pkhead { flex: 0 0 auto; padding: 8px 14px 6px; position: relative; }
+    #hz-peek .hz-pkgrip { width: 40px; height: 4px; border-radius: 999px; background: var(--b, #3a3532); margin: 4px auto 8px; }
+    #hz-peek .hz-pkbar { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+    #hz-peek .hz-pkfull { color: var(--mut, #a49e97); font-size: 12.5px; border-bottom: 1px solid var(--b,#3a3532); }
+    #hz-peek .hz-pkx { background: none; border: 0; color: var(--mut,#a49e97); font-size: 22px; line-height: 1; padding: 2px 6px; cursor: pointer; }
+    #hz-peek .hz-pkbody { flex: 1 1 auto; overflow-y: auto; -webkit-overflow-scrolling: touch; padding: 0 2px 40px; }
+    /* the lifted event content sits full-bleed inside the sheet */
+    #hz-peek .hz-pkbody .poster { border-radius: 0; }
+    #hz-peek .hz-pkloading { padding: 40px 16px; text-align: center; color: var(--mut,#a49e97); font-size: 14px; }
+    body.hz-peek-open { overflow: hidden; }
+  }
+
+.thm{display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:999px;border:1.5px solid var(--b);background:transparent;color:var(--bone);cursor:pointer;padding:0;flex:0 0 auto}.thm:hover{border-color:var(--bone)}.thm svg{display:block}
+  .vbadge{display:inline-flex;vertical-align:-2px;margin-left:4px;color:currentColor}.vbadge svg{display:block}
+  /* Mobile: a FLOATING translucent bar (the iOS 26 / Instagram pattern) — it
+     hovers above the content with the page visibly moving underneath it, rather
+     than sitting in an opaque tray welded to the bottom edge. Three things make
+     it read as glass: a semi-transparent fill, a real backdrop blur, and a
+     saturate() boost so colours behind it stay alive instead of going grey.
+     Corner radius is 20px — our button language (--btnr:12px) scaled up for a
+     bigger object, deliberately NOT a 999px pill, which would fight the app's
+     squarer geometry. */
+  .bnav{position:fixed;left:12px;right:12px;bottom:calc(10px + env(safe-area-inset-bottom));z-index:40;
+    border:1px solid rgba(255,255,255,.10);border-radius:20px;
+    background:color-mix(in srgb, var(--ink) 62%, transparent);
+    -webkit-backdrop-filter:blur(22px) saturate(180%);backdrop-filter:blur(22px) saturate(180%);
+    box-shadow:0 8px 30px rgba(0,0,0,.38)}
+  .bninner{max-width:680px;margin:0 auto;display:flex;justify-content:space-around;align-items:center;padding:10px 6px}
+  .bnav a{flex:1;max-width:130px;display:flex;align-items:center;justify-content:center;color:var(--mut);padding:3px 0}
+  .bnav a.on{color:var(--acc)}
+  .bnav a:hover{color:var(--bone)}
+  .bnav svg{width:25px;height:25px;display:block}
+  /* No backdrop-filter (older Android/Firefox) → fall back to a near-solid fill
+     so the bar stays legible instead of turning into a transparent smear. */
+  @supports not ((backdrop-filter:blur(1px)) or (-webkit-backdrop-filter:blur(1px))){
+    .bnav{background:color-mix(in srgb, var(--ink) 94%, transparent)}
+  }
+  /* Desktop: lift the bar into a vertical rail on the LEFT (Instagram pattern),
+     sitting in the left gutter so it never overlaps the centred 680px column. */
+  @media(min-width:1024px){
+    /* Undo the floating-glass treatment: on desktop this is a flush rail, not a
+       hovering pill. Every mobile-only property is explicitly reset here. */
+    .bnav{top:0;left:0;right:auto;bottom:0;width:74px;border:0;border-right:1px solid var(--b);border-radius:0;
+      background:transparent;-webkit-backdrop-filter:none;backdrop-filter:none;box-shadow:none}
+    .bninner{flex-direction:column;justify-content:flex-start;align-items:center;gap:8px;height:100%;max-width:none;padding:80px 0 0}
+    .bnav a{flex:0 0 auto;max-width:none;width:46px;height:46px;border-radius:13px}
+    .bnav a.on{background:var(--s)}
+    .bnav a:hover{background:var(--s)}
+  }
+  /* --- polish layer (mobile-first, IG/TikTok idiom) --- */
+  .btn,button{transition:transform .12s ease,opacity .12s ease,background .15s ease,border-color .15s ease}
+  .btn:active,button:active{transform:scale(.97)}
+  .btn:hover,button:hover{opacity:.92}
+  /* Global button system: coral-orange CTA fill, softly rounded (not pill).
+     body-scoped so it wins over each page's local .btn; ghost/dark stay outline;
+     icon controls (.thm/.backx/.hz-back) keep their circular shape. */
+  body .btn,body .rb,body button:not(.thm):not(.backx):not(.locbtn){border-radius:var(--btnr)}
+  body .btn:not(.ghost):not(.dark){background:var(--acc);color:var(--accink);border-color:var(--acc);font-weight:800}
+  body .btn:not(.ghost):not(.dark):hover{background:var(--acc2);border-color:var(--acc2);opacity:1}
+  body .rb.p,body .btn.p{background:var(--acc);color:var(--accink);border-color:var(--acc);font-weight:800}
+  body .thm,body .backx,body .hz-back,body .locbtn{border-radius:999px}
+  .card{transition:border-color .15s ease}
+  /* Poster hero: full-bleed media with a legibility scrim + overlaid title */
+  .poster{position:relative;margin:0 -18px;height:min(78vw,420px);overflow:hidden}
+  .poster>img,.poster>video{width:100%;height:100%;object-fit:cover;display:block}
+  .poster::after{content:"";position:absolute;inset:0;background:linear-gradient(to top,var(--ink) 2%,rgba(11,11,12,.35) 42%,transparent 72%)}
+  .poster .pcap{position:absolute;left:18px;right:18px;bottom:16px;z-index:2}
+  .poster .pkick{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:800;letter-spacing:1.5px;text-transform:uppercase;background:var(--bone);color:var(--ink);border-radius:999px;padding:4px 11px;margin-bottom:10px}
+  .poster .ptitle{font-size:clamp(26px,8vw,42px);font-weight:800;line-height:1.02;letter-spacing:-.01em;text-shadow:0 2px 24px rgba(0,0,0,.5)}
+  .poster .pmeta{margin-top:8px;font-size:13px;color:rgba(237,233,223,.85);display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+  .live-dot{width:8px;height:8px;border-radius:50%;background:#e5484d;box-shadow:0 0 0 4px rgba(229,72,77,.25);display:inline-block}
+  /* Sticky action bar — the persistent primary CTA (event/crowd pages) */
+  .actionbar{position:fixed;left:0;right:0;bottom:calc(54px + env(safe-area-inset-bottom));z-index:45;background:var(--scrim);backdrop-filter:blur(16px);border-top:1px solid var(--b);border-bottom:1px solid var(--b);padding:10px 16px}
+  .actionbar .abin{max-width:680px;margin:0 auto;display:flex;align-items:center;gap:12px}
+  .actionbar .ablabel{flex:1;min-width:0;line-height:1.15}
+  .actionbar .abt{font-size:14px;font-weight:800}.actionbar .abs{font-size:11.5px;color:var(--mut)}
+  .actionbar .btn,.actionbar button{padding:12px 22px;font-size:15px;white-space:nowrap}
+  @media(min-width:1024px){.actionbar{left:74px;bottom:0}}
+  /* language pill toggle (settings) */
+  .lgtog{display:inline-flex;gap:2px;border:1px solid var(--b);border-radius:999px;padding:2px;background:transparent}
+  .lgp{font-size:11.5px;font-weight:700;letter-spacing:.3px;color:var(--mut);border-radius:999px;padding:4px 11px}
+  .lgp.on{background:var(--bone);color:var(--ink)}
+  .lgp:not(.on):hover{color:var(--bone)}
+  /* TikTok-style desktop left rail (labelled). Hidden on mobile; the bottom
+     tab bar takes over there. Shown from 1024px, sitting in the left gutter. */
+  /* consistent floating back button (no page headers) — top-left, over content;
+     offset past the rail on desktop so it never overlaps the nav. */
+  .hz-back{position:fixed;top:12px;left:12px;z-index:60;display:inline-flex;align-items:center;justify-content:center;width:38px;height:38px;border-radius:999px;border:1px solid var(--b);background:var(--scrim);backdrop-filter:blur(10px);color:var(--bone);text-decoration:none;cursor:pointer;padding:0}
+  .hz-back:hover{border-color:var(--bone)}.hz-back svg{display:block}
+  .drail{display:none}
+  @media(min-width:1024px){
+    .drail{display:flex;flex-direction:column;position:fixed;left:0;top:0;bottom:0;width:236px;border-right:1px solid var(--b);background:var(--ink);padding:20px 14px 16px;z-index:50;overflow-y:auto}
+    body.deskrail{padding-left:236px}
+    body.deskrail .bnav{display:none}
+    body.deskrail .top{display:none}
+    body.deskrail .hz-back{left:250px}   /* clear the fixed rail */
+  }
+  .dr-logo{display:flex;align-items:center;gap:9px;padding:2px 8px 16px;color:var(--bone);text-decoration:none}
+  .dr-logo b{font-size:19px;font-weight:800;letter-spacing:-.02em}
+  .dr-search{display:block;margin:0 4px 14px}
+  .dr-search input{width:100%;background:var(--s);border:1px solid var(--b);border-radius:999px;color:var(--bone);padding:9px 14px;font:inherit;font-size:13px}
+  .dr-search input:focus{outline:none;border-color:var(--bone)}.dr-search input::placeholder{color:var(--mut)}
+  .dr-nav{display:flex;flex-direction:column;gap:2px}
+  .dr-item{display:flex;align-items:center;gap:14px;padding:11px 12px;border-radius:12px;color:var(--bone);font-size:16px;font-weight:600;text-decoration:none}
+  .dr-item svg{width:26px;height:26px;flex:0 0 auto}
+  .dr-item:hover{background:var(--s)}
+  /* selected nav = coral-orange accent (label + icon + badge), never underlined */
+  .dr-item.on,.dr-item.on svg{color:var(--acc)}
+  .dr-item .dr-badge{margin-left:auto;background:var(--acc);color:#fff;font-size:11px;font-weight:800;min-width:19px;height:19px;border-radius:999px;display:inline-flex;align-items:center;justify-content:center;padding:0 5px}
+  .dr-sep{height:1px;background:var(--b);margin:14px 8px}
+  .dr-set{display:flex;flex-direction:column;gap:10px;padding:0 8px}
+  .dr-srow{display:flex;align-items:center;justify-content:space-between;gap:10px}
+  .dr-slabel{font-size:13px;color:var(--mut);font-weight:500}
+  .dr-foot{margin-top:auto;padding:14px 8px 4px;display:flex;flex-direction:column;gap:8px}
+  .top{display:flex;justify-content:space-between;align-items:center;padding:13px 20px;border-bottom:1px solid var(--b);position:sticky;top:0;background:var(--scrim);backdrop-filter:blur(12px);z-index:20}
+  .mark{display:flex;align-items:center;color:var(--bone)}.mark svg{display:block}
+  .nav{display:flex;gap:9px;align-items:center}
+  .btn{display:inline-block;background:var(--bone);color:var(--ink);font-weight:600;border:1px solid var(--bone);border-radius:999px;padding:7px 15px;font-size:13px;transition:opacity .15s}
+  .btn:hover{opacity:.86}
+  .btn.ghost{background:transparent;color:var(--bone);border-color:var(--b)}.btn.dark{background:var(--ink);color:var(--bone);border-color:var(--ink)}
+  .wrap{max-width:900px;margin:0 auto;padding:0 20px}
+  .kicker{font-size:11px;letter-spacing:2.5px;text-transform:uppercase;color:var(--mut);font-weight:600;margin:26px 0 12px}
+  .lede{font-size:30px;line-height:1.16;font-weight:600;letter-spacing:-.021em;margin:0 0 12px;max-width:19ch}
+  .sub{color:var(--mut);font-size:15px;line-height:1.6;max-width:62ch;margin-bottom:4px;font-weight:400}
+  .chips{display:flex;gap:7px;flex-wrap:wrap;align-items:center;margin:14px 0 2px}
+  .chips.scroll{flex-wrap:nowrap;overflow-x:auto;margin:18px 0 4px;padding-bottom:2px;-webkit-mask-image:linear-gradient(to right,#000 90%,transparent);mask-image:linear-gradient(to right,#000 90%,transparent)}
+  .chips.scroll::-webkit-scrollbar{height:0}
+  .locrow{margin:8px 0 6px}
+  .chip{font-size:12.5px;font-weight:500;border:1px solid var(--b);color:var(--mut);border-radius:999px;padding:7px 14px;white-space:nowrap;transition:border-color .15s,color .15s;background:transparent;flex:0 0 auto}
+  .chip:hover{border-color:var(--bone);color:var(--bone)}
+  .chip.on{background:var(--bone);color:var(--ink);border-color:var(--bone)}
+  .locform{display:inline-flex}
+  .locwrap{position:relative;display:inline-flex;align-items:center}
+  .locin{background:transparent;border:1px solid var(--b);border-radius:999px;color:var(--bone);padding:7px 38px 7px 15px;font:inherit;font-size:12.5px;min-width:200px}
+  .locin:focus{outline:none;border-color:var(--bone)}.locin::placeholder{color:var(--mut)}
+  .locbtn{position:absolute;right:4px;top:50%;transform:translateY(-50%);width:27px;height:27px;border:0;background:transparent;color:var(--mut);border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer;padding:0}
+  .locbtn:hover{color:var(--bone);background:var(--s)}
+  .locbtn.busy{opacity:.5;pointer-events:none}
+  h2{font-size:11.5px;letter-spacing:1.6px;text-transform:uppercase;font-weight:600;color:var(--bone);margin:32px 0 13px;display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+  .h2note{font-size:11px;letter-spacing:.2px;text-transform:none;font-weight:400;color:var(--mut)}
+  .rail{display:flex;gap:16px;overflow-x:auto;padding:10px 0 4px}
+  .rail::-webkit-scrollbar,.feat::-webkit-scrollbar,.drow::-webkit-scrollbar{height:0}
+  .story{flex:0 0 auto;width:66px;display:flex;flex-direction:column;align-items:center;gap:8px}
+  .ring{width:64px;height:64px;border-radius:50%;padding:3px;display:block;box-sizing:border-box;transition:transform .16s}
+  .story:hover .ring{transform:scale(1.05)}
+  /* soft white halo ring (dark-only) */
+  .ring:not(.act){background:var(--bone);box-shadow:0 0 12px rgba(237,233,223,.32)}
+  .ring:not(.act) img,.ring:not(.act) svg{width:100%;height:100%;border-radius:50%;object-fit:cover;display:block;border:2px solid var(--ink);box-sizing:border-box}
+  .ring.act{display:flex;align-items:center;justify-content:center;border:1px solid var(--b);background:var(--s);color:var(--bone)}
+  .sname{font-size:11.5px;font-weight:500;line-height:1.2;color:var(--mut);max-width:66px;text-align:center;white-space:normal}
+  .story:hover .sname{color:var(--bone)}
+  .feat{display:flex;gap:14px;overflow-x:auto;padding-bottom:8px;margin:20px 0 26px;scroll-snap-type:x mandatory}
+  .fcard{position:relative;flex:0 0 224px;height:316px;border-radius:18px;overflow:hidden;border:1px solid var(--b);background:var(--s);scroll-snap-align:start;transition:transform .18s}
+  .fcard:hover{transform:translateY(-3px)}
+  .fimg{width:100%;height:100%;object-fit:cover;display:block}
+  .fph{width:100%;height:100%;display:flex;align-items:center;justify-content:center}.fph svg{width:52%;height:52%;opacity:.38}
+  .fscrim{position:absolute;inset:0;background:linear-gradient(to top,rgba(11,11,12,.86),rgba(11,11,12,.04) 50%,rgba(11,11,12,.22))}
+  .fid{position:absolute;top:11px;left:11px;display:flex;align-items:center;gap:7px;background:rgba(11,11,12,.4);backdrop-filter:blur(8px);border-radius:999px;padding:3px 11px 3px 3px}
+  .fav{width:24px;height:24px;border-radius:50%;overflow:hidden;flex:0 0 auto;border:1px solid rgba(237,233,223,.22)}.fav img,.fav svg{width:100%;height:100%;object-fit:cover;display:block}
+  .fnm{font-weight:500;font-size:12.5px;color:#EDE9DF;letter-spacing:.1px}
+  .fcap{position:absolute;left:14px;right:14px;bottom:14px;color:#EDE9DF;font-size:12px;font-weight:500;letter-spacing:.2px;text-transform:capitalize;opacity:.9}
+  .fcap .ftitle{font-weight:700;font-size:14.5px;line-height:1.15;text-transform:none;letter-spacing:-.01em}
+  .fcap .fmeta{margin-top:3px;font-size:12px;font-weight:500;text-transform:none;opacity:.92}
+  .fcap .fstats{margin-top:7px}
+  .fcap .fstats .est{color:rgba(237,233,223,.92)}
+  .fcard.islive{border-color:var(--acc)}
+  /* Event map section (replaces the round photo rail) */
+  .mapcard{position:relative;margin:22px 0 8px;border:1px solid var(--b);border-radius:18px;overflow:hidden;background:radial-gradient(120% 140% at 88% -20%,rgba(225,90,64,.18),transparent 55%),var(--s)}
+  .mapgrid{position:absolute;inset:0;opacity:.5;background-image:linear-gradient(var(--b) 1px,transparent 1px),linear-gradient(90deg,var(--b) 1px,transparent 1px);background-size:34px 34px;-webkit-mask-image:radial-gradient(120% 120% at 85% 10%,#000,transparent 70%);mask-image:radial-gradient(120% 120% at 85% 10%,#000,transparent 70%)}
+  .mapcon{position:relative;display:flex;align-items:center;gap:15px;padding:18px 18px}
+  .mappin{flex:0 0 auto;width:46px;height:46px;border-radius:13px;display:flex;align-items:center;justify-content:center;color:var(--acc);background:rgba(225,90,64,.12);border:1px solid rgba(225,90,64,.3)}
+  .maptx{flex:1;min-width:0}.mapt{font-weight:700;font-size:15.5px;letter-spacing:-.01em}.maps{color:var(--mut);font-size:13px;margin-top:2px;line-height:1.45}
+  @media(max-width:560px){.mapcon{flex-wrap:wrap}.mapcon .btn{flex:1 0 100%;text-align:center}}
+  #map{height:360px;border-radius:18px;overflow:hidden;border:1px solid var(--b);margin:2px 0;background:var(--s)}
+  .hz-pin span{display:block;width:13px;height:13px;border-radius:50%;background:var(--bone);border:2px solid var(--ink);box-shadow:0 0 0 1px var(--b)}
+  .leaflet-popup-content-wrapper,.leaflet-popup-tip{background:var(--ink);color:var(--bone);border:1px solid var(--b)}
+  .leaflet-popup-content{font-family:inherit;font-size:13px}.leaflet-popup-content a{font-weight:600;border-bottom:1px solid var(--b)}
+  .drow{display:flex;gap:12px;overflow-x:auto;padding-bottom:4px}
+  .ecard{flex:0 0 218px;background:var(--s);border:1px solid var(--b);border-radius:16px;overflow:hidden;transition:border-color .15s}
+  .ecard:hover{border-color:var(--bone)}
+  .ecover{position:relative;height:88px;background:radial-gradient(120% 120% at 70% 20%,var(--s),transparent 60%),var(--ink);border-bottom:1px solid var(--b)}
+  .ecard.islive{border-color:var(--acc)}
+  .livepill{position:absolute;top:8px;left:8px;display:inline-flex;align-items:center;gap:5px;background:var(--acc);color:#fff;font-size:10px;font-weight:800;letter-spacing:1px;border-radius:999px;padding:3px 8px}
+  /* An event you hold a ticket for: accent chip + accent border on its card. */
+  .claimedpill{position:absolute;display:inline-flex;align-items:center;gap:4px;background:var(--acc);color:#fff;font-size:10px;font-weight:800;letter-spacing:.5px;border-radius:999px;padding:3px 9px;z-index:2}
+  .fcard.claimed{border-color:var(--acc);box-shadow:0 0 0 1px var(--acc)}
+  /* "Your events that you organise" — a horizontal rail; the next card peeks so
+     it's obvious you can slide for more. Cards are ~78% wide on mobile → ~1.3
+     visible with a peek; the row grows to fit more on wider screens. */
+  .orow{display:flex;gap:12px;overflow-x:auto;padding-bottom:8px;margin:16px 0 26px;scroll-snap-type:x mandatory;-webkit-overflow-scrolling:touch}
+  .orow::-webkit-scrollbar{height:0}
+  .ocard{flex:0 0 78%;max-width:300px;scroll-snap-align:start;background:var(--s);border:1px solid var(--b);border-radius:14px;padding:13px 15px;display:block;transition:border-color .15s}
+  @media(min-width:560px){.ocard{flex-basis:300px}}
+  .ocard:hover{border-color:var(--bone)}
+  .ocard .orole{font-size:10px;font-weight:800;letter-spacing:1px;text-transform:uppercase;color:var(--acc);margin-bottom:5px}
+  .ocard .otitle{font-weight:800;font-size:15.5px;line-height:1.25;letter-spacing:-.01em}
+  .ocard .osub{color:var(--mut);font-size:12.5px;margin-top:3px}
+  .livepill .live-dot{background:#fff;box-shadow:0 0 0 3px rgba(255,255,255,.3);width:6px;height:6px}
+  .etitle{font-weight:500;font-size:14px;padding:11px 13px 2px}.esub{color:var(--mut);font-size:12px;padding:0 13px 8px}
+  /* TikTok-style engagement chips on event cards */
+  .estats{display:flex;gap:13px;padding:0 13px 12px;color:var(--mut)}
+  .est{display:inline-flex;align-items:center;gap:4px;font-size:12px;font-weight:600;letter-spacing:.2px}
+  .est svg{opacity:.9}
+  .dlist{display:grid;gap:9px;grid-template-columns:repeat(auto-fill,minmax(240px,1fr))}
+  .dcard{display:flex;align-items:center;gap:12px;background:var(--s);border:1px solid var(--b);border-radius:14px;padding:10px 12px;transition:border-color .15s}
+  .dcard:hover{border-color:var(--bone)}
+  .dav{width:42px;height:42px;border-radius:50%;overflow:hidden;border:1px solid var(--b);flex:0 0 auto}.dav svg{width:100%;height:100%;display:block}
+  .dmeta{flex:1;min-width:0}.dt-title{font-weight:500;font-size:14.5px}.dt-sub{color:var(--mut);font-size:12px;text-transform:capitalize}
+  .dbadge{font-size:9.5px;font-weight:600;letter-spacing:1px;text-transform:uppercase;color:var(--mut);border:1px solid var(--b);border-radius:6px;padding:2px 7px}
+  .rlist{list-style:none}.rlist li{display:flex;align-items:center;gap:11px;padding:10px 0;border-bottom:1px solid var(--b);font-size:14px}.rmk{color:var(--mut);font-size:8px}.rh{flex:1}.dt{color:var(--mut);font-size:12px;white-space:nowrap}
+  .joinb{background:var(--bone);color:var(--ink);border-radius:16px;padding:16px 18px;margin:28px 0 6px;display:flex;justify-content:space-between;align-items:center;gap:12px}
+  .joinb strong{font-weight:600;font-size:15px}
+  .joinb .bsub{font-size:12.5px;opacity:.66;margin-top:3px}
+  .prov{max-width:900px;margin:24px auto 0;padding:0 20px;color:var(--mut);font-size:11.5px;line-height:1.6}
+  .provl{display:flex;gap:16px;margin-top:8px;flex-wrap:wrap}
+  .provl a{color:var(--mut);border-bottom:1px solid var(--b)}
+  .nores{border:1px dashed var(--b);border-radius:18px;padding:26px 22px;margin-top:14px;text-align:center}
+  .nores .nrt{font-size:19px;font-weight:800;letter-spacing:-.01em;margin-bottom:7px}
+  .nores p{color:var(--mut);font-size:14px;line-height:1.6;margin:0 auto 16px;max-width:46ch}
+</style></head><body class="deskrail">
+  <aside class="drail">
+    <a class="dr-logo" href="/" aria-label="Furia"><svg width="26" height="26" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Furia"><path fill="#E15A40" d="M50 22C58 42 63 45 99 50 63 55 58 58 50 78 42 58 37 45 1 50 37 45 42 42 50 22Z"/></svg><b>Furia</b></a>
+    <form class="dr-search" method="get" action="/"><input name="region" value="" placeholder="Search" autocomplete="off" aria-label="Search"></form>
+    
+    <nav class="dr-nav" aria-label="Primary">
+      <a class="dr-item on" href="/" aria-current="page"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m15.2 8.8-2 4.4-4.4 2 2-4.4 4.4-2Z"/></svg><span>Your Furia</span></a>
+      <a class="dr-item" href="/signup"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.4"/><path d="M3.5 20c0-3.4 2.7-5.6 5.5-5.6S14.5 16.6 14.5 20"/><path d="M17 8.5v5M14.5 11h5"/></svg><span>Following</span></a>
+      <a class="dr-item" href="/create"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="3.5" width="17" height="17" rx="5"/><path d="M12 8v8M8 12h8"/></svg><span>Create event</span></a>
+      
+      
+    </nav>
+    
+    <div class="dr-foot"><a class="btn ghost" href="/login">Log in</a><a class="btn" href="/signup">Join free</a></div>
+  </aside><script>(function(){
+  if(!window.matchMedia||!window.matchMedia('(max-width: 820px)').matches) return;
+  var mount=function(){
+    if(document.getElementById('hz-peek')) return;
+    var scrim=document.createElement('div'); scrim.id='hz-peekscrim';
+    var sheet=document.createElement('div'); sheet.id='hz-peek';
+    sheet.innerHTML='<div class="hz-pkhead"><div class="hz-pkgrip"></div><div class="hz-pkbar"><a class="hz-pkfull" href="#">Open full page \u2197</a><button class="hz-pkx" aria-label="Close">\u00d7</button></div></div><div class="hz-pkbody"><div class="hz-pkloading">Loading\u2026</div></div>';
+    document.body.appendChild(scrim); document.body.appendChild(sheet);
+    var body=sheet.querySelector('.hz-pkbody'), full=sheet.querySelector('.hz-pkfull'), x=sheet.querySelector('.hz-pkx'), grip=sheet.querySelector('.hz-pkgrip');
+    var current='';
+    function close(){ sheet.classList.remove('open','peek'); scrim.classList.remove('on'); document.body.classList.remove('hz-peek-open'); setTimeout(function(){ body.innerHTML='<div class=\'hz-pkloading\'>Loading\u2026</div>'; },280); }
+    function openTo(cls){ sheet.classList.remove('peek','open'); sheet.classList.add(cls); scrim.classList.add('on'); document.body.classList.add('hz-peek-open'); }
+    scrim.addEventListener('click',close); x.addEventListener('click',close);
+    grip.addEventListener('click',function(){ sheet.classList.toggle('open'); sheet.classList.toggle('peek'); });
+    full.addEventListener('click',function(e){ e.preventDefault(); if(current) location.href=current; });
+    // Back button closes the sheet instead of leaving the page.
+    window.addEventListener('popstate',function(){ if(scrim.classList.contains('on')) close(); });
+    // Simple swipe: drag down on the header closes; drag up expands.
+    var sy=0; sheet.querySelector('.hz-pkhead').addEventListener('touchstart',function(e){ sy=e.touches[0].clientY; },{passive:true});
+    sheet.querySelector('.hz-pkhead').addEventListener('touchend',function(e){ var dy=e.changedTouches[0].clientY-sy; if(dy>60) close(); else if(dy<-40) openTo('open'); },{passive:true});
+    window.__hzPeekOpen=function(href){
+      current=href; openTo('peek');
+      try{ history.pushState({hzpeek:1},'',href); }catch(_){}
+      fetch(href,{headers:{'x-hz-peek':'1'}}).then(function(r){return r.text();}).then(function(html){
+        var doc=new DOMParser().parseFromString(html,'text/html');
+        var poster=doc.querySelector('.poster'), grid=doc.querySelector('.evgrid');
+        if(!poster&&!grid){ location.href=href; return; }
+        body.innerHTML=(poster?poster.outerHTML:'')+(grid?grid.outerHTML:'');
+        body.scrollTop=0;
+      }).catch(function(){ location.href=href; });
+    };
+  };
+  mount();
+  document.addEventListener('click',function(e){
+    if(e.defaultPrevented||e.button!==0||e.metaKey||e.ctrlKey||e.shiftKey||e.altKey) return;
+    var a=e.target.closest&&e.target.closest('a[href^="/e/"]');
+    if(!a) return;
+    if(a.closest('#hz-peek')) return;               // links inside the sheet navigate normally
+    var href=a.getAttribute('href')||'';
+    if(!/^\/e\/[0-9a-f-]+(\?|$)/i.test(href)) return;  // only event pages, not /e/:id/room etc.
+    if(/\/(room|check-in|manage|card\.png|ics)/.test(href)) return;
+    e.preventDefault();
+    if(window.__hzPeekOpen) window.__hzPeekOpen(href); else location.href=href;
+  });
+})();</script>
+  <div class="wrap">
+    <div class="chips scroll"><a class="chip on" href="/">All sports</a><a class="chip" href="/?sport=football">Football</a><a class="chip" href="/?sport=basketball">Basketball</a><a class="chip" href="/?sport=boxing">Boxing</a><a class="chip" href="/?sport=tennis">Tennis</a><a class="chip" href="/?sport=running">Running</a><a class="chip" href="/?sport=mma">MMA</a><a class="chip" href="/?sport=esports">Esports</a><a class="chip" href="/?sport=digital_sports">Digital sports</a><a class="chip" href="/?sport=cycling">Cycling</a><a class="chip" href="/?sport=volleyball">Volleyball</a><a class="chip" href="/?sport=handball">Handball</a><a class="chip" href="/?sport=ice_hockey">Ice hockey</a><a class="chip" href="/?sport=triathlon">Triathlon</a></div><div class="chips locrow"><a class="chip on" href="/">Everywhere</a><form class="locform" method="get" action="/" id="locform"><span class="locwrap"><input name="region" value="" list="loclist" placeholder="City or country" class="locin" autocomplete="off" aria-label="City or country" id="locin"><button type="button" class="locbtn" id="locbtn" title="Use my location" aria-label="Use my location"><svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" d="M12 21s7-6.3 7-11a7 7 0 1 0-14 0c0 4.7 7 11 7 11Z"/><circle cx="12" cy="10" r="2.3" fill="none" stroke="currentColor" stroke-width="1.6"/></svg></button></span><datalist id="loclist"><option value="Berlin"></option><option value="Hamburg"></option><option value="München"></option><option value="Köln"></option><option value="Frankfurt"></option><option value="Stuttgart"></option><option value="Düsseldorf"></option><option value="Leipzig"></option><option value="Dortmund"></option><option value="Essen"></option><option value="Bremen"></option><option value="Dresden"></option><option value="Hannover"></option><option value="Nürnberg"></option><option value="Bochum"></option><option value="Wuppertal"></option><option value="Bayern"></option><option value="Baden-Württemberg"></option><option value="Nordrhein-Westfalen"></option><option value="Hessen"></option><option value="Sachsen"></option><option value="Niedersachsen"></option><option value="Brandenburg"></option><option value="Rheinland-Pfalz"></option><option value="Schleswig-Holstein"></option><option value="Thüringen"></option><option value="Germany"></option><option value="Austria"></option><option value="Switzerland"></option></datalist></form></div><script>(function(){
+var f=document.getElementById('locform'),i=document.getElementById('locin'),b=document.getElementById('locbtn');
+if(!f||!i){return}
+i.addEventListener('input',function(){var os=document.querySelectorAll('#loclist option');for(var n=0;n<os.length;n++){if(os[n].value===i.value){f.submit();return}}});
+if(b){b.addEventListener('click',function(){
+ if(!navigator.geolocation){return}
+ b.classList.add('busy');
+ navigator.geolocation.getCurrentPosition(function(p){
+  var C={Berlin:[52.52,13.40],Hamburg:[53.55,9.99],"München":[48.14,11.58],"Köln":[50.94,6.96],Frankfurt:[50.11,8.68],Stuttgart:[48.78,9.18],"Düsseldorf":[51.23,6.78],Leipzig:[51.34,12.37],Dortmund:[51.51,7.47],Bremen:[53.08,8.80],Hannover:[52.37,9.73],"Nürnberg":[49.45,11.08],Dresden:[51.05,13.74]};
+  var la=p.coords.latitude,lo=p.coords.longitude,best=null,bd=1e9;
+  for(var k in C){var a=la-C[k][0],o=lo-C[k][1],dd=a*a+o*o;if(dd<bd){bd=dd;best=k}}
+  if(best){i.value=best;f.submit()}else{b.classList.remove('busy')}
+ },function(){b.classList.remove('busy')},{timeout:8000,maximumAge:600000});
+})}
+})();
+</script>
+    
+    <h2>Events · live &amp; upcoming</h2><div class="feat"><a class="fcard" href="/e/210c7b37-43ec-43d2-b2a4-c87eb8b6c919"><img class="fimg" src="/e/210c7b37-43ec-43d2-b2a4-c87eb8b6c919/banner.svg" alt="" loading="lazy"><div class="fscrim"></div><div class="fid"><span class="fnm">Ticketed</span></div><div class="fcap"><div class="ftitle">Season launch night</div><div class="fmeta">FC Beispiel · 06 Sep</div><div class="fstats"><div class="estats"><span class="est" title="going"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.2"/><path d="M3.5 19c0-3 2.5-5 5.5-5s5.5 2 5.5 5"/><path d="M16 6.2a3 3 0 0 1 0 5.6M17.5 14c2.2.4 3.7 2 3.7 4.4"/></svg>2</span><span class="est" title="followers"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20S3 14.6 3 8.9C3 6 5.1 4 7.7 4c1.8 0 3.3 1 4.3 2.4C13 5 14.5 4 16.3 4 18.9 4 21 6 21 8.9 21 14.6 12 20 12 20Z"/></svg>1</span><span class="est" title="shares"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="12" r="2.4"/><circle cx="17.5" cy="6" r="2.4"/><circle cx="17.5" cy="18" r="2.4"/><path d="m8.2 10.9 7.1-3.8M8.2 13.1l7.1 3.8"/></svg>0</span></div></div></div></a><a class="fcard" href="/e/e553eef1-8d40-448b-9ddd-2c4a63250010"><img class="fimg" src="/e/e553eef1-8d40-448b-9ddd-2c4a63250010/banner.svg" alt="" loading="lazy"><div class="fscrim"></div><div class="fid"><span class="fnm">Apply</span></div><div class="fcap"><div class="ftitle">Kreisliga A — season opening ceremony</div><div class="fmeta">Berliner Fußball-Verband · 13 Sep</div><div class="fstats"><div class="estats"><span class="est" title="going"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.2"/><path d="M3.5 19c0-3 2.5-5 5.5-5s5.5 2 5.5 5"/><path d="M16 6.2a3 3 0 0 1 0 5.6M17.5 14c2.2.4 3.7 2 3.7 4.4"/></svg>0</span><span class="est" title="followers"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20S3 14.6 3 8.9C3 6 5.1 4 7.7 4c1.8 0 3.3 1 4.3 2.4C13 5 14.5 4 16.3 4 18.9 4 21 6 21 8.9 21 14.6 12 20 12 20Z"/></svg>0</span><span class="est" title="shares"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="12" r="2.4"/><circle cx="17.5" cy="6" r="2.4"/><circle cx="17.5" cy="18" r="2.4"/><path d="m8.2 10.9 7.1-3.8M8.2 13.1l7.1 3.8"/></svg>0</span></div></div></div></a><a class="fcard" href="/e/04a85b64-357a-42c8-8bf7-0b2579205709"><img class="fimg" src="/e/04a85b64-357a-42c8-8bf7-0b2579205709/banner.svg" alt="" loading="lazy"><div class="fscrim"></div><div class="fid"><span class="fnm">Free</span></div><div class="fcap"><div class="ftitle">Open sparring &amp; meet — Kreuzberg BC</div><div class="fmeta">Rico 'The Raven' Vargas · 17 Sep</div><div class="fstats"><div class="estats"><span class="est" title="going"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.2"/><path d="M3.5 19c0-3 2.5-5 5.5-5s5.5 2 5.5 5"/><path d="M16 6.2a3 3 0 0 1 0 5.6M17.5 14c2.2.4 3.7 2 3.7 4.4"/></svg>0</span><span class="est" title="followers"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20S3 14.6 3 8.9C3 6 5.1 4 7.7 4c1.8 0 3.3 1 4.3 2.4C13 5 14.5 4 16.3 4 18.9 4 21 6 21 8.9 21 14.6 12 20 12 20Z"/></svg>2</span><span class="est" title="shares"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="12" r="2.4"/><circle cx="17.5" cy="6" r="2.4"/><circle cx="17.5" cy="18" r="2.4"/><path d="m8.2 10.9 7.1-3.8M8.2 13.1l7.1 3.8"/></svg>0</span></div></div></div></a></div>
+    <section class="mapcard">
+    <div class="mapgrid" aria-hidden="true"></div>
+    <div class="mapcon">
+      <span class="mappin"><svg viewBox="0 0 24 24" width="26" height="26" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" d="M12 21s7-6.3 7-11a7 7 0 1 0-14 0c0 4.7 7 11 7 11Z"/><circle cx="12" cy="10" r="2.4" fill="none" stroke="currentColor" stroke-width="1.7"/></svg></span>
+      <div class="maptx"><div class="mapt">Event map</div><div class="maps">See the matches, fight nights and meet-ups happening near you — plotted on a live map.</div></div>
+      <a class="btn" href="/map">Open the map →</a>
+    </div>
+  </section>
+    <h2>Clubs &amp; federations</h2><div class="dlist"><a class="dcard" href="/club/ccf40986-5531-4e68-9301-2784e9883646"><div class="dav"><svg viewBox="0 0 104 104" xmlns="http://www.w3.org/2000/svg"><rect width="104" height="104" fill="#0B0B0C"/><text x="52" y="52" dy=".36em" text-anchor="middle" font-family="Helvetica,Arial,sans-serif" font-size="40" font-weight="800" fill="#EDE9DF">BS</text></svg></div><div class="dmeta"><div class="dt-title">Berliner SC</div><div class="dt-sub">football · Berlin</div></div><span class="dbadge">club</span></a><a class="dcard" href="/club/f2bc47be-501e-4908-af4f-cbacc4ba0b14"><div class="dav"><svg viewBox="0 0 104 104" xmlns="http://www.w3.org/2000/svg"><rect width="104" height="104" fill="#0B0B0C"/><text x="52" y="52" dy=".36em" text-anchor="middle" font-family="Helvetica,Arial,sans-serif" font-size="40" font-weight="800" fill="#EDE9DF">FB</text></svg></div><div class="dmeta"><div class="dt-title">FC Beispiel<span class="vbadge" title="Verified — official page" aria-label="verified"><svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><circle cx="8" cy="8" r="6.4"/><path d="m5.3 8.2 1.8 1.8 3.7-3.9" stroke-linecap="round" stroke-linejoin="round"/></svg></span></div><div class="dt-sub">football · Berlin</div></div><span class="dbadge">club</span></a><a class="dcard" href="/club/8ebcf32a-ea90-4b4f-9aa3-e56138f2154f"><div class="dav"><svg viewBox="0 0 104 104" xmlns="http://www.w3.org/2000/svg"><rect width="104" height="104" fill="#0B0B0C"/><text x="52" y="52" dy=".36em" text-anchor="middle" font-family="Helvetica,Arial,sans-serif" font-size="40" font-weight="800" fill="#EDE9DF">SE</text></svg></div><div class="dmeta"><div class="dt-title">SV Example</div><div class="dt-sub">football · Cologne</div></div><span class="dbadge">club</span></a><a class="dcard" href="/club/0bb76197-1a14-49be-a75c-e61185ef4877"><div class="dav"><svg viewBox="0 0 104 104" xmlns="http://www.w3.org/2000/svg"><rect width="104" height="104" fill="#0B0B0C"/><text x="52" y="52" dy=".36em" text-anchor="middle" font-family="Helvetica,Arial,sans-serif" font-size="40" font-weight="800" fill="#EDE9DF">SA</text></svg></div><div class="dmeta"><div class="dt-title">SpVgg Altdorf</div><div class="dt-sub">football · Bavaria</div></div><span class="dbadge">club</span></a><a class="dcard" href="/club/3751631c-f591-477b-b447-97efa8ebe6a0"><div class="dav"><svg viewBox="0 0 104 104" xmlns="http://www.w3.org/2000/svg"><rect width="104" height="104" fill="#0B0B0C"/><text x="52" y="52" dy=".36em" text-anchor="middle" font-family="Helvetica,Arial,sans-serif" font-size="40" font-weight="800" fill="#EDE9DF">TM</text></svg></div><div class="dmeta"><div class="dt-title">TSV Musterstadt</div><div class="dt-sub">football · Hamburg</div></div><span class="dbadge">club</span></a></div>
+    
+  </div>
+  <div class="prov">The events home for sports and competitive culture.<br><a href="/about" style="border-bottom:1px solid var(--b)">For athletes &amp; clubs — see what you get →</a>
+    <span class="provl"><a href="/changelog">Changelog</a><a href="/discord"><svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" style="vertical-align:-2px"><path d="M20.317 4.37a19.79 19.79 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.74 19.74 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 0 0 .031.057 19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028c.462-.63.874-1.295 1.226-1.994a.076.076 0 0 0-.041-.106 13.1 13.1 0 0 1-1.872-.892.077.077 0 0 1-.008-.128c.126-.094.252-.192.372-.291a.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 0 1 .078.009c.12.099.246.198.373.292a.077.077 0 0 1-.006.127c-.598.35-1.22.645-1.873.891a.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.84 19.84 0 0 0 6.002-3.03.077.077 0 0 0 .032-.056c.5-5.177-.838-9.674-3.549-13.66a.06.06 0 0 0-.031-.028ZM8.02 15.331c-1.183 0-2.157-1.086-2.157-2.419 0-1.333.955-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.332-.956 2.418-2.157 2.418Zm7.975 0c-1.183 0-2.157-1.086-2.157-2.419 0-1.333.955-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.332-.946 2.418-2.157 2.418Z"/></svg> Discord</a><a href="/agb">Terms</a><a href="/impressum">Legal notice</a><a href="/datenschutz">Privacy</a></span></div>
+  <nav class="bnav" aria-label="Primary"><div class="bninner">
+    <a href="/" class="on" aria-label="Your Furia" title="Your Furia" aria-current="page"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 10.6 12 3l9 7.6"/><path d="M5.2 9.4V20h13.6V9.4"/></svg></a>
+    <a href="/signup" class="" aria-label="Following" title="Following"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20S3 14.6 3 8.9C3 6 5.1 4 7.7 4c1.8 0 3.3 1 4.3 2.4C13 5 14.5 4 16.3 4 18.9 4 21 6 21 8.9 21 14.6 12 20 12 20Z"/></svg></a>
+    <a href="/create" class="" aria-label="Create event" title="Create event"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="5"/><path d="M12 8.5v7M8.5 12h7"/></svg></a>
+    
+    <a href="/signup" class="" aria-label="Sign up" title="Sign up"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="3.6"/><path d="M5.5 20c0-3.7 2.9-6.2 6.5-6.2S18.5 16.3 18.5 20"/></svg></a>
+  </div></nav>
+<script>
+window.hzShare=function(b){
+  var r=b.getAttribute('data-u'), u=r?(r.charAt(0)==='/'?location.origin+r:r):location.href;
+  var t=b.getAttribute('data-t')||document.title;
+  var x=b.getAttribute('data-x')||t;
+  var im=b.getAttribute('data-img');
+  var done=function(msg){var o=b.innerHTML;b.innerHTML=msg;setTimeout(function(){b.innerHTML=o},1800)};
+  var link=function(){
+    if(navigator.share){navigator.share({title:t,text:x,url:u}).catch(function(){})}
+    else if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(u).then(function(){done('Link copied ✓')})}
+    else{prompt('Copy this link',u)}
+  };
+  if(!im||!navigator.canShare){return link()}
+  // Fetch the card, then ask whether this browser will actually take a file.
+  // Never block the tap on the network: if the card is slow or missing, the link
+  // still goes out. A share that fails silently is worse than a plain link.
+  var to=setTimeout(link,2500), sent=false;
+  fetch(im.charAt(0)==='/'?location.origin+im:im).then(function(r){ if(!r.ok)throw 0; return r.blob() }).then(function(bl){
+    if(sent)return; clearTimeout(to);
+    var f=new File([bl],'furia-matchday.png',{type:bl.type||'image/png'});
+    if(navigator.canShare({files:[f]})){ sent=true; return navigator.share({files:[f],title:t,text:x,url:u}) }
+    sent=true; link();
+  }).catch(function(){ if(!sent){sent=true;clearTimeout(to);link()} });
+};
+</script>
+</body></html>
