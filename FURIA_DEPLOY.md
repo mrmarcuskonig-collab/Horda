@@ -1,47 +1,35 @@
-# Furia — full app, ready to deploy
+# Furia — full app snapshot (rename + mark + redirect + rating + Fan ID + challenges + phone verify)
 
-This is the **complete application** (formerly Horda), with everything applied and
-verified together:
+Complete application, everything applied and verified together:
+- Furia rename (text, code, env vars, joinfuria.com, source-tag)
+- ember-spark mark; canonical `.app`/`www` → `.com` redirect
+- tiered rating
+- canonical **phone-keyed Fan ID** (person layer) + **/verify-phone** OTP flow
+  (adapter, STUB by default — real SMS/WhatsApp is one env switch away, no new dep)
+- **attendance challenges** (/c/:kind/:id, owner CSV export) with an owner
+  "Challenges" link on the athlete page and the club/team/association edit page
+Migrations 0060–0063 run on boot.
 
-- Full Horda → Furia rename (text, code identifiers, env-var names, package name,
-  `joinfuria.com`, and the ADR-0002 `source` data-tag).
-- The provenance-tiered rating (anyone can rate a hosted event after it ends;
-  public score stays verified-only).
-- The **ember spark** mark (widest variant) in nav, favicon, read-model header,
-  and both share-card generators.
-- The pre-existing provenance bug-fix in `createClaim`.
-- New migration `db/migrations/0060_rebrand_source.sql` (runs automatically on boot).
+**Verified in-container:** full suite green (46 test files, 0 failures), crawler
+155/0, landing renders "Furia", zero "Horda" left. No `node_modules` in the zip.
 
-**Verified in-container:** full suite green (42 test files, 0 failures), crawler
-155 pages / 0 problems, landing renders "Furia" with zero "Horda" left.
-`node_modules` is NOT included — Render (or `npm install`) restores it.
-
-## Deploy (branch + PR — the safe way)
-
-This tree is my reconciled copy of your app. If you've pushed anything to `main`
-since our last sync, use the PR flow so GitHub shows you the diff before merging —
-do **not** force-overwrite `main` blind.
-
+## Deploy (branch + PR)
 ```bash
-# from a fresh clone of your repo (or your working copy):
-git checkout -b furia-launch
-# copy the contents of this zip over the repo root, replacing files, then:
-git add -A
-git commit -m "Launch: rebrand to Furia + tiered rating + ember-spark mark"
-git push -u origin furia-launch
-# open the PR, review the diff, merge → Render redeploys from main
+git checkout -b furia-snapshot
+# copy this zip's contents over the repo root, replacing files, then:
+git add -A && git commit -m "Furia snapshot: +Fan ID verify, challenges link"
+git push -u origin furia-snapshot   # open PR, review diff, merge → Render redeploys
 ```
 
-## Out-of-repo checklist (these live outside the code)
+## Out-of-repo (unchanged)
+Render env `HORDA_*→FURIA_*` (esp. `FURIA_URL=https://joinfuria.com`); fix the
+`ANTHROPIC_API_KEY` typo; joinfuria.com/.app DNS at Render; Resend verify
+joinfuria.com then flip `EMAIL_FROM`; Google OAuth redirect URIs.
 
-1. **Render env vars** — rename each `HORDA_*` to `FURIA_*` (same values). The
-   important ones: `FURIA_URL` = `https://joinfuria.com`, plus the fee/Plus knobs
-   (`FURIA_PLATFORM_FEE_PCT`, `FURIA_PLUS_*`). `DATABASE_URL` is unchanged. If you'd
-   rather not do this in lockstep, tell me and I'll make the code read `FURIA_*`
-   first and fall back to `HORDA_*`.
-2. **Domain** — point `joinfuria.com` DNS at Render, add it as a custom domain,
-   and keep `joinhorda.com` redirecting to it so old links survive.
-3. **Email** — verify `joinfuria.com` in Resend, or magic-link emails won't send.
-
-Migrations (incl. `0060`, which flips the `source` default to `furia` and backfills
-existing rows) run automatically on boot via `applySchema`. No manual DB step.
+## Notes
+- Phone verify (`/verify-phone`) is reachable but delivery is a no-op until you wire
+  a real OTP provider (`src/web/otp.ts` → branch on `OTP_PROVIDER`); in dev the code
+  shows on-screen. No fan-facing changelog entry for it until a provider is live.
+- Challenges link is owner-facing (athlete page + entity edit); a public fan-facing
+  tab on the club/athlete page is a small follow-up.
+- This snapshot supersedes the earlier delta zips — deploy THIS.
