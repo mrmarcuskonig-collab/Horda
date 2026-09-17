@@ -156,6 +156,10 @@ export async function applySchema(db: Database, migrationsDir = 'db/migrations')
         '0059': () => colExists('verdict', 'attendance'),
 
         '0060': async () => false,  // data-only rebrand; must run on legacy DBs
+        '0061': () => relExists('public.person'),
+        '0062': () => relExists('public.challenge'),
+        '0063': () => relExists('public.phone_otp'),
+        '0064': () => relExists('public.challenge_event'),
       };
       for (const f of files) {
         const probe = present[f.slice(0, 4)];

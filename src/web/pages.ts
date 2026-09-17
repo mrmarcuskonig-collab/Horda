@@ -451,6 +451,7 @@ export function renderAthletePage(d: {
   shop?: { id: string; kind: string; title: string; subtitle: string | null; url: string | null; priceCents: number | null }[];
   themedBanner?: string;
   isFollowing?: boolean;   // viewer already follows → show Following/Unfollow, not Follow
+  challengeStrip?: string; // Option C hero strip for the issuer's top active challenge
 }): string {
   const isMember = !!d.membership;
   const viewerTier = d.membership?.tierLevel ?? null;
@@ -656,7 +657,7 @@ export function renderAthletePage(d: {
   const sectionMap: Record<string, string> = { nextup: attendBlock, events: eventsBlock, connected: connectionsBlock };
   const sectionsHtml = enabled.map(s => `<div id="sec-${s.key}" class="secanchor">${sectionMap[s.key] ?? ''}</div>`).join('\n');
   // Create lives in the nav (the "+"); the page keeps only page-management actions.
-  const customizeBtn = d.canEdit ? `<div class="row" style="margin:6px 0 0"><a class="btn sm" href="/athlete/${p.athleteId}/customize">Edit this page</a><a class="btn ghost sm" href="/athlete/${p.athleteId}/insights">Insights</a><a class="btn ghost sm" href="/settings">Account settings</a></div>` : '';
+  const customizeBtn = d.canEdit ? `<div class="row" style="margin:6px 0 0"><a class="btn sm" href="/athlete/${p.athleteId}/customize">Edit this page</a><a class="btn ghost sm" href="/c/athlete/${p.athleteId}">Challenges</a><a class="btn ghost sm" href="/athlete/${p.athleteId}/insights">Insights</a><a class="btn ghost sm" href="/settings">Account settings</a></div>` : '';
   // Build Order #3: collective-goal progress bars — visible to ALL fans (the recruitment driver).
   const goalsBlock = d.goalsHtml ? `<section class="card"><style>.gbar{height:12px;border-radius:999px;background:var(--s);border:1px solid var(--b);overflow:hidden;margin:8px 0}.gbar span{display:block;height:100%;background:var(--bone)}.gbar.hit span{background:#3fb950}.goalcard{border:1px solid var(--b);border-radius:14px;padding:14px;margin:10px 0;background:var(--s)}.h2h{display:flex;align-items:center;gap:10px;margin:6px 0}.h2h .side{flex:1;text-align:center}.h2h .n{font-size:24px;font-weight:800}</style><div class="ch"><h2>Goals</h2></div>${d.goalsHtml}</section>` : '';
 
@@ -771,6 +772,7 @@ export function renderAthletePage(d: {
   ${cover}
   <div class="wrap">
     ${profhead}
+    ${d.challengeStrip ?? ''}
     ${tabs}
     ${d.activation ?? ''}
     ${customizeBtn}
@@ -1113,6 +1115,7 @@ export function renderEntityEdit(d: { kind: 'club' | 'team' | 'association'; id:
   return layout(`Edit your ${kindLabel} page`, `
     ${profileSwitcher({ personalActive: false, pages: managed })}
     <h1>Edit your ${kindLabel} page</h1>
+    <div class="row" style="margin:0 0 10px"><a class="btn ghost sm" href="/c/${esc(d.kind)}/${esc(d.id)}">Challenges</a></div>
     <p class="mut" style="margin:-4px 0 6px">This is your public ${kindLabel} page — name, about, photos and links. It's separate from your personal account.</p>
     ${d.error ? `<div class="card" style="border-color:#ff6b6b;margin:8px 0"><strong style="color:#ff6b6b">${esc(d.error)}</strong></div>` : ''}
     <div class="card" style="margin-top:6px">

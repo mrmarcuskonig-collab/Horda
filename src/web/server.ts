@@ -56,6 +56,11 @@ import { notify, listNotifications, unreadCount, markAllRead } from '../db/notif
 import { parseSeasonLines, shiftDate } from '../db/events_repo.ts';
 import { renderNotifications, renderConnections, renderNotifPrefs, NOTIF_KEYS } from './pages.ts';
 import { formatPicker } from './claim_web.ts';
+import { linkPersonByPhone, personFor, startPhoneVerification, confirmPhoneVerification } from '../db/identity_repo.ts';
+import { makeOtp } from './otp.ts';
+import { renderVerifyPhone } from './otp_web.ts';
+import { createChallenge, listChallengesForHost, progressFor, qualifiers, topChallengeForHost, getChallengeEvents, listLinkableEvents, type HostKind } from '../db/challenge_repo.ts';
+import { renderChallengesPage, renderChallengeStrip } from './challenge_web.ts';
 import { requestLink, setLinkStatus, getLink, activeParents, parentsOf, childrenOf } from '../db/connection_repo.ts';
 import { renderPass, renderRecord, renderCheckin, renderCheckedIn, claimCta } from './claim_web.ts';
 import { createVerdict, verdictEligibility, roomScore, eventReport } from '../db/verdict_repo.ts';
@@ -117,6 +122,7 @@ function defaultLangFor(headers: import('node:http').IncomingHttpHeaders): 'en' 
   return /(^|[,;\s])de\b/i.test(h('accept-language')) ? 'de' : 'en';
 }
 const emailer = getEmailer();
+const otp = makeOtp();
 
 const DEMO_FALLBACK = process.env.FURIA_DEMO !== '0';  // default on: usable without login
 const parseCookies = (h?: string): Record<string, string> => Object.fromEntries((h ?? '').split(';').map(c => c.trim().split('=')).filter(p => p[0]).map(([k, ...v]) => [k, decodeURIComponent(v.join('='))]));
@@ -178,6 +184,24 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
         res.end(hr.body);
         return;
       }
+      // Canonical host: 301 alias domains to the one true host, so links, SEO and
+      // cookies all live in one place. `.app` is HTTPS-only (HSTS preload), so this
+      // app-level redirect is the reliable way to send joinfuria.app → joinfuria.com
+      // (Render has no per-domain redirect rule). Only LISTED aliases are touched —
+      // the *.onrender.com host and localhost pass straight through, so health
+      // checks and local dev are unaffected. Both knobs are env-overridable.
+      {
+        const CANON = (process.env.CANONICAL_HOST || 'joinfuria.com').toLowerCase();
+        const aliases = (process.env.CANONICAL_ALIASES ?? 'www.joinfuria.com,joinfuria.app,www.joinfuria.app')
+          .split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
+        const reqHost = (((req.headers['x-forwarded-host'] as string) || req.headers.host || '')
+          .split(',')[0].split(':')[0].trim().toLowerCase());
+        if (reqHost && reqHost !== CANON && aliases.includes(reqHost)) {
+          res.writeHead(301, { location: `https://${CANON}${req.url ?? '/'}`, 'cache-control': 'no-store' });
+          res.end();
+          return;
+        }
+      }
       // Vanity handle → public entity page, KEEPING the pretty URL. A single,
       // non-reserved segment like /fcrival is resolved to the canonical entity
       // route INTERNALLY (no redirect), so joinfuria.com/<handle> stays in the
@@ -206,6 +230,13 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
       const ownedAthleteForNav = ownedForNav.find(e => e.kind === 'athlete');
       const viewerCreateHref = ownedAthleteForNav ? `/athlete/${ownedAthleteForNav.id}/compose` : undefined;
       const canEdit = (kind: string, id: string) => viewerGuest ? Promise.resolve(false) : owns(db, account?.id ?? null, kind, id);
+      // Fan-facing challenge strip for an entity page: its top active challenge +
+      // the viewer's own progress. Empty string when the entity has no challenge.
+      const challengeStripFor = async (kind: HostKind, id: string): Promise<string> => {
+        const c = await topChallengeForHost(db, kind, id);
+        if (!c) return '';
+        return renderChallengeStrip({ kind, id, c, progress: viewerGuest ? null : await progressFor(db, c.id, viewer) });
+      };
       const adminFlag = !!account && (account.id === ids.demoAccountId ? true : await accountIsAdmin(db, account.id));
       const fwdProto = (req.headers['x-forwarded-proto'] as string | undefined)?.split(',')[0];
       const origin = process.env.FURIA_URL || `${fwdProto || 'https'}://${req.headers['x-forwarded-host'] || req.headers.host || 'localhost'}`;
@@ -1015,6 +1046,66 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
         if (cl.status === 'claimed') await notify(db, { fanId: claimFan, kind: 'claim_confirmed', headline: `You're confirmed for ${d.title}${fmtLabel ? ` — ${fmtLabel}` : ''}.`, href: `/pass/${cl.passToken}`, eventId: eid });
         return redirect(res, `/pass/${cl.passToken}`);
       };
+      // Phone verification (OTP) — /verify-phone. Confirming a code flips the person's
+      // verified_at. Login stays email-only; this only strengthens the Fan ID. Real
+      // delivery is via the OTP adapter (stub by default) — in dev the code is shown.
+      if (path === '/verify-phone' || path.startsWith('/verify-phone/')) {
+        if (!account || viewerGuest) return redirect(res, '/login?next=/verify-phone');
+        const person = await personFor(db, account.id);
+        const vphone = person?.phone ?? await getAccountPhone(db, account.id);
+        if (path === '/verify-phone' && req.method === 'GET') {
+          if (person?.verified) return html(res, renderVerifyPhone({ stage: 'done' }));
+          return html(res, renderVerifyPhone({ stage: vphone ? 'start' : 'need_phone', phone: vphone ?? undefined }));
+        }
+        if (path === '/verify-phone/start' && req.method === 'POST') {
+          if (!vphone) return html(res, renderVerifyPhone({ stage: 'need_phone' }));
+          await linkPersonByPhone(db, account.id, vphone);
+          const r = await startPhoneVerification(db, vphone);
+          if (!r) return html(res, renderVerifyPhone({ stage: 'need_phone' }));
+          await otp.send(r.phone, r.code).catch(() => {});
+          return html(res, renderVerifyPhone({ stage: 'code', phone: r.phone, devCode: otp.enabled ? null : r.code }));
+        }
+        if (path === '/verify-phone/confirm' && req.method === 'POST') {
+          const cf = await parseForm(req);
+          const ph = String(cf.phone || vphone || '');
+          await linkPersonByPhone(db, account.id, ph);
+          const passed = await confirmPhoneVerification(db, ph, cf.code || '');
+          return html(res, passed ? renderVerifyPhone({ stage: 'done' }) : renderVerifyPhone({ stage: 'code', phone: ph, error: "That code didn't match or has expired. Try again." }));
+        }
+        return redirect(res, '/verify-phone');
+      }
+      // Challenges (attendance) — /c/:kind/:id. Owners create challenges and export
+      // the qualifier list (they fulfil the reward manually, raffle-style); fans see
+      // active challenges and their own progress, computed from real presence.
+      let chM: RegExpMatchArray | null;
+      if (chM = path.match(/^\/c\/(athlete|club|team|association)\/([^/]+)\/([^/]+)\/qualifiers\.csv$/)) {
+        const [, kind, id, cid] = chM;
+        if (!await owns(db, account?.id ?? null, kind, id)) return redirect(res, `/c/${kind}/${id}`);
+        const q = await qualifiers(db, cid);
+        const csv = [['fan_id', 'attended'], ...q.map(x => [x.fanId, String(x.count)])].map(r => r.join(',')).join('\n');
+        res.writeHead(200, { 'content-type': 'text/csv; charset=utf-8', 'content-disposition': `attachment; filename="qualifiers-${cid}.csv"` });
+        res.end(csv); return;
+      }
+      if (chM = path.match(/^\/c\/(athlete|club|team|association)\/([^/]+)$/)) {
+        const kind = chM[1] as HostKind, id = chM[2];
+        const isOwner = await owns(db, account?.id ?? null, kind, id);
+        if (req.method === 'POST') {
+          if (!isOwner) return redirect(res, `/c/${kind}/${id}`);
+          const cf = await parseForm(req);
+          // Selected events: the ticked "ev_<uuid>" checkboxes plus any UUIDs pasted
+          // as links/ids in the free-text box (lets you link an event you don't organise).
+          const uuidRe = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi;
+          const picked = Object.keys(cf).filter(k => k.startsWith('ev_') && cf[k]).map(k => k.slice(3));
+          const pasted = (cf.extra_events || '').match(uuidRe) ?? [];
+          const eventIds = [...new Set([...picked, ...pasted])];
+          await createChallenge(db, { issuerKind: kind, issuerId: id, title: cf.title || 'Challenge', threshold: Number(cf.threshold) || 1, eventIds, rewardText: cf.reward || '' });
+          return redirect(res, `/c/${kind}/${id}`);
+        }
+        const cs = await listChallengesForHost(db, kind, id);
+        const withProg = await Promise.all(cs.map(async c => ({ c, progress: viewerGuest ? null : await progressFor(db, c.id, viewer), eventCount: (await getChallengeEvents(db, c.id)).length })));
+        const linkable = isOwner ? await listLinkableEvents(db, kind, id) : [];
+        return html(res, renderChallengesPage({ kind, id, name: (await hostName(db, kind, id)) || kind, isOwner, linkable, challenges: withProg }));
+      }
       if (req.method === 'POST' && (em = path.match(/^\/claim\/([^/]+)$/))) {
         const eid = em[1];
         const d = await getEventDetail(db, eid);
@@ -1045,6 +1136,15 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
           const msg = loginEmail(link, code);
           void emailer.send({ to: email, subject: msg.subject, html: msg.html, text: msg.text }).catch(() => false);
           return html(res, renderMagicSent({ email, next, devLink: emailer.enabled ? null : link, devCode: emailer.enabled ? null : code }));
+        }
+        // Canonical Fan ID: the checkout is the first identified touch. If the fan
+        // gave a phone (posted here or already on the account), key them to a
+        // canonical person so the same human is recognisable across tenants. Phone
+        // stays optional and is NEVER a login factor — this only builds identity.
+        if (account) {
+          if (f.phone) await updateAccountPhone(db, account.id, f.phone);
+          const ph = await getAccountPhone(db, account.id);
+          if (ph) await linkPersonByPhone(db, account.id, ph);
         }
         return executeClaim(eid, d, viewer, formatId, partySize, promo, via, promoCode);
       }
@@ -2384,7 +2484,7 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
         // Does this viewer already follow? Drives Follow vs Following on the page —
         // it always said "Follow", even to someone who already did.
         const athFollowing = fanId ? await isFollowing(db, fanId, 'athlete', m[1]) : false;
-        return html(res, renderAthletePage({ guest, fanId, profile, upcoming, attendance, affiliations, events, connections: athConnections, scheduleHref: `/host/athlete/${m[1]}/new`, tiers, membership, superfan, loyalty: fanId ? { score: lscore, threshold: 200 } : null, memberCount: members, canEdit: athOwner, activation: athAct, sections: athSections, ogTags: athOg, previewAsFan: realOwner && asFan, media: athMedia, sponsors: athSponsors, banner: athBanner, goalsHtml, sportsLabel: athSportsLabel, createHref: viewerCreateHref, shop: athShop, themedBanner: athThemedBanner, isFollowing: athFollowing }));
+        return html(res, renderAthletePage({ guest, fanId, profile, upcoming, attendance, affiliations, events, connections: athConnections, scheduleHref: `/host/athlete/${m[1]}/new`, tiers, membership, superfan, loyalty: fanId ? { score: lscore, threshold: 200 } : null, memberCount: members, canEdit: athOwner, activation: athAct, sections: athSections, ogTags: athOg, previewAsFan: realOwner && asFan, media: athMedia, sponsors: athSponsors, banner: athBanner, goalsHtml, sportsLabel: athSportsLabel, createHref: viewerCreateHref, shop: athShop, themedBanner: athThemedBanner, isFollowing: athFollowing, challengeStrip: await challengeStripFor('athlete', m[1]) }));
       }
       // Club / team / federation PAGE editor — same depth as the athlete + personal
       // editors (name, about, photos, links), owner-gated, with the profile switcher.
@@ -2446,7 +2546,7 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
           tagline: brand.tagline, description: brand.description, avatarUrl: brand.avatarUrl, bannerUrl: brand.bannerUrl, links: brand.links,
           tabs: [{ label: 'Highlight' }, { label: 'Squad' }, { label: 'Fixtures' }, { label: 'Shop', shop: true }],
           statLine, notice, post: cp ? { author: club.name, body: cp.body, date: cp.date } : undefined,
-          upcoming, attendance, tableHtml, merch: true, backHref: '/', editAction: `/entity/club/${m[1]}/branding`, customizeHref: `/club/${m[1]}/customize`, canEdit: await canEdit('club', m[1]),
+          upcoming, attendance, tableHtml, merch: true, backHref: '/', editAction: `/entity/club/${m[1]}/branding`, customizeHref: `/club/${m[1]}/customize`, canEdit: await canEdit('club', m[1]), challengeStrip: await challengeStripFor('club', m[1]),
           ogTags: ogMeta({ title: `${club.name} on Furia`, description: brand.tagline || `Follow ${club.name} on Furia — matchdays, members-only news and tickets.`, url: publicUrlFor(origin, 'club', m[1], club.handle), image: brand.bannerUrl || brand.avatarUrl, type: 'profile' }),
           activation: (await canEdit('club', m[1])) ? renderChecklist(await entityChecklist(db, 'club', m[1])) : '',
           events: await withMine(db, viewerGuest ? null : viewer, await listProfileEvents(db, 'club', m[1])), scheduleHref: `/host/club/${m[1]}/new`,
@@ -2473,7 +2573,7 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
           meta: `${team.sport} · ${[team.division, team.gender].filter(Boolean).join(' · ')}`, description: brand.description,
           tabs: [{ label: 'Highlight' }, { label: 'Squad' }, { label: 'Fixtures' }, { label: 'Shop', shop: true }],
           statLine, notice: nf ? `[Notice] Next match: ${team.name} vs ${nf.opp} — ${nf.date ?? 'soon'}.` : '',
-          upcoming, attendance, tableHtml, merch: true, backHref: `/club/${team.club_id}`, editAction: `/entity/team/${m[1]}/branding`, customizeHref: `/team/${m[1]}/customize`, canEdit: await canEdit('team', m[1]),
+          upcoming, attendance, tableHtml, merch: true, backHref: `/club/${team.club_id}`, editAction: `/entity/team/${m[1]}/branding`, customizeHref: `/team/${m[1]}/customize`, canEdit: await canEdit('team', m[1]), challengeStrip: await challengeStripFor('team', m[1]),
           ogTags: ogMeta({ title: `${team.name} on Furia`, description: brand.tagline || `Follow ${team.name} on Furia — matchdays, members-only news and tickets.`, url: publicUrlFor(origin, 'team', m[1], team.handle), image: brand.bannerUrl || brand.avatarUrl, type: 'profile' }),
           activation: (await canEdit('team', m[1])) ? renderChecklist(await entityChecklist(db, 'team', m[1])) : '',
           events: await withMine(db, viewerGuest ? null : viewer, await listProfileEvents(db, 'team', m[1])), scheduleHref: `/host/team/${m[1]}/new`,
@@ -2494,7 +2594,7 @@ export async function buildApp(db: Database, ids: DemoIds): Promise<Server> {
           tabs: [{ label: 'Highlight' }, { label: 'Members' }, { label: 'Competitions' }, { label: 'Notice' }],
           statLine: { label: 'MEMBER CLUBS', value: String(clubs.length), sub: 'in sanctioned leagues' },
           notice: `[Notice] ${assoc.name} sanctions ${leagues.length} competition(s).`,
-          merch: false, backHref: '/', editAction: `/entity/association/${m[1]}/branding`, customizeHref: `/association/${m[1]}/customize`, canEdit: await canEdit('association', m[1]),
+          merch: false, backHref: '/', editAction: `/entity/association/${m[1]}/branding`, customizeHref: `/association/${m[1]}/customize`, canEdit: await canEdit('association', m[1]), challengeStrip: await challengeStripFor('association', m[1]),
           ogTags: ogMeta({ title: `${assoc.name} on Furia`, description: brand.tagline || `${assoc.name} on Furia — the home for its clubs, competitions and fans.`, url: publicUrlFor(origin, 'association', m[1], assoc.handle), image: brand.bannerUrl || brand.avatarUrl, type: 'profile' }),
           activation: (await canEdit('association', m[1])) ? renderChecklist(await entityChecklist(db, 'association', m[1])) : '',
           events: await withMine(db, viewerGuest ? null : viewer, await listProfileEvents(db, 'association', m[1])), scheduleHref: `/host/association/${m[1]}/new`,

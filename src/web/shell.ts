@@ -39,6 +39,7 @@ export interface ProfileVM {
   backHref?: string;
   activation?: string;                // owner: "finish your setup" checklist (pre-rendered)
   ogTags?: string;                    // Open Graph / Twitter card meta (pre-rendered)
+  challengeStrip?: string;            // Option C hero strip for the entity's top active challenge
 }
 
 // Owner-only edit panel: pick a crest/avatar + banner; the client reads the files
@@ -182,7 +183,7 @@ export function renderEntityProfile(vm: ProfileVM): string {
   ${deskRail({ guest: vm.guest, fanId: vm.fanId, active: 'explore' })}
   ${backButton(vm.backHref)}
   ${hero}${tabs}
-  <div class="grid"><main>${vm.activation ?? ''}${vm.canEdit ? `<div class="row" style="margin:0 0 10px;gap:8px;flex-wrap:wrap">${vm.customizeHref ? `<a class="btn" href="${esc(vm.customizeHref)}">Edit this page</a>` : ''}<a class="btn ghost" href="/settings">Account settings</a></div>` : ''}${notice}${post}${attend}${eventsCard}${merch}</main>${aside}</div>
+  <div class="grid"><main>${vm.challengeStrip ?? ''}${vm.activation ?? ''}${vm.canEdit ? `<div class="row" style="margin:0 0 10px;gap:8px;flex-wrap:wrap">${vm.customizeHref ? `<a class="btn" href="${esc(vm.customizeHref)}">Edit this page</a>` : ''}<a class="btn ghost" href="/settings">Account settings</a></div>` : ''}${notice}${post}${attend}${eventsCard}${merch}</main>${aside}</div>
   ${gatebar}
   ${bottomNav({ guest: vm.guest, fanId: vm.fanId })}
   ${SHARE_SCRIPT}
